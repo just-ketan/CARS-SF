@@ -1,0 +1,1212 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  DOCUMENT CLASS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[12pt,a4paper]{article}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  PAGE LAYOUT
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage[a4paper,margin=1in]{geometry}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  FONT & ENCODING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  MATH
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{mathtools}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  TABLES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{threeparttable}
+\usepackage{caption}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  FIGURES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  TIKZ
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{tikz}
+
+\usetikzlibrary{
+	arrows.meta,
+	positioning,
+	shapes.geometric,
+	shapes.misc,
+	fit,
+	calc,
+	matrix
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  ALGORITHMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  CODE LISTINGS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  HYPERLINKS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{hyperref}
+
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	citecolor=blue,
+	urlcolor=blue
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  ENUMERATIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{enumitem}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  REFERENCES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage[numbers]{natbib}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  PDF IMPROVEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{microtype}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  CUSTOM COLUMN TYPES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  LISTING STYLE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\lstset{
+	basicstyle=\ttfamily\small,
+	breaklines=true,
+	frame=single,
+	numbers=left,
+	numberstyle=\tiny,
+	keywordstyle=\color{blue},
+	commentstyle=\color{green!60!black},
+	stringstyle=\color{red},
+	showstringspaces=false
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                  CUSTOM COMMANDS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\feature}[1]{\texttt{#1}}
+\newcommand{\module}[1]{\textbf{#1}}
+
+\newcommand{\dataset}{\textbf{RSNSD}}
+
+\newcommand{\slicenet}{\textbf{SliceNet}}
+
+\newcommand{\carsf}{\textbf{CARS-SF}}
+
+\newcommand{\urllc}{\texttt{URLLC}}
+
+\newcommand{\embb}{\texttt{eMBB}}
+
+\newcommand{\mmtc}{\texttt{mMTC}}
+
+\newpage
+
+\begin{document}
+\section{Introduction}
+
+The performance of Artificial Intelligence (AI)-driven network slicing algorithms is fundamentally dependent on the availability of representative datasets that accurately capture the characteristics of heterogeneous network traffic. Existing publicly available datasets primarily focus on intrusion detection, traffic classification, anomaly detection, or quality-of-service prediction. While these datasets have significantly contributed to networking research, they do not adequately represent the service-oriented communication patterns required for intelligent resource allocation in next-generation mobile networks.
+
+The emergence of Fifth Generation (5G) and Beyond Fifth Generation (B5G) networks introduces fundamentally different communication paradigms compared to conventional IP networks. Modern networks simultaneously support latency-critical healthcare applications, bandwidth-intensive educational services, delay-tolerant agricultural Internet of Things (IoT) deployments, and conventional Internet traffic. Consequently, intelligent network slicing algorithms require datasets that describe not only packet-level characteristics but also the contextual information influencing network behaviour.
+
+Most publicly available traffic datasets exhibit one or more of the following limitations:
+
+\begin{itemize}
+	
+	\item They focus primarily on cybersecurity applications rather than service-aware resource allocation.
+	
+	\item They contain application labels without explicitly modelling network slice requirements.
+	
+	\item They lack contextual information describing radio conditions, user mobility, network congestion, or infrastructure utilisation.
+	
+	\item They provide static packet traces collected under limited operating conditions instead of representing multiple network scenarios.
+	
+	\item They are generally collected from enterprise or campus environments rather than rural communication infrastructures.
+	
+\end{itemize}
+
+These limitations significantly reduce their applicability for training AI models intended for intelligent network slicing in rural deployments. In particular, reinforcement learning agents require environment-aware state representations, while supervised learning models require service-specific traffic labels accompanied by realistic Quality of Service (QoS) requirements. Existing datasets rarely satisfy both requirements simultaneously.
+
+To address these shortcomings, this work proposes the \textbf{Rural Service-aware Network Slicing Dataset (RSNSD)}, a synthetic yet statistically realistic dataset specifically designed for AI-assisted network slicing research. Rather than replaying existing packet traces, the proposed framework generates traffic using parameterised stochastic models representing realistic application behaviour. This enables the generation of diverse network flows while preserving reproducibility and allowing controlled experimentation under multiple network scenarios.
+
+Unlike traditional datasets that only capture packet headers or flow statistics, RSNSD incorporates three complementary information layers:
+
+\begin{enumerate}
+	
+	\item Traffic Characteristics describing packet- and flow-level behaviour.
+	
+	\item Network Context describing radio conditions, infrastructure utilisation, and user mobility.
+	
+	\item Service Intelligence describing application classes, network slice assignments, Quality of Service requirements, and scheduling labels.
+	
+\end{enumerate}
+
+The proposed dataset is specifically designed to support both supervised and reinforcement learning paradigms. Supervised learning models utilise traffic characteristics and contextual information to classify service categories, while reinforcement learning algorithms employ the contextual state information to learn adaptive slice allocation policies under varying network conditions.
+
+Furthermore, the dataset architecture has been designed using a modular generation pipeline consisting of independent traffic models, flow generation modules, context generation modules, Quality of Service modelling, schema validation, and dataset export mechanisms. This modular architecture enables future extensions without requiring modifications to the overall framework.
+
+The remainder of this chapter presents the complete design methodology adopted for RSNSD, including the dataset architecture, feature engineering process, metadata specification, traffic modelling strategy, contextual scenario generation, schema design, validation procedures, and extensibility considerations.
+
+\section{Dataset Design Objectives}
+
+The primary objective of the proposed Rural Service-aware Network Slicing Dataset (RSNSD) is to provide a comprehensive and extensible dataset for Artificial Intelligence (AI)-driven resource management in rural Fifth Generation (5G) communication networks. Unlike conventional network traffic datasets that primarily focus on packet inspection, intrusion detection, or generic traffic classification, RSNSD has been specifically designed to facilitate intelligent network slicing, service-aware scheduling, Quality of Service (QoS) optimization, and reinforcement learning based resource allocation.
+
+The design philosophy of RSNSD follows the principle that a dataset should accurately represent both the characteristics of generated traffic and the operational environment in which that traffic exists. Consequently, the proposed dataset captures multiple dimensions of network behaviour, including packet-level information, flow-level statistics, temporal behaviour, Quality of Service characteristics, radio conditions, infrastructure utilisation, user mobility, and service-specific contextual information.
+
+To achieve these goals, the following primary design objectives were established during the development of the dataset.
+
+\subsection{Primary Objectives}
+
+\begin{enumerate}
+	
+	\item \textbf{Develop a Service-aware Dataset}
+	
+	The foremost objective is to create a dataset capable of distinguishing network services rather than merely identifying transport protocols or applications. Each generated flow is associated with a well-defined service class, enabling machine learning algorithms to learn service-specific communication patterns that are directly applicable to intelligent network slicing.
+	
+	\item \textbf{Support AI-driven Network Slicing}
+	
+	The dataset is designed specifically for supervised learning and reinforcement learning algorithms operating within Software Defined Networking (SDN) and 5G network slicing environments. All features have therefore been selected to maximize their usefulness for intelligent slice selection and adaptive resource allocation.
+	
+	\item \textbf{Model Rural Communication Networks}
+	
+	Unlike enterprise traffic datasets, RSNSD models communication scenarios commonly observed in rural deployments, including agricultural IoT systems, telemedicine consultations, online education platforms, emergency healthcare communication, and general Internet access. This allows AI models trained using the dataset to better generalize towards rural smart infrastructure deployments.
+	
+	\item \textbf{Capture Multi-layer Network Behaviour}
+	
+	Rather than restricting the dataset to packet headers or flow statistics, RSNSD captures information across multiple protocol layers and contextual dimensions. The resulting feature space combines Layer-2, Layer-3, Layer-4, flow-level, temporal, statistical, QoS, radio, mobility, and network context features into a unified representation.
+	
+	\item \textbf{Ensure Research Reproducibility}
+	
+	The dataset generation pipeline has been designed using deterministic stochastic models with configurable random seeds. This enables researchers to reproduce identical datasets under identical experimental conditions while simultaneously allowing controlled variation through configurable network scenarios.
+	
+\end{enumerate}
+
+\subsection{Secondary Objectives}
+
+In addition to the primary goals, several secondary objectives guided the architectural decisions throughout the dataset development process.
+
+\begin{enumerate}
+	
+	\item Modular software architecture allowing independent development of traffic generation, context modelling, feature extraction, validation, and export modules.
+	
+	\item Extensible application profiles enabling future integration of additional services without modification of the existing dataset generation framework.
+	
+	\item Automatic schema validation to ensure feature consistency across multiple dataset versions.
+	
+	\item Compatibility with Open5GS, Mininet, Open vSwitch, and software-defined networking testbeds.
+	
+	\item Straightforward integration with machine learning frameworks such as Scikit-Learn, XGBoost, TensorFlow, and PyTorch.
+	
+	\item Support for future real-world calibration using traffic collected from the proposed institutional 5G testbed.
+	
+\end{enumerate}
+
+\subsection{Design Principles}
+
+The architectural design of RSNSD was governed by several engineering principles intended to improve maintainability, reproducibility, and scientific validity.
+
+\begin{itemize}
+	
+	\item \textbf{Modularity:} Every functional component of the dataset generation framework is implemented as an independent software module with clearly defined interfaces.
+	
+	\item \textbf{Separation of Concerns:} Traffic generation, context modelling, Quality of Service computation, feature extraction, schema management, and dataset export are implemented independently to simplify future extensions.
+	
+	\item \textbf{Statistical Realism:} Network characteristics are generated using parameterized probability distributions rather than deterministic values, enabling realistic variability across generated flows.
+	
+	\item \textbf{Scenario Awareness:} Instead of generating isolated traffic samples, the dataset models complete network operating conditions such as normal operation, school hours, harvest season, and disaster response scenarios.
+	
+	\item \textbf{Schema-first Development:} The dataset schema was designed before implementing the traffic generation framework, ensuring that every generated feature corresponds to a predefined and validated metadata specification.
+	
+	\item \textbf{Research-oriented Extensibility:} Every module has been designed to facilitate future integration of additional service categories, communication technologies, protocol layers, and machine learning workflows.
+	
+\end{itemize}
+
+\subsection{Success Criteria}
+
+The success of the proposed dataset is evaluated using both engineering and research-oriented metrics.
+
+From an engineering perspective, the dataset generation framework must be capable of producing internally consistent network flows whose features satisfy the predefined schema while remaining fully reproducible.
+
+From a machine learning perspective, the dataset should enable accurate service classification, efficient network slice prediction, and reinforcement learning based scheduling using a unified feature representation.
+
+Finally, from a research perspective, the proposed dataset should provide sufficient flexibility to evaluate intelligent network slicing algorithms under multiple rural communication scenarios while remaining extensible towards future Beyond Fifth Generation (B5G) and Sixth Generation (6G) communication systems.
+
+\section{Overall Dataset Architecture}
+
+The Rural Service-aware Network Slicing Dataset (RSNSD) has been designed as a modular data generation framework rather than a conventional packet capture repository. Instead of relying on previously collected traffic traces, the proposed framework synthesizes statistically realistic network flows by modelling application behaviour, network context, Quality of Service (QoS) dynamics, and service-aware labels through a sequence of independent software modules.
+
+The modular architecture offers three major advantages. First, each functional component can be independently validated, tested, and extended without affecting the remaining pipeline. Second, the separation of concerns improves reproducibility by isolating traffic generation from contextual modelling and dataset export. Finally, the architecture enables future integration with real-world traffic sources collected from institutional 5G testbeds while preserving compatibility with the existing schema.
+
+Figure~\ref{fig:dataset_architecture} illustrates the overall architecture adopted for the proposed dataset generation framework.
+
+\begin{figure}[H]
+	\centering
+	%\includegraphics[width=\textwidth]{figures/dataset_architecture.pdf}
+	\caption{Overall architecture of the RSNSD generation framework.}
+	\label{fig:dataset_architecture}
+\end{figure}
+
+The dataset generation process begins with the definition of service-specific application profiles. Each application profile captures the statistical characteristics of an individual communication service, including transport protocol, packet size distribution, session duration, bitrate, Quality of Service requirements, mobility characteristics, and target network slice. Rather than assigning deterministic values, each characteristic is represented using parameterized probability distributions to emulate realistic traffic variability.
+
+The application profiles are registered within a centralized profile registry, which serves as the single source of truth for all supported communication services. This registry allows new services to be incorporated into the framework without modifying the remaining dataset generation pipeline.
+
+During dataset generation, the Flow Generator samples the statistical distributions associated with an application profile to produce synthetic network flows. These flows represent the intrinsic behaviour of an application independent of the surrounding network conditions. Generated flow characteristics include packet sizes, inter-arrival times, session durations, bitrates, packet counts, and byte counts.
+
+Following flow generation, the Context Generator augments each flow with information describing the operational state of the network. Context generation is scenario-driven rather than purely stochastic. Instead of generating arbitrary values, the generator produces network context consistent with predefined rural operating conditions such as normal operation, school hours, harvest season, and disaster response. Each scenario influences network load, active user population, radio quality indicators, slice utilization, and mobility characteristics, thereby creating internally consistent operating environments.
+
+The generated flow and contextual information are subsequently processed by the Quality of Service Generator. Rather than assigning QoS metrics independently, this module derives latency, jitter, throughput, and packet loss from both application requirements and current network conditions. Consequently, the observed Quality of Service becomes a function of traffic characteristics, network congestion, and radio environment, thereby preserving causal relationships within the generated dataset.
+
+Once traffic characteristics, contextual information, and Quality of Service metrics have been generated, the Label Assignment module determines the supervisory information associated with each flow. These labels include service class, network slice type, service priority, scheduling decisions, and reinforcement learning reward information. The separation of input features from supervisory labels enables the resulting dataset to support both supervised learning algorithms and reinforcement learning based resource allocation.
+
+Before export, every generated feature is validated against the predefined dataset schema. The schema validation module ensures that feature names, data types, normalization strategies, metadata, and machine learning roles remain consistent throughout the generation process. This schema-first design philosophy prevents inconsistencies between generated data and dataset documentation while ensuring long-term maintainability.
+
+Finally, validated flow records are exported into structured dataset formats suitable for downstream machine learning pipelines. Although the initial implementation targets comma-separated value (CSV) files, the modular exporter architecture permits future support for additional storage formats such as Apache Parquet, JavaScript Object Notation (JSON), or packet capture (PCAP) representations.
+
+The proposed architecture deliberately separates traffic generation, contextual modelling, Quality of Service computation, feature validation, and dataset export into independent modules. This separation not only improves software maintainability but also facilitates controlled experimentation by allowing individual components to be modified or replaced without affecting the remainder of the framework. Such modularity is particularly valuable for future extensions involving real network traces, alternative radio access technologies, or Beyond Fifth Generation (B5G) communication systems.
+
+\section{Dataset Generation Pipeline}
+
+The proposed Rural Service-aware Network Slicing Dataset (RSNSD) is generated through a multi-stage data generation pipeline that transforms high-level application definitions into machine learning ready flow records. Unlike conventional datasets collected through passive network monitoring, RSNSD follows a synthetic generation methodology in which every generated feature is derived from statistically modelled application behaviour and dynamically generated network conditions.
+
+The pipeline has been designed as a sequence of loosely coupled modules, where each module performs a single well-defined task before passing the generated information to the subsequent stage. This modular execution model simplifies validation, facilitates future extensions, and enables individual components to be independently calibrated using real network measurements.
+
+Figure~\ref{fig:generation_pipeline} illustrates the execution flow adopted by the proposed framework.
+
+\begin{figure}[H]
+	\centering
+	%\includegraphics[width=\textwidth]{figures/dataset_pipeline.pdf}
+	\caption{Runtime execution pipeline of the RSNSD generation framework.}
+	\label{fig:generation_pipeline}
+\end{figure}
+
+The execution pipeline begins by selecting an application profile from the centralized profile registry. Each application profile encapsulates the statistical communication characteristics of a particular service, including transport protocol, packet size distribution, inter-arrival behaviour, bitrate characteristics, session duration, mobility profile, Quality of Service requirements, and target network slice. The application profile therefore represents the behavioural template from which synthetic traffic instances are generated.
+
+Once an application profile has been selected, the framework samples each of its statistical distributions using the sampling engine. Unlike deterministic generators that repeatedly produce identical traffic patterns, the proposed framework employs parameterized probability distributions to generate statistically diverse yet reproducible traffic instances. Consequently, every generated network flow exhibits natural variations while remaining consistent with the expected behaviour of its corresponding application.
+
+The sampled values are then passed to the Flow Generator, which constructs a synthetic network flow by combining packet-level and flow-level characteristics into a unified flow representation. This stage produces the intrinsic communication characteristics of the application independent of the surrounding network environment.
+
+Following flow generation, the Context Generator augments the generated flow with environmental information representing the operational state of the communication network. Context generation is performed using predefined network scenarios rather than independent random variables. Each scenario models realistic rural communication conditions such as normal operation, school hours, agricultural harvesting periods, or emergency disaster response. These scenarios influence multiple contextual parameters simultaneously, thereby preserving correlations between network utilisation, radio conditions, user density, and slice resource consumption.
+
+The generated contextual information includes network load, serving cell utilisation, active user population, mobility state, radio signal quality, Channel Quality Indicator (CQI), Signal-to-Interference-plus-Noise Ratio (SINR), Reference Signal Received Power (RSRP), Reference Signal Received Quality (RSRQ), slice utilisation, radio resource allocation, and handover status. Since these parameters originate from a common network scenario, the resulting contextual information remains internally consistent throughout the generated dataset.
+
+The subsequent Quality of Service (QoS) Generation stage computes the observed communication performance experienced by each generated flow. Instead of assigning latency, jitter, throughput, and packet loss independently, these metrics are modelled as functions of both the application requirements and the generated network context. This design introduces causal relationships between traffic characteristics and observed network performance, thereby improving the realism of the generated dataset.
+
+Once the traffic characteristics and Quality of Service metrics have been generated, the Label Assignment module associates each flow with the corresponding supervisory information required by downstream machine learning models. The generated labels include service class, application identifier, network slice type, service priority, scheduling decisions, and reinforcement learning reward information. The separation of predictive features from supervisory labels enables the resulting dataset to support both supervised learning based traffic classification and reinforcement learning based network resource allocation.
+
+Prior to export, every generated flow is validated against the predefined dataset schema. The schema validation stage verifies feature names, data types, normalization strategies, feature groups, metadata specifications, and machine learning roles. This validation process ensures that every exported dataset remains fully consistent with the documented schema while preventing accidental introduction of invalid or duplicate features during future extensions.
+
+Finally, validated flow records are exported into structured datasets suitable for downstream machine learning pipelines. Although the current implementation targets comma-separated value (CSV) files due to their widespread compatibility with machine learning frameworks, the modular exporter architecture allows future support for JavaScript Object Notation (JSON), Apache Parquet, or Packet Capture (PCAP) formats without requiring modifications to the preceding generation pipeline.
+
+The proposed execution pipeline intentionally separates traffic modelling, contextual modelling, Quality of Service computation, schema validation, and dataset export into independent stages. This separation enables individual modules to evolve independently while preserving the overall integrity of the framework. Furthermore, the modular design simplifies experimentation by allowing researchers to replace or calibrate individual components using measurements collected from operational 5G testbeds without modifying the remainder of the generation process.
+
+
+\section{Schema Design}
+
+The schema represents the formal specification governing the structure of the Rural Service-aware Network Slicing Dataset (RSNSD). Rather than treating the dataset as an unstructured collection of features, the proposed framework adopts a schema-first design methodology in which every generated attribute is explicitly defined before the implementation of the traffic generation pipeline.
+
+The schema serves as the contractual interface between all modules of the dataset generation framework. Every component, including traffic generation, context modelling, Quality of Service computation, feature extraction, validation, machine learning, and dataset export, interacts exclusively through the predefined schema. Consequently, the schema ensures structural consistency throughout the lifetime of the project while significantly improving maintainability and reproducibility.
+
+Unlike conventional datasets where feature definitions are implicitly embedded within source code or external documentation, RSNSD maintains a centralized metadata specification describing every dataset attribute. This metadata-driven approach allows the framework to automatically validate generated records, generate documentation, and maintain compatibility between multiple versions of the dataset.
+
+Figure~\ref{fig:schema_architecture} illustrates the schema-centric architecture adopted by the proposed framework.
+
+\begin{figure}[H]
+	\centering
+	%\includegraphics[width=\textwidth]{figures/schema_architecture.pdf}
+	\caption{Metadata-centric schema architecture adopted by RSNSD.}
+	\label{fig:schema_architecture}
+\end{figure}
+
+The schema consists of a collection of feature definitions, where every feature is represented as an independent metadata object describing its semantic meaning, datatype, source, normalization strategy, machine learning role, and associated protocol layer. Instead of directly manipulating raw column names, all dataset modules operate using these metadata objects, thereby reducing inconsistencies and simplifying future extensions.
+
+Each feature definition is represented using a dedicated \texttt{Feature} object containing the complete metadata specification required throughout the dataset generation process. The principal attributes associated with every feature include:
+
+\begin{itemize}
+	
+	\item Feature name
+	
+	\item Human-readable description
+	
+	\item Feature category
+	
+	\item Data type
+	
+	\item Measurement unit
+	
+	\item Valid numerical bounds
+	
+	\item Nullable property
+	
+	\item Normalization strategy
+	
+	\item Feature source
+	
+	\item Machine learning role
+	
+	\item Derived feature indicator
+	
+\end{itemize}
+
+Collectively, these attributes provide a complete semantic description of every dataset column while remaining independent of the generated data itself.
+
+\subsection{Schema-first Design Philosophy}
+
+A fundamental design principle adopted throughout the development of RSNSD is the schema-first approach. Instead of generating traffic and subsequently deciding which attributes should be preserved, the complete feature space was designed prior to implementing any traffic generation components.
+
+This design philosophy offers several advantages.
+
+\begin{enumerate}
+	
+	\item Every generated feature corresponds to a predefined metadata specification.
+	
+	\item Dataset generators cannot introduce undocumented attributes.
+	
+	\item Validation becomes deterministic since every generated value is verified against the predefined schema.
+	
+	\item Dataset documentation can be generated automatically from the metadata definitions.
+	
+	\item Future extensions remain backward compatible through schema versioning.
+	
+\end{enumerate}
+
+The schema therefore functions as the central contract governing every stage of dataset generation.
+
+\subsection{Metadata-driven Dataset Representation}
+
+Instead of storing only numerical values, RSNSD explicitly separates feature metadata from feature values. Each generated flow therefore consists of two complementary components:
+
+\begin{enumerate}
+	
+	\item Metadata describing the semantics of every feature.
+	
+	\item Observed values generated during traffic synthesis.
+	
+\end{enumerate}
+
+This separation significantly improves maintainability since modifications to feature descriptions, normalization strategies, measurement units, or machine learning roles do not require changes to the traffic generation pipeline.
+
+Furthermore, the metadata representation enables automatic generation of documentation, validation rules, feature catalogues, and dataset schemas without manual intervention.
+
+\subsection{Modular Schema Organization}
+
+To improve maintainability, the complete feature space has been partitioned into independent feature modules based on their semantic responsibilities rather than their implementation order.
+
+Each module represents a logically coherent subset of the complete dataset and can therefore evolve independently while remaining compatible with the remainder of the framework.
+
+The major schema modules include:
+
+\begin{itemize}
+	
+	\item Layer-2 Features
+	
+	\item Layer-3 Features
+	
+	\item Layer-4 Features
+	
+	\item Flow Features
+	
+	\item Temporal Features
+	
+	\item Statistical Features
+	
+	\item Quality of Service Features
+	
+	\item Context Features
+	
+	\item Label Features
+	
+\end{itemize}
+
+This modular organization enables individual feature groups to be maintained independently while simplifying future integration of additional protocol layers or contextual information.
+
+\subsection{Schema Validation}
+
+The schema incorporates an automated validation framework executed prior to dataset generation. Instead of relying on manual inspection, every feature definition undergoes consistency verification before the schema is exported.
+
+The validation process currently verifies:
+
+\begin{itemize}
+	
+	\item Duplicate feature names.
+	
+	\item Invalid numerical ranges.
+	
+	\item Missing feature descriptions.
+	
+	\item Missing machine learning roles.
+	
+	\item Metadata consistency across feature definitions.
+	
+\end{itemize}
+
+Performing validation prior to dataset generation prevents invalid schema definitions from propagating into downstream machine learning experiments.
+
+\subsection{Automatic Schema Generation}
+
+Rather than manually maintaining multiple metadata files, RSNSD employs a centralized schema generator responsible for producing all schema-related artifacts directly from the feature registry.
+
+The generator automatically exports:
+
+\begin{itemize}
+	
+	\item Complete schema definition (\texttt{schema.json})
+	
+	\item Human-readable feature catalogue (\texttt{feature\_catalog.md})
+	
+	\item Machine learning label specification (\texttt{labels.json})
+	
+\end{itemize}
+
+This automated generation process guarantees consistency between implementation and documentation while eliminating duplicate maintenance effort.
+
+\subsection{Advantages of the Proposed Schema}
+
+Compared to conventional datasets where metadata is scattered across implementation files or external documentation, the proposed schema offers several significant advantages.
+
+\begin{itemize}
+	
+	\item Centralized metadata management.
+	
+	\item Strong separation between metadata and generated values.
+	
+	\item Automatic validation before dataset generation.
+	
+	\item Automatic documentation generation.
+	
+	\item Extensible feature organization.
+	
+	\item Compatibility with supervised and reinforcement learning workflows.
+	
+	\item Simplified dataset version management.
+	
+	\item Improved reproducibility of experimental results.
+	
+\end{itemize}
+
+The schema therefore represents considerably more than a simple column definition. It serves as the foundational layer upon which every subsequent component of the RSNSD generation framework is constructed.
+
+\subsection{Feature Metadata Model}
+
+The proposed RSNSD framework adopts a metadata-driven approach in which every dataset attribute is represented as an independent metadata object rather than a simple column definition. This design philosophy enables the dataset generation framework to treat features as self-describing entities that encapsulate not only the generated values but also their semantic meaning, structural properties, and machine learning significance.
+
+Each dataset attribute is represented using a dedicated \texttt{Feature} object that serves as the fundamental building block of the schema. Rather than storing only the feature name, the metadata model maintains comprehensive information describing the behaviour and characteristics of every dataset attribute. Consequently, every module within the framework—including traffic generation, feature extraction, schema validation, documentation generation, and machine learning—operates using the same unified metadata specification.
+
+Figure~\ref{fig:feature_metadata_model} illustrates the relationship between the Feature object and its associated metadata components.
+
+\begin{figure}[H]
+	\centering
+	%\includegraphics[width=0.85\textwidth]{figures/feature_metadata_model.pdf}
+	\caption{Metadata model adopted for feature representation in RSNSD.}
+	\label{fig:feature_metadata_model}
+\end{figure}
+
+The metadata associated with every feature consists of multiple independent components, each responsible for describing a specific aspect of the feature. Collectively, these metadata elements completely define the semantic and operational characteristics of every dataset column.
+
+\subsubsection{Feature Definition}
+
+The \texttt{Feature} object represents an individual dataset attribute and acts as the primary metadata container throughout the framework. Every generated column corresponds to exactly one Feature definition.
+
+Each Feature object maintains the following information:
+
+\begin{itemize}
+	
+	\item Unique feature identifier.
+	
+	\item Human-readable feature description.
+	
+	\item Logical feature category.
+	
+	\item Data type.
+	
+	\item Measurement unit.
+	
+	\item Numerical bounds.
+	
+	\item Nullability.
+	
+	\item Normalization strategy.
+	
+	\item Source of feature generation.
+	
+	\item Machine learning role.
+	
+	\item Derived feature indicator.
+	
+\end{itemize}
+
+By encapsulating all metadata within a single object, the framework eliminates ambiguity regarding feature interpretation while significantly simplifying future dataset extensions.
+
+\subsubsection{Feature Categories}
+
+Each feature belongs to a predefined feature category represented by the \texttt{FeatureGroup} enumeration. Rather than organizing features according to implementation order, RSNSD classifies attributes according to their semantic responsibility within the networking stack.
+
+The defined feature groups include:
+
+\begin{itemize}
+	
+	\item Layer-2 Features
+	
+	\item Layer-3 Features
+	
+	\item Layer-4 Features
+	
+	\item Flow Features
+	
+	\item Temporal Features
+	
+	\item Statistical Features
+	
+	\item Quality of Service Features
+	
+	\item Context Features
+	
+	\item Label Features
+	
+\end{itemize}
+
+This classification enables modular organization of the schema while allowing individual feature groups to evolve independently.
+
+\subsubsection{Data Type Specification}
+
+Every feature explicitly specifies its underlying data type using the \texttt{DataType} enumeration. Unlike loosely typed datasets where data interpretation depends on external documentation, RSNSD enforces explicit typing for every generated attribute.
+
+The supported data types include:
+
+\begin{itemize}
+	
+	\item Integer
+	
+	\item Floating Point
+	
+	\item Boolean
+	
+	\item String
+	
+	\item Categorical
+	
+	\item Date-Time
+	
+\end{itemize}
+
+Explicit datatype specification simplifies validation, serialization, feature extraction, and machine learning preprocessing.
+
+\subsubsection{Normalization Strategy}
+
+Machine learning algorithms often require numerical features to undergo preprocessing prior to training. Instead of embedding normalization logic within downstream learning pipelines, RSNSD records the preferred normalization strategy as part of the feature metadata.
+
+The framework currently supports the following normalization methods:
+
+\begin{itemize}
+	
+	\item No normalization
+	
+	\item Standard Score Normalization
+	
+	\item Min-Max Scaling
+	
+	\item Logarithmic Scaling
+	
+\end{itemize}
+
+Storing normalization information alongside feature definitions ensures that preprocessing pipelines remain reproducible and consistent across multiple experiments.
+
+\subsubsection{Feature Source}
+
+Every generated feature records the software component responsible for producing its value through the \texttt{FeatureSource} metadata.
+
+Typical feature sources include:
+
+\begin{itemize}
+	
+	\item Packet Parser
+	
+	\item Flow Extractor
+	
+	\item Context Generator
+	
+	\item QoS Generator
+	
+	\item Label Generator
+	
+	\item Dataset Generator
+	
+\end{itemize}
+
+Explicitly recording feature provenance improves traceability by allowing researchers to identify the origin of every dataset attribute.
+
+\subsubsection{Machine Learning Role}
+
+Not every dataset attribute serves the same purpose during model training. Consequently, each feature specifies its intended machine learning role using the \texttt{MLRole} enumeration.
+
+The framework distinguishes between:
+
+\begin{itemize}
+	
+	\item Predictive input features.
+	
+	\item Supervisory labels.
+	
+	\item Metadata attributes.
+	
+\end{itemize}
+
+This separation prevents accidental inclusion of target variables during model training while simultaneously supporting multiple learning paradigms including supervised classification and reinforcement learning.
+
+\subsubsection{Advantages of Metadata-driven Representation}
+
+The metadata-centric design adopted by RSNSD provides several practical and research-oriented advantages over conventional flat dataset representations.
+
+\begin{enumerate}
+	
+	\item Every feature becomes self-describing.
+	
+	\item Dataset validation can be fully automated.
+	
+	\item Documentation is generated directly from the schema.
+	
+	\item Machine learning preprocessing becomes reproducible.
+	
+	\item Future feature additions require minimal implementation effort.
+	
+	\item Multiple dataset versions remain structurally compatible.
+	
+	\item Schema evolution is independent of traffic generation logic.
+	
+\end{enumerate}
+
+Consequently, the metadata model forms the foundation upon which the remaining components of the dataset generation framework are constructed.
+
+\subsection{Feature Classification and Organization}
+
+The complete RSNSD feature space has been organized into multiple semantically independent feature groups rather than maintaining a single flat collection of dataset attributes. This hierarchical organization improves dataset readability, simplifies feature engineering, facilitates schema maintenance, and enables researchers to selectively utilize subsets of features depending on the target machine learning task.
+
+Instead of classifying features solely according to protocol layers, the proposed organization considers both networking semantics and machine learning relevance. Consequently, features describing packet headers, flow behaviour, Quality of Service, contextual information, and supervisory labels are maintained independently while remaining part of a unified schema.
+
+The complete feature space has been partitioned into the following feature groups:
+
+\begin{enumerate}
+	
+	\item Layer-2 Features
+	
+	\item Layer-3 Features
+	
+	\item Layer-4 Features
+	
+	\item Flow Features
+	
+	\item Temporal Features
+	
+	\item Statistical Features
+	
+	\item Quality of Service Features
+	
+	\item Context Features
+	
+	\item Label Features
+	
+\end{enumerate}
+
+Figure~\ref{fig:feature_classification} illustrates the hierarchical organization adopted by the proposed dataset.
+
+\begin{figure}[H]
+	\centering
+	% \includegraphics[width=0.9\textwidth]{figures/feature_classification.pdf}
+	\caption{Hierarchical classification of RSNSD feature groups.}
+	\label{fig:feature_classification}
+\end{figure}
+
+Unlike conventional traffic datasets that emphasize protocol headers, RSNSD deliberately combines protocol-level features with service-aware contextual information and network state descriptors. This enables machine learning models to learn both intrinsic traffic behaviour and the environmental conditions influencing network performance.
+
+The following subsections discuss each feature group in detail.
+
+\subsubsection{Layer-2 Features}
+
+Layer-2 features describe the Ethernet characteristics of generated network traffic. Although network slicing decisions are generally performed above the data link layer, several Layer-2 attributes remain valuable for Software Defined Networking (SDN), OpenFlow forwarding, VLAN prioritization, and future network virtualization research.
+
+The objective of including Layer-2 features is not to maximize the number of Ethernet header fields but rather to preserve only those attributes capable of influencing forwarding behaviour, Quality of Service policies, or traffic isolation.
+
+The Layer-2 feature set therefore remains intentionally compact while preserving compatibility with future Software Defined Networking deployments.
+
+Table~\ref{tab:l2_features} summarizes the Layer-2 features incorporated within RSNSD.
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Layer-2 Features of RSNSD}
+	\label{tab:l2_features}\\
+	
+	\toprule
+	\textbf{Feature} & \textbf{Description} & \textbf{Data Type} & \textbf{Unit} & \textbf{Source} & \textbf{Normalization} & \textbf{ML Role} \\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	\textbf{Feature} & \textbf{Description} & \textbf{Data Type} & \textbf{Unit} & \textbf{Source} & \textbf{Normalization} & \textbf{ML Role} \\
+	\midrule
+	\endhead
+	
+	\texttt{ether\_type} & Ethernet frame type & Category & -- & Packet Parser & None & Feature\\
+	vlan\_present & VLAN tag present & Boolean & -- & Packet Parser & None & Feature\\
+	vlan\_priority & IEEE 802.1p VLAN priority & Integer & Priority & Packet Parser & None & Feature\\
+	broadcast\_frame & Broadcast frame indicator & Boolean & -- & Packet Parser & None & Feature\\
+	multicast\_frame & Multicast frame indicator & Boolean & -- & Packet Parser & None & Feature\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Layer-3 Features of RSNSD}
+	\label{tab:l3_features}\\
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endhead
+	
+	ip\_version & IPv4/IPv6 version & Category & -- & Packet Parser & None & Feature\\
+	ttl & Time-to-live / Hop limit & Integer & Hops & Packet Parser & None & Feature\\
+	dscp & Differentiated Services Code Point & Integer & -- & Packet Parser & None & Feature\\
+	ecn & Explicit Congestion Notification & Integer & -- & Packet Parser & None & Feature\\
+	ip\_packet\_length & Total IP packet length & Integer & Bytes & Packet Parser & Log & Feature\\
+	fragmented & Fragmentation indicator & Boolean & -- & Packet Parser & None & Feature\\
+	ip\_header\_length & IP header length & Integer & Bytes & Packet Parser & None & Feature\\
+	hop\_limit & IPv6 hop limit & Integer & Hops & Packet Parser & None & Feature\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Layer-4 Features of RSNSD}
+	\label{tab:l4_features}\\
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endhead
+	
+	source\_port & Source transport port & Integer & -- & Packet Parser & None & Feature\\
+	destination\_port & Destination transport port & Integer & -- & Packet Parser & None & Feature\\
+	transport\_protocol & TCP/UDP protocol & Category & -- & Packet Parser & None & Feature\\
+	tcp\_flags & TCP flag combination & Category & -- & Packet Parser & None & Feature\\
+	window\_size & TCP window size & Integer & Bytes & Packet Parser & Log & Feature\\
+	retransmission\_count & Number of retransmissions & Integer & Packets & Packet Parser & Log & Feature\\
+	segment\_size & TCP segment size & Integer & Bytes & Packet Parser & Log & Feature\\
+	acknowledgement\_ratio & ACK ratio & Float & Ratio & Packet Parser & Standard & Feature\\
+	connection\_state & Connection status & Category & -- & Packet Parser & None & Feature\\
+	transport\_latency & Estimated transport latency & Float & ms & Packet Parser & Standard & Feature\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Flow Features of RSNSD}
+	\label{tab:flow_features}\\
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endhead
+	
+	flow\_id & Unique flow identifier & String & -- & Flow Extractor & None & Metadata\\
+	flow\_duration\_ms & Flow duration & Float & ms & Flow Extractor & Standard & Feature\\
+	packet\_count & Number of packets & Integer & Packets & Flow Extractor & Log & Feature\\
+	byte\_count & Number of bytes & Integer & Bytes & Flow Extractor & Log & Feature\\
+	forward\_packet\_count & Forward packets & Integer & Packets & Flow Extractor & Log & Feature\\
+	backward\_packet\_count & Reverse packets & Integer & Packets & Flow Extractor & Log & Feature\\
+	forward\_byte\_count & Forward bytes & Integer & Bytes & Flow Extractor & Log & Feature\\
+	backward\_byte\_count & Reverse bytes & Integer & Bytes & Flow Extractor & Log & Feature\\
+	packet\_rate\_pps & Packet rate & Float & Packets/s & Flow Extractor & Standard & Feature\\
+	byte\_rate\_bps & Byte rate & Float & Bytes/s & Flow Extractor & Standard & Feature\\
+	flow\_start\_time & Flow start timestamp & DateTime & UTC & Flow Extractor & None & Metadata\\
+	flow\_end\_time & Flow end timestamp & DateTime & UTC & Flow Extractor & None & Metadata\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Temporal Features of RSNSD}
+	\label{tab:temporal_features}\\
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endhead
+	
+	flow\_start\_hour & Hour of flow start & Integer & Hour & Flow Extractor & None & Feature\\
+	flow\_day\_of\_week & Day of week & Category & -- & Flow Extractor & None & Feature\\
+	flow\_month & Month & Integer & Month & Flow Extractor & None & Feature\\
+	inter\_arrival\_mean & Mean inter-arrival time & Float & ms & Flow Extractor & Standard & Feature\\
+	inter\_arrival\_std & Std. inter-arrival time & Float & ms & Flow Extractor & Standard & Feature\\
+	active\_duration & Active flow duration & Float & s & Flow Extractor & Standard & Feature\\
+	idle\_duration & Idle duration & Float & s & Flow Extractor & Standard & Feature\\
+	burst\_duration & Burst duration & Float & s & Flow Extractor & Standard & Feature\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Statistical Features of RSNSD}
+	\label{tab:statistical_features}\\
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endhead
+	
+	packet\_size\_mean & Mean packet size & Float & Bytes & Flow Extractor & Standard & Feature\\
+	packet\_size\_std & Std. packet size & Float & Bytes & Flow Extractor & Standard & Feature\\
+	packet\_size\_min & Minimum packet size & Integer & Bytes & Flow Extractor & None & Feature\\
+	packet\_size\_max & Maximum packet size & Integer & Bytes & Flow Extractor & None & Feature\\
+	packet\_size\_variance & Packet size variance & Float & Bytes$^2$ & Flow Extractor & Standard & Feature\\
+	flow\_entropy & Flow entropy & Float & -- & Flow Extractor & Standard & Feature\\
+	forward\_backward\_ratio & Fwd/Bwd packet ratio & Float & Ratio & Flow Extractor & Standard & Feature\\
+	burstiness\_index & Burstiness index & Float & -- & Flow Extractor & Standard & Feature\\
+	coefficient\_variation & Coefficient of variation & Float & -- & Flow Extractor & Standard & Feature\\
+	packet\_size\_median & Median packet size & Float & Bytes & Flow Extractor & Standard & Feature\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{QoS Features of RSNSD}
+	\label{tab:qos_features}\\
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	Feature & Description & Data Type & Unit & Source & Normalization & ML Role\\
+	\midrule
+	\endhead
+	
+	latency\_ms & End-to-end latency & Float & ms & QoS Generator & Standard & Feature\\
+	jitter\_ms & Packet delay variation & Float & ms & QoS Generator & Standard & Feature\\
+	packet\_loss\_pct & Packet loss & Float & \% & QoS Generator & Standard & Feature\\
+	throughput\_mbps & Throughput & Float & Mbps & QoS Generator & Standard & Feature\\
+	bandwidth\_mbps & Allocated bandwidth & Float & Mbps & QoS Generator & Standard & Feature\\
+	availability\_pct & Service availability & Float & \% & QoS Generator & None & Feature\\
+	sla\_compliance & SLA compliance status & Boolean & -- & QoS Generator & None & Label\\
+	delay\_budget\_ms & Allowed delay budget & Float & ms & QoS Generator & None & Feature\\
+	reliability\_score & Reliability score & Float & -- & QoS Generator & Standard & Feature\\
+	resource\_utilization & Resource utilization & Float & \% & QoS Generator & MinMax & Feature\\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{5cm}p{2cm}p{1.5cm}p{2.3cm}p{2cm}p{2cm}}
+	\caption{Context Features of RSNSD}
+	\label{tab:context_features}\\
+	
+	\toprule
+	\textbf{Feature} & \textbf{Description} & \textbf{Data Type} & \textbf{Unit} & \textbf{Source} & \textbf{Normalization} & \textbf{ML Role}\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	\textbf{Feature} & \textbf{Description} & \textbf{Data Type} & \textbf{Unit} & \textbf{Source} & \textbf{Normalization} & \textbf{ML Role}\\
+	\midrule
+	\endhead
+	
+	service\_type &
+	High-level service category &
+	Category &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	application\_name &
+	Application generating the traffic &
+	String &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	slice\_type &
+	Target network slice type &
+	Category &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	service\_priority &
+	Priority assigned to the service &
+	Integer &
+	Level &
+	Context Generator &
+	None &
+	Feature \\
+	
+	network\_load\_pct &
+	Overall network utilization &
+	Float &
+	\% &
+	Context Generator &
+	Min-Max &
+	Feature \\
+	
+	cell\_load\_pct &
+	Serving cell utilization &
+	Float &
+	\% &
+	Context Generator &
+	Min-Max &
+	Feature \\
+	
+	active\_users &
+	Number of active users in the serving cell &
+	Integer &
+	Users &
+	Context Generator &
+	Log &
+	Feature \\
+	
+	device\_type &
+	Type of user equipment &
+	Category &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	mobility\_state &
+	Current mobility profile &
+	Category &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	time\_of\_day &
+	Time period of generated traffic &
+	Category &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	signal\_strength\_dbm &
+	Received signal strength &
+	Float &
+	dBm &
+	Context Generator &
+	Standard &
+	Feature \\
+	
+	sinr\_db &
+	Signal-to-Interference-plus-Noise Ratio &
+	Float &
+	dB &
+	Context Generator &
+	Standard &
+	Feature \\
+	
+	rsrp\_dbm &
+	Reference Signal Received Power &
+	Float &
+	dBm &
+	Context Generator &
+	Standard &
+	Feature \\
+	
+	rsrq\_db &
+	Reference Signal Received Quality &
+	Float &
+	dB &
+	Context Generator &
+	Standard &
+	Feature \\
+	
+	cqi &
+	Channel Quality Indicator &
+	Integer &
+	Index &
+	Context Generator &
+	None &
+	Feature \\
+	
+	network\_slice\_id &
+	Serving network slice identifier &
+	Category &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	slice\_resource\_utilization\_pct &
+	Current slice resource utilization &
+	Float &
+	\% &
+	Context Generator &
+	Min-Max &
+	Feature \\
+	
+	radio\_resource\_blocks\_used &
+	Allocated Physical Resource Blocks &
+	Integer &
+	PRBs &
+	Context Generator &
+	Log &
+	Feature \\
+	
+	handover\_in\_progress &
+	Whether UE is undergoing handover &
+	Boolean &
+	-- &
+	Context Generator &
+	None &
+	Feature \\
+	
+	\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{3cm}p{4cm}p{2cm}p{1cm}p{2.3cm}p{1.5cm}p{2cm}}
+	\caption{Label Features of RSNSD}
+	\label{tab:label_features}\\
+	
+	\toprule
+	\textbf{Feature} & \textbf{Description} & \textbf{Data Type} & \textbf{Unit} & \textbf{Source} & \textbf{Norm(n)} & \textbf{ML Role}\\
+	\midrule
+	\endfirsthead
+	
+	\toprule
+	\textbf{Feature} & \textbf{Description} & \textbf{Data Type} & \textbf{Unit} & \textbf{Source} & \textbf{Normalization} & \textbf{ML Role}\\
+	\midrule
+	\endhead
+	
+	service\_class &
+	Ground truth service category &
+	Category &
+	-- &
+	Label Generator &
+	None &
+	Label \\
+	
+	application\_id &
+	Unique application identifier &
+	Category &
+	-- &
+	Label Generator &
+	None &
+	Label \\
+	
+	slice\_type\_label &
+	Ground truth target network slice &
+	Category &
+	-- &
+	Label Generator &
+	None &
+	Label \\
+	
+	priority\_level &
+	Ground truth service priority &
+	Integer &
+	Level &
+	Label Generator &
+	None &
+	Label \\
+	
+	allocated\_slice &
+	Slice allocated by the scheduling policy &
+	Category &
+	-- &
+	Label Generator &
+	None &
+	Label \\
+	
+	sla\_satisfied &
+	Whether QoS requirements were satisfied &
+	Boolean &
+	-- &
+	Label Generator &
+	None &
+	Label \\
+	
+	reward\_score &
+	Reward assigned to the scheduling decision &
+	Float &
+	Score &
+	Label Generator &
+	None &
+	Label \\
+	
+	\bottomrule
+\end{longtable}
+
+\end{document}
