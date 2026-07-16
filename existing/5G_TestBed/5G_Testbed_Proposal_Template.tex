@@ -1,0 +1,610 @@
+
+\documentclass[12pt,a4paper]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{pgfgantt}
+\usepackage{setspace}
+\setstretch{1.15}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric}
+
+\title{Establishment of a Real-World Intelligent 5G Network Slicing and Mobility Research Testbed}
+\author{Project Proposal}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Executive Summary}
+
+This document presents the preliminary requirements for establishing a real-world 5G Network Slicing and Mobility Research Testbed intended to support the development and evaluation of dynamic DNN-based slice switching, mobility management, and intelligent handover mechanisms in a private 5G environment.
+
+The proposed work extends beyond software-based simulation and requires a physical testbed consisting of a 5G Standalone (SA) Core Network, SDR-based Radio Access Network (RAN), commercial 5G User Equipments (UEs), edge computing infrastructure, monitoring platforms, and supporting networking equipment. The objective is to enable experimental validation of slice-aware mobility scenarios under realistic operating conditions and to provide a foundation for future research in AI-assisted networking, Multi-access Edge Computing (MEC), autonomous network management, and emerging 6G technologies.
+
+This document serves as an initial technical assessment of the infrastructure, software, manpower, and research requirements necessary for the successful execution of the project. It identifies the major hardware and software components required for deployment, outlines potential procurement sources, presents indicative budget estimates, and defines the technical competencies expected from project personnel.
+
+A key outcome of this assessment is the identification of the skills and responsibilities required for the appointment of a Junior Research Fellow (JRF) who will be responsible for supporting the deployment, integration, operation, and experimental evaluation of the proposed testbed. The JRF requirements outlined in this document are derived directly from the technologies, tools, and research activities associated with the project.
+
+The information presented herein is intended to support planning, resource allocation, procurement decisions, manpower recruitment, and subsequent preparation of detailed project execution and deployment plans.
+
+\section{Problem Statement}
+
+Network slicing is a key capability of 5G networks, enabling multiple logical networks with distinct Quality of Service (QoS) requirements to operate over a shared physical infrastructure. While current mobility management mechanisms effectively maintain radio connectivity, they are not designed to optimize slice continuity, application-level performance, edge service availability, or dynamic service requirements during mobility events. As users move across coverage regions, this can result in increased latency, packet loss, service interruption, and inefficient resource utilization.
+
+The objective of this project is to establish a real-world 5G Standalone testbed capable of evaluating dynamic DNN-based slice switching, slice-aware mobility management, and intelligent handover mechanisms under realistic operating conditions. The testbed will provide the infrastructure necessary to study mobility-driven slice selection, QoS preservation, edge computing integration, and future AI-assisted network optimization, while also serving as a foundation for subsequent research activities, manpower development, and advanced networking experimentation.
+
+\section{State of the Art}
+
+Open5GS, srsRAN, and OpenAirInterface have emerged as the most widely adopted open-source platforms for private 5G research and prototyping. Open5GS provides a standards-compliant 5G Core implementation, while srsRAN and OpenAirInterface enable SDR-based deployment of 5G Radio Access Networks. These platforms are extensively used by universities, research laboratories, and industry teams for evaluating mobility management, network slicing, and edge computing architectures.
+
+The proposed testbed will leverage these technologies to build a real-world private 5G environment capable of supporting dynamic slice switching and mobility experimentation. Their open architecture, active development communities, and compatibility with commercial SDR hardware make them suitable for long-term research and future expansion toward AI-driven networking and 6G studies.
+
+
+\section{Proposed Testbed Overview}
+The proposed testbed will be established as a multi-layer private 5G research infrastructure consisting of Core Network, Radio Access Network (RAN), Edge Computing, Artificial Intelligence, Monitoring, and User Equipment subsystems. Each subsystem will serve a specific role in enabling the evaluation of dynamic network slice switching, mobility management, and intelligent handover mechanisms under realistic operating conditions.
+
+The Core Network layer will be responsible for subscriber management, session establishment, policy enforcement, and network slicing functions. This layer is expected to be deployed on enterprise-grade rack servers running a 5G Core platform such as Open5GS or a commercial private 5G core solution. The Radio Access Network layer will comprise SDR-based gNodeBs implemented using platforms such as USRP B210/X310 with srsRAN or OpenAirInterface, enabling full control over radio and mobility procedures. Commercial 5G smartphones supporting Standalone (SA) operation will be used as User Equipments (UEs) for real-world mobility and handover experiments.
+
+To support low-latency services and future research activities, a dedicated Multi-access Edge Computing (MEC) infrastructure will be deployed using high-performance compute servers capable of hosting containerized applications and edge services. An AI and Analytics layer consisting of GPU-enabled workstations will be utilized for mobility prediction, traffic analysis, QoS forecasting, anomaly detection, and autonomous network optimization. A centralized monitoring platform based on Grafana, Prometheus, and network telemetry tools will provide visibility into network performance, slice utilization, handover events, and system health. Together, these components will form a scalable research platform capable of supporting current project objectives as well as future investigations into AI-native networking, autonomous network management, and emerging 6G technologies.
+
+\section{Testbed Components and Infrastructure Requirements}
+\begin{table}[htbp]
+	\centering
+	\small
+	\caption{Proposed Testbed Components and Infrastructure Requirements}
+	\label{tab:testbed_components}
+	
+	\begin{tabular}{|p{2.5cm}|p{3cm}|p{3.2cm}|p{2.5cm}|p{2.2cm}|}
+		\hline
+		\textbf{Subsystem} &
+		\textbf{Purpose} &
+		\textbf{Hardware} &
+		\textbf{Software} &
+		\textbf{Cost (INR)} \
+		\hline
+		
+		5G Core Network &
+		Subscriber and session management &
+		Dell PowerEdge / HPE ProLiant Server &
+		Open5GS &
+		3,00,000 -- 4,00,000 \
+		\hline
+		
+		Radio Access Network &
+		5G gNodeB deployment &
+		2 $\times$ USRP B210/X310 SDRs &
+		srsRAN / OAI &
+		5,00,000 -- 6,50,000 \
+		\hline
+		
+		User Equipment Layer &
+		Mobility and handover testing &
+		4--6 Commercial 5G Smartphones &
+		Android 5G SA &
+		1,00,000 -- 2,00,000 \
+		\hline
+		
+		MEC Infrastructure &
+		Edge application hosting &
+		Dedicated Edge Server &
+		Docker, Kubernetes &
+		2,00,000 -- 3,00,000 \
+		\hline
+		
+		AI and Analytics Layer &
+		Mobility prediction and optimization &
+		GPU Workstation &
+		PyTorch, TensorFlow &
+		2,50,000 -- 4,00,000 \
+		\hline
+		
+		Monitoring Infrastructure &
+		QoS and telemetry monitoring &
+		Monitoring Server &
+		Grafana, Prometheus &
+		50,000 -- 1,00,000 \
+		\hline
+		
+		Storage Infrastructure &
+		Dataset and log storage &
+		NAS Storage &
+		TrueNAS &
+		75,000 -- 1,50,000 \
+		\hline
+		
+		Networking Infrastructure &
+		Interconnection of components &
+		Managed Switches and Router &
+		Enterprise Networking Stack &
+		50,000 -- 1,00,000 \
+		\hline
+		
+		Power Infrastructure &
+		Power backup &
+		5 KVA Online UPS &
+		N/A &
+		1,00,000 -- 1,50,000 \
+		\hline
+		
+	\end{tabular}
+\end{table}
+
+\section{Detailed Architecture}
+\begin{figure}[htbp]
+	\centering
+	\resizebox{\textwidth}{!}{
+		\begin{tikzpicture}[
+			node distance=1.8cm,
+			every node/.style={
+				draw,
+				rounded corners,
+				align=center,
+				minimum width=2.8cm,
+				minimum height=1cm
+			},
+			
+			> =latex
+			> ]
+			
+			% User Layer
+			\node (ue) {Commercial 5G UEs\(Smartphones/Tablets)};
+			
+			% RAN Layer
+			\node (gnb1) [below left=of ue] {gNB-1$\$USRP B210/X310};
+			\node (gnb2) [below right=of ue] {gNB-2$\$USRP B210/X310};
+			
+			% Core Layer
+			\node (amf) [below=3cm of ue] {AMF};
+			\node (smf) [right=of amf] {SMF};
+			\node (upf) [right=of smf] {UPF};
+			
+			% Database
+			\node (mongo) [below=of smf] {MongoDB$\$Subscriber DB};
+			
+			% MEC
+			\node (mec) [right=of upf] {MEC Server$\$Edge Applications};
+			
+			% Analytics
+			\node (analytics) [below=of mec] {Monitoring & Analytics$\$Grafana / Prometheus};
+			
+			% AI Controller
+			\node (controller) [left=of amf] {AI Mobility$\$Controller};
+			
+			% Internet
+			\node (internet) [right=of mec] {Internet $\$External Network};
+			
+			% Connections
+			
+			\draw[->] (ue) -- (gnb1);
+			\draw[->] (ue) -- (gnb2);
+			
+			\draw[->] (gnb1) -- (amf);
+			\draw[->] (gnb2) -- (amf);
+			
+			\draw[->] (amf) -- (smf);
+			\draw[->] (smf) -- (upf);
+			
+			\draw[->] (smf) -- (mongo);
+			
+			\draw[->] (upf) -- (mec);
+			\draw[->] (mec) -- (internet);
+			
+			\draw[<->, dashed] (controller) -- (amf);
+			\draw[<->, dashed] (controller) -- (smf);
+			
+			\draw[<->, dashed] (analytics) -- (upf);
+			\draw[<->, dashed] (analytics) -- (mec);
+			\draw[<->, dashed] (analytics) -- (controller);
+			
+		\end{tikzpicture}
+	}
+	\caption{Proposed Real-World 5G Network Slicing and Mobility Research Testbed Architecture}
+	\label{fig:testbed_architecture}
+\end{figure}
+
+The proposed architecture is organized into six logical layers: User Equipment Layer, Radio Access Network Layer, Core Network Layer, Edge Computing Layer, Intelligence Layer, and Analytics Layer. Commercial 5G User Equipments communicate with SDR-based gNodeBs deployed using platforms such as USRP B210/X310. The Radio Access Network interfaces with the 5G Core Network, comprising AMF, SMF, UPF, and subscriber management services. A dedicated MEC infrastructure hosts latency-sensitive applications, while an AI-driven controller performs mobility prediction, slice selection, and handover optimization. A centralized monitoring platform continuously collects network telemetry, QoS metrics, and operational statistics to support experimentation and performance evaluation.
+
+\subsection{Physical Deployment Architecture}
+\subsection{Physical Deployment Architecture}
+
+\begin{figure}[htbp]
+	\centering
+	\resizebox{\textwidth}{!}{
+		\begin{tikzpicture}[
+			node distance=2cm,
+			every node/.style={
+				draw,
+				rounded corners,
+				align=center,
+				minimum width=3.2cm,
+				minimum height=1cm
+			},
+			
+			> =latex
+			> ]
+			
+			% Core Infrastructure
+			\node (core) {5G Core Server\Open5GS / Commercial 5GC};
+			
+			\node (switch) [below=of core] {Managed L2/L3 Switch};
+			
+			% SDRs
+			\node (gnb1) [below left=of switch] {SDR gNB-1\USRP B210/X310};
+			
+			\node (gnb2) [below right=of switch] {SDR gNB-2\USRP B210/X310};
+			
+			% UEs
+			\node (ue1) [below left=of gnb1] {5G UE-1\Smartphone};
+			
+			\node (ue2) [below right=of gnb1] {5G UE-2\Smartphone};
+			
+			\node (ue3) [below left=of gnb2] {5G UE-3\Smartphone};
+			
+			\node (ue4) [below right=of gnb2] {5G UE-4\Smartphone};
+			
+			% MEC
+			\node (mec) [right=4cm of switch] {MEC Server\Edge Applications};
+			
+			% AI
+			\node (ai) [above=of mec] {AI Workstation\Mobility Prediction};
+			
+			% Monitoring
+			\node (monitor) [below=of mec] {Monitoring Server\Grafana / Prometheus};
+			
+			% Storage
+			\node (storage) [below=of monitor] {NAS Storage\Logs and Datasets};
+			
+			% Connections
+			
+			\draw[-] (core) -- (switch);
+			
+			\draw[-] (switch) -- (gnb1);
+			\draw[-] (switch) -- (gnb2);
+			
+			\draw[-] (switch) -- (mec);
+			
+			\draw[-] (mec) -- (ai);
+			\draw[-] (mec) -- (monitor);
+			\draw[-] (monitor) -- (storage);
+			
+			\draw[dashed] (gnb1) -- (ue1);
+			\draw[dashed] (gnb1) -- (ue2);
+			
+			\draw[dashed] (gnb2) -- (ue3);
+			\draw[dashed] (gnb2) -- (ue4);
+			
+		\end{tikzpicture}
+	}
+	\caption{Proposed Physical Deployment Architecture of the 5G Research Testbed}
+	\label{fig:physical_architecture}
+\end{figure}
+The proposed deployment consists of a centralized 5G Core Server connected to a managed enterprise switch that interconnects the Radio Access Network, MEC infrastructure, AI platform, monitoring systems, and storage resources. Two SDR-based gNodeBs provide radio coverage for multiple commercial 5G User Equipments, enabling mobility and handover experiments. Dedicated MEC, AI, and monitoring servers support edge computing, intelligent mobility management, analytics, and long-term dataset collection, while the NAS infrastructure provides centralized storage for experimental data and research artifacts.
+
+
+\section{Detailed Architecture}
+\begin{figure}[htbp]
+	\centering
+	\begin{tikzpicture}[
+		node distance=2.5cm,
+		every node/.style={draw, rounded corners, align=center}
+		]
+		
+		\node (ue) {5G UEs\\Smartphones};
+		\node (gnb1) [right=of ue] {gNB-1\\SDR};
+		\node (gnb2) [below=of gnb1] {gNB-2\\SDR};
+		
+		\node (amf) [right=4cm of gnb1] {AMF};
+		
+		\node (smf) [below=of amf] {SMF};
+		
+		\node (upf) [below=of smf] {UPF};
+		
+		\node (mec) [right=of upf] {MEC\\Server};
+		
+		\node (internet) [right=of mec] {Internet};
+		
+		\node (controller) [above=of amf] {AI Mobility\\Controller};
+		
+		\draw[->] (ue)--(gnb1);
+		\draw[->] (ue)--(gnb2);
+		
+		\draw[->] (gnb1)--(amf);
+		\draw[->] (gnb2)--(amf);
+		
+		\draw[->] (amf)--(smf);
+		\draw[->] (smf)--(upf);
+		\draw[->] (upf)--(mec);
+		\draw[->] (mec)--(internet);
+		
+		\draw[<->,dashed] (controller)--(amf);
+		\draw[<->,dashed] (controller)--(smf);
+		
+	\end{tikzpicture}
+	\caption{Proposed Real-World 5G Testbed Architecture}
+\end{figure}
+
+\section{SDR and Radio Infrastructure}
+The Radio Access Network (RAN) shall be implemented using Software Defined Radio (SDR) platforms. SDRs provide flexibility for implementing and modifying physical layer and MAC layer functionality while remaining significantly more economical than commercial telecom-grade base stations.
+
+The proposed deployment will initially utilize two SDR-based gNodeBs supporting 5G Standalone operation.
+
+\begin{table}[h]
+	\centering
+	\caption{SDR Platform Comparison}
+	\begin{tabular}{|l|c|c|c|}
+		\hline
+		Platform & Frequency Range & Cost (INR) & Recommendation \\
+		\hline
+		USRP B210 & 70 MHz -- 6 GHz & 2.2L-2.8L & Recommended \\
+		USRP X310 & DC -- 6 GHz & 10L-15L & Advanced Research \\
+		LimeSDR & 100 kHz -- 3.8 GHz & 0.6L-0.8L & Entry Level \\
+		BladeRF 2.0 & 47 MHz -- 6 GHz & 1.2L-1.8L & Alternative \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\section{Multi-access Edge Computing (MEC) Architecture}
+MEC infrastructure enables application services to be deployed at the network edge, reducing end-to-end latency and improving service responsiveness.
+
+The MEC platform shall host:
+
+\begin{itemize}
+	\item Video Analytics Applications
+	\item AI Inference Engines
+	\item Autonomous Mobility Services
+	\item Smart Campus Applications
+	\item Real-Time Monitoring Services
+\end{itemize}
+
+\begin{verbatim}
+	UE
+	|
+	gNB
+	|
+	UPF
+	|
+	MEC Cluster
+	|
+	Cloud Services
+\end{verbatim}
+
+\section{Open5GS and srsRAN Integration}
+The proposed implementation utilizes Open5GS as the 5G Core Network and srsRAN as the Radio Access Network stack.
+
+Open5GS Components:
+
+\begin{itemize}
+	\item AMF
+	\item SMF
+	\item UPF
+	\item NRF
+	\item UDM
+	\item AUSF
+	\item PCF
+\end{itemize}
+
+srsRAN Components:
+
+\begin{itemize}
+	\item gNB
+	\item Radio Scheduler
+	\item PHY Layer
+	\item MAC Layer
+	\item RLC Layer
+\end{itemize}
+
+\section{RF Laboratory Design}
+Real-world radio experimentation requires a controlled RF environment to prevent interference and ensure repeatable measurements.
+\begin{table}[h]
+	\centering
+	\caption{RF Laboratory Components}
+	\begin{tabular}{|l|l|}
+		\hline
+		Component & Purpose \\
+		\hline
+		SDR Rack & Radio Equipment \\
+		RF Attenuators & Signal Control \\
+		Shielding Cabinet & Isolation \\
+		Spectrum Analyzer & RF Measurements \\
+		UPS & Power Backup \\
+		Monitoring Station & Analytics \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\section{Spectrum and Regulatory Considerations}
+The proposed testbed will operate in compliance with applicable regulations issued by the Department of Telecommunications (DoT) and the Wireless Planning and Coordination (WPC) Wing of India.
+
+The testbed will initially operate within a shielded laboratory environment using SDR-based transmission systems and controlled RF attenuation.
+
+No commercial public service shall be provided using the infrastructure.
+
+Potential deployment approaches include:
+
+\begin{enumerate}
+	\item Fully Shielded Laboratory Operation
+	\item Conducted RF Testing
+	\item Experimental Licensing Through WPC
+	\item Future Industry Collaboration
+\end{enumerate}
+
+\section{Vendor and Procurement Strategy}
+\begin{table}[h]
+	\centering
+	\caption{Potential SDR Vendors}
+	\begin{tabular}{|l|l|}
+		\hline
+		Vendor & Location \\
+		\hline
+		National Instruments India & Bangalore \\
+		Accord Systems & Bangalore \\
+		AgileTest Technologies & Bangalore \\
+		Keysight India & Bangalore \\
+		Rohde \& Schwarz India & Bangalore \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\begin{table}[h]
+	\centering
+	\caption{Compute Infrastructure Vendors}
+	\begin{tabular}{|l|l|}
+		\hline
+		Vendor & Product Family \\
+		\hline
+		Dell India & PowerEdge \\
+		Lenovo India & ThinkSystem \\
+		HPE India & ProLiant \\
+		Supermicro Partners & Rack Servers \\
+		\hline
+	\end{tabular}
+\end{table}
+
+
+\section{Junior Research Fellow Requirements}
+\subsection{Essential Qualifications}
+
+\begin{itemize}
+	\item B.Tech/M.Tech in CSE/ECE/IT
+	\item Linux Administration
+	\item Python Programming
+	\item Computer Networks
+	\item Data Structures and Algorithms
+	\item Database Management
+	\item Version Control Systems
+\end{itemize}
+
+\subsection{Desirable Qualifications}
+
+\begin{itemize}
+	\item GATE Qualification
+	\item Open5GS Experience
+	\item srsRAN Experience
+	\item SDR Programming
+	\item GNU Radio
+	\item Wireless Communication
+	\item AI/ML Knowledge
+	\item Research Publication Experience
+\end{itemize}
+
+
+\section{Risk Assessment}
+\begin{longtable}{|p{4cm}|p{3cm}|p{6cm}|}
+	\hline
+	Risk & Impact & Mitigation \\
+	\hline
+	Procurement Delay & Medium & Multi-vendor sourcing \\
+	SDR Failure & Medium & Spare units \\
+	Software Bugs & High & Incremental validation \\
+	RF Interference & Medium & Shielded enclosure \\
+	Power Failure & Medium & UPS backup \\
+	\hline
+\end{longtable}
+
+\section{CAPEX and OPEX Analysis}
+\begin{table}[h]
+	\centering
+	\caption{Capital Expenditure}
+	\begin{tabular}{|l|r|}
+		\hline
+		Component & Cost (INR) \\
+		\hline
+		Servers & 8,00,000 \\
+		SDRs & 5,00,000 \\
+		Networking & 50,000 \\
+		Storage & 70,000 \\
+		UPS & 1,00,000 \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\begin{table}[h]
+	\centering
+	\caption{Annual Operational Expenditure}
+	\begin{tabular}{|l|r|}
+		\hline
+		Item & Cost (INR) \\
+		\hline
+		Electricity & 60,000 \\
+		Maintenance & 50,000 \\
+		Consumables & 20,000 \\
+		Software Support & 30,000 \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\section{Project Timeline}
+\begin{ganttchart}{1}{18}
+	\gantttitle{18 Month Project Schedule}{18}\\
+	\gantttitlelist{1,...,18}{1}\\
+	
+	\ganttbar{Procurement}{1}{3}\\
+	\ganttbar{Infrastructure Setup}{2}{5}\\
+	\ganttbar{Core Deployment}{4}{7}\\
+	\ganttbar{SDR Deployment}{5}{8}\\
+	\ganttbar{MEC Deployment}{7}{10}\\
+	\ganttbar{Mobility Framework}{8}{12}\\
+	\ganttbar{AI Integration}{11}{15}\\
+	\ganttbar{Experimental Validation}{13}{17}\\
+	\ganttbar{Publications}{15}{18}
+	
+\end{ganttchart}
+
+\section{Experimental Methodology}
+Define intra-slice mobility, inter-slice mobility, QoS preservation, congestion handling, and AI-assisted handover experiments.
+
+\section{AI Integration Roadmap}
+Reinforcement learning for handover decisions, traffic prediction, anomaly detection, and self-healing networks.
+
+\section{Bill of Materials}
+\begin{longtable}{|p{8cm}|p{3cm}|p{3cm}|}
+\hline
+Item & Qty & Cost (INR)\\
+\hline
+Core Server & 1 & 300000\\
+Edge Server & 1 & 200000\\
+AI Workstation & 1 & 300000\\
+USRP B210 & 2 & 500000\\
+Networking Equipment & 1 & 50000\\
+Monitoring Infrastructure & 1 & 80000\\
+UPS & 1 & 100000\\
+Storage & 1 & 70000\\
+\hline
+\end{longtable}
+
+\section{Budget Justification}
+Provide technical justification for every capital expenditure item.
+
+
+\section{Risk Assessment}
+\begin{longtable}{|p{4cm}|p{4cm}|p{5cm}|}
+\hline
+Risk & Impact & Mitigation\\
+\hline
+Hardware Delay & Medium & Alternate Vendors\\
+SDR Failure & Medium & Spare Inventory\\
+Configuration Complexity & High & Documentation and Training\\
+\hline
+\end{longtable}
+
+
+
+\section{Expected Deliverables}
+\begin{enumerate}
+\item Real Private 5G Testbed
+\item Dynamic Slice Switching Framework
+\item Mobility Analytics Platform
+\item Research Publications
+\item Patent Opportunities
+\end{enumerate}
+
+
+\end{document}

@@ -1,0 +1,3518 @@
+\documentclass[11pt,a4paper]{article}
+
+% -------------------------------------------------
+% Encoding & Fonts
+% -------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% -------------------------------------------------
+% Page Layout
+% -------------------------------------------------
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% -------------------------------------------------
+% Mathematics
+% -------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+\usepackage{mathtools}
+
+% -------------------------------------------------
+% Tables
+% -------------------------------------------------
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{makecell}
+
+% -------------------------------------------------
+% Lists
+% -------------------------------------------------
+\usepackage{enumitem}
+
+% -------------------------------------------------
+% Graphics
+% -------------------------------------------------
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{subcaption}
+
+% -------------------------------------------------
+% Hyperlinks
+% -------------------------------------------------
+\usepackage[hidelinks]{hyperref}
+
+% -------------------------------------------------
+% Code Listings
+% -------------------------------------------------
+\usepackage{listings}
+
+\lstset{
+	basicstyle=\ttfamily\small,
+	breaklines=true,
+	columns=fullflexible,
+	frame=single
+}
+
+% -------------------------------------------------
+% Algorithms
+% -------------------------------------------------
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% -------------------------------------------------
+% Quotes
+% -------------------------------------------------
+\usepackage{csquotes}
+
+% -------------------------------------------------
+% Better Paragraphs
+% -------------------------------------------------
+\usepackage{parskip}
+
+% -------------------------------------------------
+% Miscellaneous
+% -------------------------------------------------
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric}
+
+% -------------------------------------------------
+% Useful Commands
+% -------------------------------------------------
+\newcommand{\BigO}{\mathcal{O}}
+
+\newcommand{\tab}{\hspace*{2em}}
+
+\renewcommand{\arraystretch}{1.3}
+
+% -------------------------------------------------
+% Title Formatting
+% -------------------------------------------------
+\titleformat{\section}
+{\Large\bfseries}
+{\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\large\bfseries}
+{\thesubsection}{1em}{}
+
+\titleformat{\subsubsection}
+{\normalsize\bfseries}
+{\thesubsubsection}{1em}{}
+
+\begin{document}
+\section{DE Shaw Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Unlike many product companies that primarily emphasize coding proficiency, DE Shaw evaluates candidates as computer scientists. Interviews focus heavily on analytical reasoning, mathematical maturity, systems thinking, and the ability to justify design decisions. Candidates are expected to derive solutions rather than merely recall them.
+
+The interview process is adaptive. Strong performance often results in significantly deeper questioning rather than easier interviews. Interviewers intentionally explore the limits of a candidate's understanding.
+
+\subsection{Interview Structure}
+
+Typical process observed:
+
+\begin{enumerate}
+	\item Online Assessment (Hackerrank)
+	\item Technical Interview I
+	\item Technical Interview II
+	\item HR Discussion (only for shortlisted candidates)
+\end{enumerate}
+
+Interview durations are usually between 45 and 90 minutes per technical round.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: Hackerrank
+	\item Duration: 60 minutes
+	\item Number of Questions: 3
+\end{itemize}
+
+Difficulty distribution:
+
+\begin{center}
+	\begin{tabular}{|c|c|}
+		\hline
+		Question & Difficulty \\
+		\hline
+		Q1 & Easy-Medium \\
+		Q2 & Hard \\
+		Q3 & Hard/Very Hard \\
+		\hline
+	\end{tabular}
+\end{center}
+
+The objective is not necessarily to solve all three questions. Historical experiences indicate that solving Question 1 completely and obtaining substantial partial credit on one additional problem is generally sufficient for interview shortlisting.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{DSA Topics Asked}
+
+Frequently observed topics include:
+
+\begin{itemize}
+	\item Dynamic Programming
+	\item Graph Algorithms
+	\item BFS / DFS
+	\item Binary Search
+	\item Sliding Window
+	\item Heap / Priority Queue
+	\item Matrix Traversal
+	\item Recursive DP
+	\item State Compression
+	\item Memoization
+	\item Interval DP
+	\item Tree DP
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Search in 2D Matrix (LC 74)
+	\item Number of Islands (LC 200)
+	\item Rotated Sorted Array
+	\item Sliding Window
+	\item Heap Problems
+	\item Matrix Search
+	\item Tiling DP
+	\item Array Partition DP
+	\item Subordinates (Graph + DP)
+\end{itemize}
+
+Interview DP questions frequently require:
+
+\begin{itemize}
+	\item Defining states
+	\item Explaining transitions
+	\item Complexity derivation
+	\item Dry run
+	\item Recursive pseudocode
+	\item Edge case generation
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Core Computer Science}
+
+This is arguably the most heavily emphasized portion of the interviews.
+
+\subsubsection{Operating Systems}
+
+Expected topics include:
+
+\begin{itemize}
+	\item Process vs Thread
+	\item Process Life Cycle
+	\item Scheduling Algorithms
+	\item Round Robin
+	\item SRTF
+	\item FCFS
+	\item Priority Scheduling
+	\item Virtual Memory
+	\item Paging
+	\item Page Tables
+	\item TLB
+	\item Page Replacement Algorithms
+	\item Thrashing
+	\item Deadlock
+	\item Coffman Conditions
+	\item Deadlock Prevention
+	\item Deadlock Avoidance
+	\item Deadlock Detection
+	\item Critical Section
+	\item Synchronization
+	\item Time Sharing
+	\item Context Switching
+\end{itemize}
+
+Interview style:
+
+Instead of asking:
+
+\begin{quote}
+	``Explain Virtual Memory.''
+\end{quote}
+
+they typically ask
+
+\begin{quote}
+	``Can a 1GB process execute on a machine with only 250MB RAM?''
+\end{quote}
+
+The candidate is expected to infer the underlying concept before explaining it.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Database Management Systems}
+
+Expected topics:
+
+\begin{itemize}
+	\item SQL
+	\item Joins
+	\item Subqueries
+	\item Indexing
+	\item B+ Trees
+	\item Alternative Index Structures
+	\item Advantages and Drawbacks of Indexing
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Computer Networks}
+
+Observed topics:
+
+\begin{itemize}
+	\item OSI Layers
+	\item HTTP
+	\item TCP
+	\item IP
+	\item Proxy
+	\item Reverse Proxy
+	\item Nginx
+	\item Rate Limiting
+	\item Cloudflare
+	\item Gateways
+\end{itemize}
+
+Questions are usually project-driven rather than purely theoretical.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Programming Languages}
+
+Interviewers may evaluate:
+
+\begin{itemize}
+	\item C Syntax
+	\item Java Syntax
+	\item JavaScript Concurrency
+	\item Undefined Behaviour
+	\item STL Internals
+\end{itemize}
+
+You should understand internal implementations of:
+
+\begin{itemize}
+	\item vector
+	\item priority\_queue
+	\item map
+	\item unordered\_map
+	\item set
+	\item unordered\_set
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Mathematics}
+
+Candidates mentioning mathematics, competitive programming, or machine learning should expect significantly deeper mathematical questioning.
+
+Topics observed:
+
+\begin{itemize}
+	\item Probability
+	\item Conditional Probability
+	\item Expectation
+	\item Quant-style puzzles
+	\item Gradient Descent
+	\item PCA
+	\item Linear Algebra intuition
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Machine Learning}
+
+Candidates with ML projects reported questions on:
+
+\begin{itemize}
+	\item Gradient Descent Derivation
+	\item Polynomial Regression
+	\item PCA
+	\item Feature Transformation
+	\item Alternative Dimensionality Reduction Methods
+\end{itemize}
+
+Every statement written on the resume was explored in depth.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Resume Evaluation}
+
+One striking observation is that interviewers may spend over half the interview exclusively discussing the resume.
+
+Common discussion areas:
+
+\begin{itemize}
+	\item Academic choices
+	\item Career decisions
+	\item CGPA
+	\item Branch preference
+	\item Schooling
+	\item Projects
+	\item Research
+	\item Internships
+\end{itemize}
+
+Every decision should have a logical explanation.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Typical questions include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Why DE Shaw?
+	\item Why this branch?
+	\item Why this college?
+	\item Walk me through your journey from Class X onwards.
+	\item Why technology?
+	\item Why your current interests?
+\end{itemize}
+
+Interviewers aggressively cross-question vague answers.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Expected Difficulty}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Online Assessment & 9/10 \\
+		DSA & 8.5/10 \\
+		Operating Systems & 10/10 \\
+		DBMS & 8/10 \\
+		Computer Networks & 8/10 \\
+		Programming Languages & 9/10 \\
+		Resume & 10/10 \\
+		Behavioural & 9/10 \\
+		Overall & 9.5/10 \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Dynamic Programming
+	\item Graph Algorithms
+	\item Binary Search
+	\item Trees
+	\item BFS/DFS
+	\item Operating Systems (Complete)
+	\item SQL
+	\item STL Internals
+	\item Complexity Analysis
+	\item Resume Preparation
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item Computer Networks
+	\item C Language
+	\item Java Basics
+	\item JavaScript Event Loop
+	\item Caching Algorithms
+	\item Probability
+	\item Quant Puzzles
+\end{itemize}
+
+\subsubsection{Tier 3 (Resume Dependent)}
+
+\begin{itemize}
+	\item Machine Learning
+	\item Blockchain
+	\item Cryptography
+	\item Cloud
+	\item Research Projects
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Interviewers frequently ask "why" rather than "what."
+	\item Every project listed on the resume should withstand 30+ minutes of questioning.
+	\item Complexity proofs are valued almost as much as coding.
+	\item Dry-running solutions is expected.
+	\item Recursive DP pseudocode is often easier to explain than iterative implementations.
+	\item Do not claim expertise unless you are comfortable with graduate-level follow-up questions.
+	\item Interviewers appreciate intellectual curiosity---asking thoughtful questions at the end leaves a positive impression.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with DE Shaw, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve medium-hard DP problems from scratch.
+	\item Explain every standard Operating System concept through practical scenarios.
+	\item Derive the time complexity of unfamiliar algorithms.
+	\item Explain STL container implementations and their trade-offs.
+	\item Write clean recursive DP pseudocode and dry-run it.
+	\item Discuss every project on your resume in exhaustive technical depth.
+	\item Justify every academic and career decision on your resume.
+	\item Solve SQL problems using multiple approaches.
+	\item Answer networking questions grounded in both theory and real-world systems.
+	\item Think aloud while reasoning through unfamiliar problems rather than relying on memorized solutions.
+\end{itemize}
+
+
+\section{Nutanix Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Nutanix primarily evaluates candidates as software engineers rather than competitive programmers. While strong algorithmic skills are expected, equal emphasis is placed on debugging ability, backend engineering, database design, distributed systems fundamentals, and practical software development.
+
+Interviewers consistently cross-question design decisions and expect candidates to justify every technical choice. Rather than looking for a single correct solution, they evaluate engineering trade-offs, scalability, and reasoning ability.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+A typical recruitment process consists of:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Debugging Round (Knockout)
+	\item Technical Round I (DSA)
+	\item Technical Round II (System Design)
+	\item Hiring Manager / HR Round
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank
+	\item Duration: 90 Minutes
+	\item Questions: 3
+	\item Difficulty: Medium to Medium-Hard
+\end{itemize}
+
+Observed topics include:
+
+\begin{itemize}
+	\item Sliding Window
+	\item Binary Search
+	\item Graph Algorithms
+	\item Connected Components
+	\item Trees
+	\item Number Theory
+	\item Geometric Progression
+	\item Prefix Techniques
+\end{itemize}
+
+Representative questions:
+
+\begin{itemize}
+	\item Count GP Triplets
+	\item Minimum Product Subarray
+	\item Connected Components + Cycle Removal
+	\item Binary Search Problems
+	\item Subarray Counting
+\end{itemize}
+
+Observation:
+
+The problems generally test clean implementation and algorithmic maturity rather than obscure tricks.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Debugging Round}
+
+This is one of Nutanix's signature interview rounds.
+
+Candidates receive an incomplete or incorrect implementation and are expected to:
+
+\begin{itemize}
+	\item Understand the algorithm
+	\item Identify logical bugs
+	\item Detect missing implementations
+	\item Explain time complexity
+	\item Explain the underlying algorithm
+\end{itemize}
+
+Observed topics:
+
+\begin{itemize}
+	\item Graph Algorithms
+	\item Topological Sort
+	\item Scheduling Problems
+	\item Dependency Resolution
+\end{itemize}
+
+Preparation recommendation:
+
+\begin{itemize}
+	\item Practice debugging handwritten code.
+	\item Read implementations instead of only writing them.
+	\item Be comfortable identifying algorithmic mistakes quickly.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Round I --- Algorithms}
+
+Expected topics:
+
+\begin{itemize}
+	\item Sliding Window
+	\item Binary Search
+	\item Graphs
+	\item Shortest Path
+	\item BFS
+	\item Dijkstra
+	\item Median Problems
+	\item Priority Queues
+	\item Streaming Algorithms
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Shortest Path
+	\item Multiple Monsters on Graph
+	\item Median of Two Sorted Arrays
+	\item Median from Data Stream
+	\item Minimum Size Subarray
+\end{itemize}
+
+Interview pattern:
+
+\begin{enumerate}
+	\item Brute force
+	\item Better approach
+	\item Optimal solution
+	\item Complexity proof
+	\item Edge cases
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{High-Level Design}
+
+One of the strongest differentiators in Nutanix interviews.
+
+Observed design questions:
+
+\begin{itemize}
+	\item Booking Application
+	\item Blogging Platform
+\end{itemize}
+
+Expected discussion:
+
+\begin{itemize}
+	\item Functional Requirements
+	\item Non-functional Requirements
+	\item Database Schema
+	\item SQL vs NoSQL
+	\item API Design
+	\item Authentication
+	\item Pagination
+	\item Caching
+	\item Transactions
+	\item Database Locks
+	\item Concurrency
+	\item Indexing
+	\item B+ Trees
+	\item Class Design
+	\item Singleton Pattern
+\end{itemize}
+
+Interviewers repeatedly ask:
+
+\begin{quote}
+	"Why did you choose this approach?"
+\end{quote}
+
+rather than
+
+\begin{quote}
+	"Can you design this?"
+\end{quote}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Database Knowledge}
+
+Topics repeatedly observed:
+
+\begin{itemize}
+	\item SQL
+	\item NoSQL
+	\item Database Locks
+	\item Transactions
+	\item Isolation Levels
+	\item Indexing
+	\item Clustered vs Non-clustered Index
+	\item B+ Trees
+	\item Pagination
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Concurrency}
+
+Expected understanding:
+
+\begin{itemize}
+	\item Concurrent Requests
+	\item Race Conditions
+	\item Duplicate Registrations
+	\item Database Locking
+	\item Atomic Operations
+	\item Transactions
+	\item Cache Consistency
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{API Design}
+
+Candidates should comfortably design REST APIs.
+
+Expected knowledge:
+
+\begin{itemize}
+	\item GET
+	\item POST
+	\item PUT
+	\item PATCH
+	\item DELETE
+	\item Authentication
+	\item Status Codes
+	\item Request Validation
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Core Computer Science}
+
+Frequently observed topics:
+
+\subsubsection{Operating Systems}
+
+\begin{itemize}
+	\item Locks
+	\item Synchronization
+	\item Concurrency
+	\item Scheduling
+\end{itemize}
+
+\subsubsection{DBMS}
+
+\begin{itemize}
+	\item Transactions
+	\item ACID
+	\item Indexing
+	\item Normalization
+	\item B+ Trees
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Programming}
+
+Interviewers may ask:
+
+\begin{itemize}
+	\item STL Internals
+	\item Ordered Set
+	\item PBDS
+	\item Heap Internals
+	\item Complexity Analysis
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Resume Discussion}
+
+Interviewers usually focus on:
+
+\begin{itemize}
+	\item Internship Projects
+	\item Backend Projects
+	\item Networking Projects
+	\item AI/ML Work
+	\item Research
+\end{itemize}
+
+Expect deep technical discussions rather than superficial project summaries.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Round}
+
+Typical questions:
+
+\begin{itemize}
+	\item Preferred Team
+	\item Career Goals
+	\item Project Challenges
+	\item Why Nutanix?
+	\item Development vs Systems Team
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 30\% \\
+		System Design & 25\% \\
+		DBMS & 15\% \\
+		Debugging & 10\% \\
+		Concurrency & 8\% \\
+		Backend Engineering & 7\% \\
+		Resume & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Sliding Window
+	\item Graph Algorithms
+	\item BFS / DFS
+	\item Dijkstra
+	\item Binary Search
+	\item Heap
+	\item Median Problems
+	\item Debugging Practice
+	\item SQL
+	\item Transactions
+	\item Indexing
+	\item REST APIs
+	\item Database Design
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item High-Level Design
+	\item Low-Level Design
+	\item Singleton Pattern
+	\item Pagination
+	\item Caching
+	\item Load Balancing
+	\item Authentication
+	\item PBDS
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Distributed Systems
+	\item Consistent Hashing
+	\item CAP Theorem
+	\item Generative AI
+	\item Networking Projects
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Debugging ability is evaluated separately from coding ability.
+	\item Interviewers value engineering discussions over memorized answers.
+	\item Every design decision should be justified with scalability arguments.
+	\item Concurrency handling is expected in backend design questions.
+	\item Database concepts are repeatedly integrated into system design discussions.
+	\item Strong candidates naturally discuss caching, transactions, and indexing without prompting.
+	\item Resume projects often determine the direction of the interview.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Nutanix, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve medium-level graph and binary search problems under time constraints.
+	\item Debug handwritten implementations and explain their complexity.
+	\item Design a scalable backend application from scratch.
+	\item Model relational databases and justify SQL vs NoSQL choices.
+	\item Design REST APIs with proper authentication and validation.
+	\item Explain transactions, locking, indexing, and B+ trees in depth.
+	\item Handle concurrent requests and avoid race conditions.
+	\item Discuss caching strategies and consistency trade-offs.
+	\item Explain every significant project on your résumé in technical depth.
+	\item Defend every design decision with clear engineering reasoning.
+\end{itemize}
+
+\section{Microsoft Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Microsoft evaluates candidates as collaborative software engineers. While strong data structures and algorithms skills are expected, interviewers place equal emphasis on communication, structured problem solving, debugging ability, object-oriented design, and practical engineering intuition.
+
+Unlike interviews that primarily reward arriving at the optimal solution immediately, Microsoft interviewers frequently encourage candidates to improve their solutions incrementally through discussion. Explaining thought process clearly is often as important as reaching the final algorithm.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+Typical interview process observed:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Interview I
+	\item Technical Interview II
+\end{enumerate}
+
+Some hiring cycles include additional project discussions, while most internship interviews conclude after two technical rounds. There is generally no separate HR round.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank
+	\item Duration: 60--90 minutes
+	\item Questions: 2
+	\item Difficulty: Easy to Medium-Hard
+\end{itemize}
+
+Observed topics include:
+
+\begin{itemize}
+	\item Dynamic Programming
+	\item Binary Search
+	\item Greedy
+	\item Sliding Window
+	\item Hashing
+	\item String Processing
+	\item Subsequences
+	\item Longest Increasing Variants
+	\item Algebraic Reasoning
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Duplicate Elements
+	\item Knapsack-style DP
+	\item Climbing Stairs Variant
+	\item Stock Subsequences
+	\item Discount Simulation
+	\item Wheel Combinations
+	\item Feature Selection with Priority Queues
+	\item Divide Array into K Subarrays
+\end{itemize}
+
+Selection is influenced by correctness, submission time, hidden test cases, CGPA normalization, and optimization quality.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+Frequently observed topics:
+
+\begin{itemize}
+	\item Dynamic Programming
+	\item Graph Algorithms
+	\item BFS
+	\item Word Ladder
+	\item Binary Search
+	\item Sliding Window
+	\item Greedy
+	\item Heap
+	\item Merge Sort
+	\item Linked Lists
+	\item Strings
+	\item Hash Maps
+	\item Sorting
+\end{itemize}
+
+Representative interview problems:
+
+\begin{itemize}
+	\item Word Ladder
+	\item Merge Overlapping HTML Tags
+	\item Minimum Absolute Difference Pairs
+	\item Longest Valid Stock Subsequence
+	\item Unique Subsequences
+	\item Delete Duplicates in Linked List
+	\item Circular Doubly Linked List Debugging
+	\item Flight Scheduling
+	\item Reverse Number Search
+\end{itemize}
+
+Interview pattern generally follows:
+
+\begin{enumerate}
+	\item Brute force solution
+	\item Better solution
+	\item Optimal solution
+	\item Complexity analysis
+	\item Implementation
+	\item Dry run
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Dynamic Programming}
+
+Dynamic Programming appears more frequently than expected.
+
+Observed patterns include:
+
+\begin{itemize}
+	\item Knapsack
+	\item Space Optimization
+	\item Interval DP
+	\item Partition DP
+	\item State Optimization
+\end{itemize}
+
+Interviewers appreciate candidates who naturally progress through:
+
+\[
+\text{Recursion}
+\rightarrow
+\text{Memoization}
+\rightarrow
+\text{Bottom-Up DP}
+\rightarrow
+\text{Space Optimization}
+\]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Object-Oriented Programming}
+
+Frequently asked concepts:
+
+\begin{itemize}
+	\item Abstraction
+	\item Encapsulation
+	\item Inheritance
+	\item Polymorphism
+	\item Dangling Pointers
+	\item C++ Memory Management
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Operating Systems}
+
+Observed topics:
+
+\begin{itemize}
+	\item Memory Allocation
+	\item Swapping
+	\item Virtual Memory
+	\item Process Memory Layout
+\end{itemize}
+
+Although OS is not a primary focus, candidates claiming it as a favourite subject should expect deeper questioning.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Programming Languages}
+
+Interviewers frequently evaluate practical programming knowledge.
+
+Observed topics:
+
+\begin{itemize}
+	\item C++
+	\item C\#
+	\item STL
+	\item std::sort()
+	\item Merge Sort
+	\item Stable Sorting
+	\item Binary Trees
+	\item Heaps
+\end{itemize}
+
+Expected knowledge:
+
+\begin{itemize}
+	\item Internal implementation of STL containers
+	\item Stability of sorting algorithms
+	\item Appropriate data structure selection
+	\item Complexity analysis
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Debugging}
+
+Debugging ability appears repeatedly.
+
+Representative problems:
+
+\begin{itemize}
+	\item Path Simplification
+	\item Circular Doubly Linked List
+	\item Incorrect Pointer Updates
+	\item Missing Boundary Checks
+\end{itemize}
+
+Interviewers expect candidates to:
+
+\begin{itemize}
+	\item Identify logical bugs
+	\item Explain intended functionality
+	\item Suggest fixes
+	\item Analyze complexity
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{System Design}
+
+Although internship interviews are primarily algorithmic, practical system design concepts are occasionally discussed.
+
+Observed topics:
+
+\begin{itemize}
+	\item Load Balancing
+	\item Nginx
+	\item Scheduling Systems
+	\item Resource Allocation
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Projects}
+
+Project discussions typically include:
+
+\begin{itemize}
+	\item Internship Experience
+	\item Technical Challenges
+	\item Technology Stack
+	\item Design Decisions
+	\item Lessons Learned
+\end{itemize}
+
+Interviewers generally focus on understanding the candidate's individual contribution rather than the overall project.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Common questions include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Why Competitive Programming?
+	\item Favourite Programming Language?
+	\item Favourite Subject?
+	\item Explain your internship.
+	\item Explain your project.
+\end{itemize}
+
+Communication and clarity are heavily emphasized.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 45\% \\
+		Dynamic Programming & 15\% \\
+		OOP & 10\% \\
+		Debugging & 10\% \\
+		Projects & 10\% \\
+		Operating Systems & 5\% \\
+		Programming Languages & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Dynamic Programming
+	\item Graph Algorithms
+	\item BFS
+	\item Binary Search
+	\item Sliding Window
+	\item Hashing
+	\item Linked Lists
+	\item Merge Sort
+	\item Heap
+	\item String Algorithms
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item OOP
+	\item STL Internals
+	\item C++ Memory Management
+	\item Debugging Practice
+	\item Complexity Analysis
+	\item Recursion to DP Optimization
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Load Balancing
+	\item Nginx
+	\item Flight Scheduling Problems
+	\item System Design Basics
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Interviewers expect continuous communication while solving problems.
+	\item Correct reasoning is often valued more than immediately producing the optimal solution.
+	\item Many problems are extensions of standard LeetCode Medium questions with additional constraints.
+	\item Dynamic Programming is significantly more common than in many other product companies.
+	\item Interviewers frequently modify the original problem to evaluate adaptability.
+	\item Debugging and implementation correctness receive considerable attention.
+	\item Project discussions usually focus on technical depth rather than resume breadth.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Microsoft, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve medium-level graph, DP, and string problems under interview conditions.
+	\item Explain every optimization from brute force to optimal.
+	\item Perform recursion, memoization, tabulation, and space optimization for DP problems.
+	\item Implement common graph algorithms without reference.
+	\item Debug pointer and logic errors in unfamiliar code.
+	\item Explain STL containers, sorting algorithms, and complexity trade-offs.
+	\item Discuss object-oriented programming concepts with practical examples.
+	\item Explain every project on your résumé in technical depth.
+	\item Communicate your reasoning clearly throughout the interview.
+	\item Adapt your solution smoothly when the interviewer introduces new constraints.
+\end{itemize}
+
+\section{Amazon Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Amazon evaluates candidates primarily on coding ability, problem-solving methodology, and engineering mindset. Interviewers place significant emphasis on communication throughout the problem-solving process and expect candidates to explain every design and implementation decision. In addition to technical skills, behavioural alignment through company-fit or Leadership Principle style assessments is an important component of the hiring process.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+Typical internship hiring process:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Company Fit / Psychometric Assessment
+	\item Technical Interview
+\end{enumerate}
+
+Some roles may include additional domain-specific discussions depending on the team.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank (Offline Proctored)
+	\item Duration: Approximately 60 Minutes
+	\item Questions: 2 Coding Problems
+	\item Additional Company Fit Assessment
+\end{itemize}
+
+Observed difficulty:
+
+\begin{itemize}
+	\item One Medium problem
+	\item One Medium--Hard problem
+\end{itemize}
+
+Selection depends on:
+
+\begin{itemize}
+	\item Coding performance
+	\item Code quality
+	\item Hidden test cases
+	\item Company-fit assessment
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Company Fit Assessment}
+
+Candidates should expect situational judgement questions evaluating behavioural traits.
+
+Typical objectives include:
+
+\begin{itemize}
+	\item Ownership
+	\item Customer Obsession
+	\item Bias for Action
+	\item Deliver Results
+	\item Teamwork
+	\item Decision Making
+	\item Adaptability
+\end{itemize}
+
+Answers should remain internally consistent and reflect practical engineering behaviour.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview}
+
+Interview duration typically ranges from 60 to 90 minutes.
+
+Interview flow:
+
+\begin{enumerate}
+	\item Introduction
+	\item Resume Discussion
+	\item Project Discussion
+	\item Coding Problems
+	\item Follow-up Optimizations
+	\item Candidate Questions
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+Frequently observed topics:
+
+\begin{itemize}
+	\item Binary Search
+	\item Modified Binary Search
+	\item Graph Algorithms
+	\item BFS
+	\item DFS
+	\item Arrays
+	\item Hash Maps
+	\item Trees
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Search in Rotated Sorted Array
+	\item Search in Rotated Array with Duplicates
+	\item Graph Traversal Problems
+\end{itemize}
+
+Interviewers often extend the original problem by introducing additional constraints instead of asking entirely new questions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Implementation Expectations}
+
+Unlike many interviews that accept pseudocode, Amazon generally expects complete, executable implementations.
+
+Candidates should be prepared to:
+
+\begin{itemize}
+	\item Write full programs
+	\item Handle input/output
+	\item Consider corner cases
+	\item Produce clean, readable code
+	\item Explain complexity analysis
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Database Knowledge}
+
+For database-oriented roles, observed topics include:
+
+\begin{itemize}
+	\item Database Design
+	\item Table Relationships
+	\item Normalization
+	\item SQL Fundamentals
+	\item Primary and Foreign Keys
+	\item Indexing
+\end{itemize}
+
+Interviewers may ask candidates to design a simple relational database and justify schema decisions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Projects}
+
+Project discussions generally focus on:
+
+\begin{itemize}
+	\item Overall architecture
+	\item Technologies used
+	\item Individual contribution
+	\item Technical challenges
+	\item Design decisions
+\end{itemize}
+
+Candidates should be able to explain every technology listed on the resume in depth.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Although there may not be a dedicated HR round, behavioural evaluation occurs throughout the process.
+
+Common discussion areas include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Explain your project.
+	\item Why did you choose this technology?
+	\item Describe a challenging problem you solved.
+	\item How do you approach debugging?
+	\item How do you work within a team?
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 55\% \\
+		Implementation & 15\% \\
+		Projects & 10\% \\
+		Behavioural / Company Fit & 10\% \\
+		DBMS & 10\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Arrays
+	\item Binary Search
+	\item Graph Algorithms
+	\item BFS / DFS
+	\item Hash Maps
+	\item Trees
+	\item Clean C++ Implementation
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item Database Fundamentals
+	\item SQL
+	\item Indexing
+	\item Object-Oriented Programming
+	\item Complexity Analysis
+\end{itemize}
+
+\subsubsection{Tier 3 (Role Dependent)}
+
+\begin{itemize}
+	\item Database Design
+	\item Distributed Systems Basics
+	\item AWS Fundamentals
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Interviewers expect production-quality code rather than only pseudocode.
+	\item Communication during problem solving is continuously evaluated.
+	\item Follow-up modifications to coding problems are common.
+	\item Resume projects often determine the direction of technical discussions.
+	\item Behavioural evaluation begins from the online assessment through company-fit questions.
+	\item Domain-specific roles may include system design or database discussions.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Amazon, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve medium-level binary search, graph, and array problems efficiently.
+	\item Write complete compilable code under interview conditions.
+	\item Handle follow-up modifications without restarting your solution.
+	\item Explain the time and space complexity of every approach.
+	\item Discuss your projects with a focus on architecture and engineering decisions.
+	\item Demonstrate solid SQL and database fundamentals for backend-oriented roles.
+	\item Remain consistent in company-fit and behavioural responses throughout the hiring process.
+\end{itemize}
+
+\section{Okta Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Okta evaluates candidates primarily on problem-solving ability, coding skills, and communication. The interview process is heavily Data Structures and Algorithms (DSA) oriented, with interviewers focusing on reasoning, clean implementation, and the ability to improve an initial solution through discussion. Resume discussions are technical but generally concise, while the Hiring Manager round emphasizes behavioural qualities and career motivation.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+For the Software Development Engineer (SDE) role, the interview process typically consists of:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Interview I
+	\item Technical Interview II
+	\item Hiring Manager Round
+\end{enumerate}
+
+For the Site Reliability Engineer (SRE) role:
+
+\begin{enumerate}
+	\item Linux, Networking, and Scripting Round
+	\item Coding and DSA Round
+	\item Hiring Manager Round
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank
+	\item Duration: 70 Minutes
+	\item Number of Questions: 4
+\end{itemize}
+
+Observed difficulty distribution:
+
+\begin{itemize}
+	\item 2 Easy
+	\item 2 Medium / Medium-Hard
+\end{itemize}
+
+Question sets are randomized, with different candidates receiving different problems.
+
+Observed topics include:
+
+\begin{itemize}
+	\item Strings
+	\item Mathematics
+	\item Arrays
+	\item Hashing
+	\item Implementation
+	\item Basic Graph Problems
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview I}
+
+Interview flow:
+
+\begin{enumerate}
+	\item Introduction
+	\item Resume Discussion
+	\item DSA Problem
+	\item Follow-up Optimizations
+	\item Complexity Analysis
+	\item Dry Run
+	\item Code / Pseudocode
+\end{enumerate}
+
+Representative problem:
+
+\begin{itemize}
+	\item Snakes and Ladders
+\end{itemize}
+
+Expected progression:
+
+\begin{itemize}
+	\item Recursive intuition
+	\item Graph modelling
+	\item BFS solution
+	\item Time and Space Complexity
+	\item Working implementation
+	\item Variant with weighted dice rolls
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview II}
+
+Interviewers generally ask one or two graph/tree based problems.
+
+Observed questions include:
+
+\begin{itemize}
+	\item Top View of Binary Tree
+	\item Possible Bipartition
+\end{itemize}
+
+Expected discussion:
+
+\begin{itemize}
+	\item Explain intuition
+	\item Derive algorithm
+	\item Write pseudocode
+	\item Dry run
+	\item Complexity analysis
+\end{itemize}
+
+Resume discussions are generally more detailed than in the first round, especially regarding internships and technical projects.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Hiring Manager Round}
+
+Unlike the technical interviews, this round primarily evaluates communication, maturity, and long-term fit.
+
+Common discussion topics include:
+
+\begin{itemize}
+	\item Internship experience
+	\item Areas of technical interest
+	\item Career goals
+	\item Team collaboration
+	\item Conflict resolution
+	\item Situational judgement
+	\item Five-year career vision
+\end{itemize}
+
+Some interviewers may include light technical discussions related to projects.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+Frequently observed topics:
+
+\begin{itemize}
+	\item Breadth First Search
+	\item Graph Traversal
+	\item Trees
+	\item Binary Trees
+	\item Hash Maps
+	\item Queue
+	\item Arrays
+	\item Strings
+	\item Simulation
+\end{itemize}
+
+Representative questions:
+
+\begin{itemize}
+	\item Snakes and Ladders
+	\item Top View of Binary Tree
+	\item Possible Bipartition
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Programming Expectations}
+
+Interviewers expect candidates to:
+
+\begin{itemize}
+	\item Write clean C++ code
+	\item Produce working pseudocode
+	\item Perform dry runs
+	\item Explain complexity
+	\item Handle follow-up modifications
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Resume Evaluation}
+
+Resume discussions commonly focus on:
+
+\begin{itemize}
+	\item Internship projects
+	\item Technologies used
+	\item Personal contributions
+	\item Design decisions
+	\item Technical challenges
+\end{itemize}
+
+Candidates should be prepared for detailed follow-up questions on every project listed.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Common questions include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Describe your internship.
+	\item What are your technical interests?
+	\item Where do you see yourself in five years?
+	\item Describe a difficult situation you handled.
+	\item How would you approach a challenging team problem?
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 65\% \\
+		Graphs & 20\% \\
+		Trees & 15\% \\
+		Resume / Projects & 10\% \\
+		Behavioural & 10\% \\
+		Communication & 10\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Graph Algorithms
+	\item BFS
+	\item DFS
+	\item Binary Trees
+	\item Tree Traversals
+	\item Hash Maps
+	\item Queue
+	\item Arrays
+	\item Strings
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item Graph Modelling
+	\item Simulation Problems
+	\item Dry Run Practice
+	\item Complexity Analysis
+	\item Resume Preparation
+\end{itemize}
+
+\subsubsection{Tier 3 (Role Dependent)}
+
+For SRE candidates:
+
+\begin{itemize}
+	\item Linux Basics
+	\item Bash Scripting
+	\item Python Scripting
+	\item Networking
+	\item System Troubleshooting
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item The interview process is strongly centred around graph and tree problems.
+	\item Interviewers frequently modify the original problem to evaluate adaptability.
+	\item Candidates are expected to justify complexity and perform complete dry runs.
+	\item Communication during problem solving is continuously evaluated.
+	\item Hiring Manager rounds focus primarily on behavioural fit rather than technical depth.
+	\item Resume discussions are driven by internships and real-world engineering experience.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Okta, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve medium-level graph and tree problems efficiently.
+	\item Model practical problems as graphs and identify suitable traversal algorithms.
+	\item Explain BFS, DFS, and graph complexity without hesitation.
+	\item Write clean C++ implementations and readable pseudocode.
+	\item Perform manual dry runs for multiple edge cases.
+	\item Explain every internship and project in technical detail.
+	\item Communicate your reasoning clearly while solving problems.
+	\item Answer behavioural questions with examples from real experiences.
+\end{itemize}
+
+\section{Uber India Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Uber evaluates candidates as software engineers capable of solving algorithmic problems while designing maintainable software systems. The interview process consistently emphasizes graph algorithms, object-oriented design, modular coding practices, and engineering communication. Compared to many product companies, Uber places noticeably greater emphasis on Low-Level Design (LLD) even for internship roles.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+The typical hiring process consists of:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Interview (DSA)
+	\item Low-Level Design Interview
+	\item Technical + Behavioural Discussion
+\end{enumerate}
+
+Some hiring cycles merge the final technical and behavioural discussion into a single interview.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank
+	\item Duration: 60 Minutes
+	\item Questions: 3
+\end{itemize}
+
+Observed topics include:
+
+\begin{itemize}
+	\item Graphs
+	\item Dynamic Programming
+	\item Strings
+	\item BFS
+	\item Grid Traversal
+	\item Greedy
+	\item Monotonic Stack
+	\item Lexicographically Smallest Subsequence
+	\item Binary Representation
+\end{itemize}
+
+Representative questions:
+
+\begin{itemize}
+	\item Lexicographically Smallest Subsequence
+	\item Multi-source Shortest Path on Grid
+	\item Binary Prefix Divisibility
+	\item String DP
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview I --- DSA}
+
+The first interview is predominantly graph-oriented.
+
+Observed questions include:
+
+\begin{itemize}
+	\item Minimum Cost to Connect Cities
+	\item Prime Number Transformation
+	\item Minimax Path
+	\item Trie-based Problems
+\end{itemize}
+
+Frequently tested algorithms:
+
+\begin{itemize}
+	\item Breadth First Search
+	\item Depth First Search
+	\item Minimum Spanning Tree
+	\item Binary Search on Answer
+	\item Trie
+	\item Graph Modelling
+	\item Coordinate Compression
+\end{itemize}
+
+Interviewers generally expect:
+
+\begin{itemize}
+	\item Complete reasoning
+	\item Complexity analysis
+	\item Working implementation
+	\item Dry run
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Low-Level Design}
+
+This round is one of Uber's defining characteristics.
+
+Representative design problems:
+
+\begin{itemize}
+	\item Splitwise
+	\item Vending Machine
+	\item Facebook-style Social Network
+\end{itemize}
+
+Expected concepts include:
+
+\begin{itemize}
+	\item Object-Oriented Programming
+	\item Class Design
+	\item Inheritance
+	\item Polymorphism
+	\item Encapsulation
+	\item Interfaces
+	\item Design Patterns
+	\item Composition
+	\item Validation Logic
+	\item Clean APIs
+\end{itemize}
+
+Interviewers emphasize modularity, extensibility, and maintainability over implementing every feature.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Programming Expectations}
+
+Candidates should be comfortable writing production-quality object-oriented code.
+
+Interviewers expect:
+
+\begin{itemize}
+	\item Clean class hierarchy
+	\item Proper abstraction
+	\item Method decomposition
+	\item Separation of responsibilities
+	\item Readable naming conventions
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Operating Systems}
+
+Observed topics include:
+
+\begin{itemize}
+	\item Multithreading
+	\item Mutex
+	\item Peterson's Algorithm
+	\item CPU Scheduling
+	\item Short-Term Scheduler
+\end{itemize}
+
+Questions are generally discussion-oriented and often relate to concurrent software systems.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Projects}
+
+Project discussions usually focus on:
+
+\begin{itemize}
+	\item Overall architecture
+	\item Libraries and frameworks
+	\item Team collaboration
+	\item Engineering decisions
+	\item Personal contributions
+\end{itemize}
+
+Interviewers may spend considerable time discussing projects if they align with their own technical domain.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Common behavioural topics include:
+
+\begin{itemize}
+	\item Team collaboration
+	\item Handling disagreements
+	\item Working under deadlines
+	\item Communication within teams
+	\item Leadership experiences
+	\item Why Uber?
+	\item Personal motivation
+\end{itemize}
+
+Interviewers generally maintain a conversational style throughout the interview.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Object-Oriented Programming}
+
+Expected knowledge:
+
+\begin{itemize}
+	\item Four pillars of OOP
+	\item Interfaces
+	\item Abstract Classes
+	\item Composition vs Inheritance
+	\item SOLID Principles
+	\item Design Patterns (basic familiarity)
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		Graphs & 30\% \\
+		Low-Level Design & 25\% \\
+		OOP & 15\% \\
+		DSA (General) & 15\% \\
+		Behavioural & 10\% \\
+		Operating Systems & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item BFS
+	\item DFS
+	\item Minimum Spanning Tree
+	\item Shortest Path Algorithms
+	\item Binary Search on Answer
+	\item Trie
+	\item Object-Oriented Programming
+	\item Low-Level Design
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item Design Patterns
+	\item SOLID Principles
+	\item Graph Modelling
+	\item Dynamic Programming
+	\item String Algorithms
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Multithreading
+	\item Synchronization
+	\item CPU Scheduling
+	\item Concurrent Programming
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Graph problems appear consistently across both the OA and technical interviews.
+	\item Low-Level Design is a core evaluation component, not merely a bonus topic.
+	\item Interviewers prefer modular and extensible class designs over monolithic implementations.
+	\item Behavioural questions focus heavily on teamwork and communication.
+	\item Technical discussions often evolve into collaborative conversations rather than adversarial questioning.
+	\item Resume projects can significantly influence the interview if they overlap with the interviewer's domain expertise.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Uber India, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve graph problems involving BFS, DFS, MST, and shortest paths.
+	\item Model real-world problems as graphs.
+	\item Design object-oriented systems with clean abstractions.
+	\item Implement common LLD problems such as Splitwise, Parking Lot, and Vending Machine.
+	\item Explain OOP concepts and basic design patterns.
+	\item Discuss multithreading, mutexes, Peterson's algorithm, and CPU scheduling.
+	\item Explain your projects with emphasis on architecture and engineering decisions.
+	\item Communicate your reasoning clearly and collaborate effectively throughout the interview.
+\end{itemize}
+
+\section{PhonePe Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+PhonePe evaluates candidates as practical software engineers with strong algorithmic fundamentals. The interview process emphasizes problem-solving, communication, and the ability to extend known algorithms to handle new constraints. Resume discussions focus on engineering decisions, product understanding, and teamwork rather than theoretical depth.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+A typical hiring process consists of:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Interview I (DSA)
+	\item Technical Interview II (DSA)
+	\item Technical / HR / Resume Discussion
+\end{enumerate}
+
+The ordering of the final rounds may vary, but the overall evaluation remains similar.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank
+	\item Duration: 90 Minutes
+	\item Questions: 4
+\end{itemize}
+
+Observed topics include:
+
+\begin{itemize}
+	\item Graph Algorithms
+	\item Trees
+	\item Dynamic Programming
+	\item Greedy
+	\item Merge Intervals
+	\item Floyd--Warshall
+	\item Minimum Spanning Tree
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Merge Intervals
+	\item Minimum Spanning Tree
+	\item Floyd--Warshall
+	\item Dynamic Programming
+	\item Tree Traversals
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview I}
+
+Interviewers generally ask two or three DSA problems.
+
+Representative questions include:
+
+\begin{itemize}
+	\item Asteroid Collision
+	\item First Non-Repeating Character in a Stream
+	\item Pattern Matching using Dynamic Programming
+\end{itemize}
+
+Interview expectations:
+
+\begin{itemize}
+	\item Explain intuition
+	\item Discuss brute-force solution
+	\item Derive optimized approach
+	\item Analyze complexity
+	\item Handle edge cases
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview II}
+
+This round usually contains more involved algorithmic problems.
+
+Observed questions include:
+
+\begin{itemize}
+	\item Maximum Non-Negative Prefix Sum Subsequence
+	\item Alice and Bob Tree Traversal
+	\item Tree Path Optimization
+\end{itemize}
+
+Frequently tested concepts:
+
+\begin{itemize}
+	\item Trees
+	\item DFS
+	\item Greedy
+	\item Dynamic Programming
+	\item Min Heap
+	\item Prefix Sums
+\end{itemize}
+
+Interviewers commonly encourage candidates toward the optimal solution by discussing missing edge cases.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Projects}
+
+Resume discussions focus on practical engineering experience.
+
+Observed discussion topics:
+
+\begin{itemize}
+	\item Internship Projects
+	\item Web Development
+	\item Hackathon Projects
+	\item Club Projects
+	\item Backend Architecture
+	\item Algorithm Selection
+	\item Technology Stack
+\end{itemize}
+
+Candidates should justify:
+
+\begin{itemize}
+	\item Choice of framework
+	\item Choice of database
+	\item Algorithm selection
+	\item Trade-offs
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{System Design}
+
+Although there is generally no dedicated system design round, interviewers frequently ask lightweight design questions.
+
+Observed questions include:
+
+\begin{itemize}
+	\item Draw the workflow of a PhonePe transaction
+	\item Backend architecture
+	\item Frontend--Backend interaction
+	\item Database flow
+	\item Event planning system
+\end{itemize}
+
+Expected knowledge:
+
+\begin{itemize}
+	\item REST APIs
+	\item Backend Services
+	\item Databases
+	\item High-Level System Flow
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Behavioural questions generally revolve around leadership and collaboration.
+
+Observed topics include:
+
+\begin{itemize}
+	\item Team Management
+	\item Club Leadership
+	\item Conflict Resolution
+	\item Favourite Subject
+	\item Product Ideas
+	\item Event Planning
+\end{itemize}
+
+Interviewers are typically conversational and evaluate practical decision-making.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+Frequently observed topics:
+
+\begin{itemize}
+	\item Trees
+	\item DFS
+	\item Graph Algorithms
+	\item Greedy
+	\item Dynamic Programming
+	\item Min Heap
+	\item Prefix Sum
+	\item Strings
+	\item Queues
+	\item Hash Maps
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 50\% \\
+		Trees & 15\% \\
+		Graphs & 10\% \\
+		Projects & 10\% \\
+		Behavioural & 10\% \\
+		System Design & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Trees
+	\item DFS
+	\item Graph Algorithms
+	\item Dynamic Programming
+	\item Greedy
+	\item Heap
+	\item Strings
+	\item Queues
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item Prefix Sum Techniques
+	\item Pattern Matching
+	\item Graph Traversals
+	\item Complexity Analysis
+	\item Resume Preparation
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Basic System Design
+	\item REST APIs
+	\item Backend Architecture
+	\item FinTech Payment Flow
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Many interview questions are modified versions of well-known LeetCode problems.
+	\item Trees and graph traversal problems appear consistently across technical rounds.
+	\item Interviewers actively guide candidates by highlighting missing edge cases.
+	\item Project discussions emphasize engineering decisions rather than theoretical details.
+	\item Behavioural evaluation focuses on teamwork, leadership, and product thinking.
+	\item Basic backend and system design knowledge provides an additional advantage.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with PhonePe, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve medium-level graph, tree, and greedy problems efficiently.
+	\item Implement DFS and tree-based algorithms without reference.
+	\item Explain dynamic programming and heap-based optimizations.
+	\item Discuss every project with clear reasoning behind technology and algorithm choices.
+	\item Draw a high-level backend architecture for a payment application.
+	\item Communicate your thought process clearly and respond positively to interviewer feedback.
+	\item Handle behavioural questions related to teamwork, leadership, and product development.
+\end{itemize}
+
+\section{RingCentral Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+RingCentral primarily evaluates candidates on software engineering fundamentals. The interview process focuses on standard Data Structures and Algorithms problems, resume depth, object-oriented programming concepts, SQL, and communication skills. Rather than asking obscure algorithmic questions, interviewers assess whether candidates possess a strong understanding of commonly encountered interview topics and can clearly explain their technical work.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+Typical hiring process:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Interview
+	\item Technical + Behavioural Interview
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Duration: Approximately 60--90 minutes
+	\item 5 Multiple Choice Questions
+	\item 2 Coding Questions
+\end{itemize}
+
+Observed topics include:
+
+\begin{itemize}
+	\item Technical Fundamentals (MCQs)
+	\item Dynamic Programming
+	\item Graphs
+	\item Strings
+	\item Arrays
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Longest String Chain
+	\item Medium--Hard DSA Problem
+\end{itemize}
+
+The coding questions generally range from medium to medium-hard difficulty.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview I}
+
+Interview flow:
+
+\begin{enumerate}
+	\item Brief Introduction
+	\item DSA Problems
+	\item Resume Discussion
+	\item OOP Questions
+	\item SQL Question
+\end{enumerate}
+
+Observed DSA questions include:
+
+\begin{itemize}
+	\item Rotten Oranges (modified)
+	\item Standard LeetCode Medium Problems
+	\item Problems commonly found in Striver's Sheet
+\end{itemize}
+
+Interviewers generally expect:
+
+\begin{itemize}
+	\item Correct intuition
+	\item Clean implementation
+	\item Complexity analysis
+	\item Discussion of edge cases
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Object-Oriented Programming}
+
+Observed topics:
+
+\begin{itemize}
+	\item Inheritance
+	\item Basic OOP Principles
+\end{itemize}
+
+Candidates should be comfortable explaining practical examples of:
+
+\begin{itemize}
+	\item Encapsulation
+	\item Abstraction
+	\item Inheritance
+	\item Polymorphism
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{SQL}
+
+Candidates may be asked to write simple SQL queries involving:
+
+\begin{itemize}
+	\item SELECT
+	\item JOIN
+	\item GROUP BY
+	\item Aggregation
+	\item Filtering
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Interview II}
+
+The second interview is primarily resume-driven.
+
+Interviewers commonly discuss:
+
+\begin{itemize}
+	\item Internship Experience
+	\item Networking Projects
+	\item MERN Stack Projects
+	\item System Design of Personal Projects
+	\item Implementation Details
+	\item Challenges Faced
+	\item Engineering Decisions
+\end{itemize}
+
+Candidates should be able to explain:
+
+\begin{itemize}
+	\item Overall architecture
+	\item Data flow
+	\item Choice of technologies
+	\item Design trade-offs
+	\item Individual contributions
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Typical questions include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Why RingCentral?
+	\item What are your passions?
+	\item Where do you see yourself in five years?
+	\item Describe your internship experience.
+\end{itemize}
+
+Interviewers generally prefer interactive discussions over rehearsed responses.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+Frequently observed topics:
+
+\begin{itemize}
+	\item Graphs
+	\item BFS
+	\item Dynamic Programming
+	\item Strings
+	\item Arrays
+	\item Hash Maps
+	\item Queues
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Projects}
+
+Projects form a major part of the second interview.
+
+Candidates should be prepared to discuss:
+
+\begin{itemize}
+	\item Architecture
+	\item System Design
+	\item Networking Concepts
+	\item Backend Flow
+	\item APIs
+	\item Databases
+	\item Implementation Details
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 40\% \\
+		Projects & 25\% \\
+		Resume & 15\% \\
+		OOP & 10\% \\
+		SQL & 5\% \\
+		Behavioural & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Graph Algorithms
+	\item BFS
+	\item Dynamic Programming
+	\item Arrays
+	\item Strings
+	\item Hash Maps
+	\item Queues
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item OOP
+	\item SQL
+	\item Complexity Analysis
+	\item Resume Preparation
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Basic System Design
+	\item Networking Fundamentals
+	\item Backend Architecture
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Most coding questions are standard LeetCode Medium problems with minor modifications.
+	\item Resume discussions become significantly more detailed in the later rounds.
+	\item Interviewers value clear explanations of project architecture and implementation.
+	\item OOP and SQL questions test practical software engineering knowledge rather than deep theoretical concepts.
+	\item Communication and confidence strongly influence the overall interview experience.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with RingCentral, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve common graph and BFS problems from standard interview sheets.
+	\item Explain object-oriented programming concepts with practical examples.
+	\item Write basic SQL queries involving joins and aggregations.
+	\item Describe the architecture and implementation of every project on your résumé.
+	\item Discuss design decisions, technology choices, and engineering trade-offs.
+	\item Communicate your reasoning clearly while solving coding problems.
+	\item Answer behavioural questions naturally and relate them to your technical experiences.
+\end{itemize}
+
+\section{Marvell Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Marvell primarily evaluates candidates for strong systems programming fundamentals. The interview process places significant emphasis on Computer Organization and Architecture (COA), Operating Systems, C programming, C++ object-oriented programming, memory management, and low-level system design. Unlike general software engineering interviews, algorithmic coding plays a supporting role rather than being the primary focus.
+
+Interviewers expect candidates to understand not only theoretical concepts but also how hardware and software interact in real systems.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+Typical hiring process:
+
+\begin{enumerate}
+	\item Technical Interview I
+	\item Technical Interview II
+	\item HR Interview
+\end{enumerate}
+
+Technical interviews generally last between 60 and 120 minutes.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Operating Systems}
+
+Operating Systems forms one of the most heavily tested subjects.
+
+Frequently observed topics include:
+
+\begin{itemize}
+	\item Processes vs Threads
+	\item Multithreading
+	\item Paging
+	\item Virtual Memory
+	\item Page Tables
+	\item Memory Allocation
+	\item Mutex
+	\item Semaphores
+	\item Synchronization
+	\item Critical Section
+\end{itemize}
+
+Interviewers expect candidates to explain concepts through practical scenarios rather than textbook definitions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Computer Organization and Architecture}
+
+This is arguably the most important subject in the interview.
+
+Frequently asked topics:
+
+\begin{itemize}
+	\item Instruction Fetch Cycle
+	\item Program Counter
+	\item Stack Pointer
+	\item Registers
+	\item Addressing Modes
+	\item DMA
+	\item Interrupts
+	\item Memory Hierarchy
+	\item Assembly Language
+	\item 8085
+	\item 8086
+\end{itemize}
+
+Representative questions include:
+
+\begin{itemize}
+	\item Explain DMA and design a DMA API.
+	\item Explain the complete instruction fetch cycle.
+	\item Difference between Stack Pointer and Program Counter.
+	\item Write assembly code involving arithmetic and branching.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{C Programming}
+
+Candidates are expected to possess strong knowledge of C.
+
+Observed topics include:
+
+\begin{itemize}
+	\item Storage Classes
+	\item static
+	\item extern
+	\item auto
+	\item register
+	\item malloc()
+	\item calloc()
+	\item Memory Allocation
+	\item Structures
+	\item Pointers
+\end{itemize}
+
+Candidates should understand both syntax and memory-level behaviour.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{C++ Object-Oriented Programming}
+
+Interviewers frequently evaluate practical object-oriented programming.
+
+Observed topics include:
+
+\begin{itemize}
+	\item Constructors
+	\item Destructors
+	\item Getters and Setters
+	\item Inheritance
+	\item Operator Overloading
+	\item Polymorphism
+	\item Encapsulation
+\end{itemize}
+
+Candidates may be asked to write complete implementations during the interview.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Assembly Programming}
+
+Expected knowledge:
+
+\begin{itemize}
+	\item Arithmetic Instructions
+	\item Branch Instructions
+	\item Register Usage
+	\item Memory Access
+	\item Program Flow
+\end{itemize}
+
+Candidates familiar with 8085 or 8086 should expect detailed follow-up questions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+Although DSA is not the primary focus, interviewers generally ask one or two coding problems.
+
+Expected topics:
+
+\begin{itemize}
+	\item Arrays
+	\item Trees
+	\item Basic Graphs
+	\item Searching
+	\item Standard Interview Problems
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Mathematics}
+
+Simple aptitude and combinatorics questions may appear during technical interviews.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Interview}
+
+Typical HR questions include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Why Marvell?
+	\item Why NITK?
+	\item Family Background.
+	\item Hobbies.
+	\item Career Goals.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		Computer Organization \& Architecture & 30\% \\
+		Operating Systems & 25\% \\
+		C Programming & 20\% \\
+		C++ OOP & 10\% \\
+		Assembly Language & 5\% \\
+		DSA & 5\% \\
+		Behavioural & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Paging
+	\item Virtual Memory
+	\item Threads
+	\item Synchronization
+	\item DMA
+	\item Instruction Cycle
+	\item Registers
+	\item Memory Hierarchy
+	\item C Memory Management
+	\item Storage Classes
+	\item Pointers
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item Assembly Programming
+	\item 8085
+	\item 8086
+	\item OOP in C++
+	\item Dynamic Memory Allocation
+	\item Structures
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Driver Basics
+	\item Device Interfaces
+	\item Embedded Systems
+	\item Interrupt Handling
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Operating Systems and Computer Organization dominate the interview process.
+	\item C programming fundamentals are expected to be exceptionally strong.
+	\item Interviewers frequently ask follow-up questions that progressively increase in depth.
+	\item Assembly language knowledge is considered a significant advantage.
+	\item DSA is evaluated but carries substantially lower weight than systems subjects.
+	\item Candidates should be comfortable writing object-oriented C++ code during the interview.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Marvell, ensure that you can confidently:
+
+\begin{itemize}
+	\item Explain paging, virtual memory, DMA, and synchronization mechanisms in detail.
+	\item Describe the instruction fetch cycle and processor execution pipeline.
+	\item Write simple assembly programs involving arithmetic and branching.
+	\item Explain memory allocation and storage classes in C.
+	\item Compare \texttt{malloc()} and \texttt{calloc()} with practical examples.
+	\item Implement inheritance and operator overloading in C++.
+	\item Solve standard DSA problems involving arrays and trees.
+	\item Explain every systems-related project on your résumé with confidence.
+\end{itemize}
+
+\section{Qualcomm Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+Qualcomm evaluates candidates primarily on systems programming fundamentals, C/C++ proficiency, operating systems, computer organization, and practical problem-solving. The interview process is tailored to the target role (CoreTech, 5G, AI/ML, etc.), with resume discussions steering the technical depth. Compared to general software companies, Qualcomm places considerably greater emphasis on low-level programming and computer systems than on advanced algorithmic problems.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+Typical hiring process:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Interview
+	\item HR Discussion (if applicable)
+\end{enumerate}
+
+For some software roles, there is only a single technical interview followed by the final shortlist.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+Typical format:
+
+\begin{itemize}
+	\item Duration: 90 Minutes
+	\item Approximately 60 Multiple Choice Questions
+	\item Negative Marking
+\end{itemize}
+
+Observed sections:
+
+\begin{itemize}
+	\item Aptitude
+	\item Logical Reasoning
+	\item Mathematics
+	\item Data Analysis
+	\item C Programming
+	\item Operating Systems
+	\item Computer Organization
+	\item Object-Oriented Programming
+\end{itemize}
+
+Some hiring cycles additionally include:
+
+\begin{itemize}
+	\item Debugging
+	\item Program Output Prediction
+\end{itemize}
+
+For AI/ML roles, interview emphasis may shift after the OA, but the assessment itself remains largely based on MCQs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Operating Systems}
+
+Operating Systems is consistently one of the most heavily tested subjects.
+
+Frequently observed topics:
+
+\begin{itemize}
+	\item Deadlocks
+	\item Mutex
+	\item Semaphores
+	\item Process Memory Layout
+	\item Stack vs Heap
+	\item Variable Scope
+	\item Memory Segmentation
+	\item Device Drivers
+	\item Firmware
+\end{itemize}
+
+Interviewers often ask candidates to relate OS concepts to their own projects.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{C Programming}
+
+Candidates should possess a strong command of C.
+
+Observed topics:
+
+\begin{itemize}
+	\item Pointer Arithmetic
+	\item Dynamic Memory
+	\item Dangling Pointers
+	\item Structure Padding
+	\item Bitwise Operations
+	\item Boolean Expressions
+	\item Debugging
+	\item Program Output Prediction
+\end{itemize}
+
+Questions frequently involve identifying subtle bugs or undefined behaviour.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{C++ Programming}
+
+Observed concepts include:
+
+\begin{itemize}
+	\item Classes vs Structures
+	\item Constructors
+	\item Pure Virtual Functions
+	\item Inheritance
+	\item Const Correctness
+	\item Object Lifetime
+\end{itemize}
+
+Candidates should be comfortable explaining both syntax and implementation details.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Computer Organization and Architecture}
+
+Observed topics:
+
+\begin{itemize}
+	\item Memory Layout
+	\item Stack
+	\item Heap
+	\item Memory Segmentation
+	\item Basic Architecture Concepts
+\end{itemize}
+
+Candidates applying for CoreTech or systems-oriented roles should expect deeper follow-up questions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data Structures and Algorithms}
+
+DSA is generally lighter compared to other product companies.
+
+Observed questions include:
+
+\begin{itemize}
+	\item Array Rotation
+	\item Median from Data Stream
+	\item Swap Without Temporary Variable
+	\item Middle of Linked List
+	\item Pascal's Triangle
+\end{itemize}
+
+Interviewers generally expect clean implementations rather than highly optimized algorithms.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Artificial Intelligence and Machine Learning}
+
+For AI/ML-oriented roles, interviews may include:
+
+\begin{itemize}
+	\item Machine Learning Projects
+	\item Model Selection
+	\item Training Choices
+	\item Evaluation Metrics
+	\item Numerical Questions
+\end{itemize}
+
+Discussion is often centred around project decisions and trade-offs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Resume Discussion}
+
+Resume discussions commonly focus on:
+
+\begin{itemize}
+	\item Systems Projects
+	\item Networking Projects
+	\item AI/ML Projects
+	\item Internships
+	\item Technical Decisions
+\end{itemize}
+
+Candidates should justify why a particular technology or algorithm was chosen over alternatives.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Typical questions include:
+
+\begin{itemize}
+	\item Tell me about yourself.
+	\item Why Qualcomm?
+	\item Preferred Team.
+	\item Strengths and Weaknesses.
+	\item Career Goals.
+	\item Extracurricular Activities.
+\end{itemize}
+
+Interviewers generally maintain a friendly and conversational style.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		Operating Systems & 25\% \\
+		C Programming & 20\% \\
+		C++ & 15\% \\
+		Computer Organization & 15\% \\
+		Resume / Projects & 10\% \\
+		DSA & 10\% \\
+		Behavioural & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Operating Systems
+	\item C Programming
+	\item Pointer Arithmetic
+	\item Memory Management
+	\item Deadlocks
+	\item Mutex
+	\item Semaphores
+	\item Stack vs Heap
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item C++ OOP
+	\item Structure Padding
+	\item Const Correctness
+	\item Device Drivers
+	\item Firmware Basics
+	\item Debugging
+\end{itemize}
+
+\subsubsection{Tier 3 (Role Dependent)}
+
+\begin{itemize}
+	\item Machine Learning
+	\item Networking
+	\item Embedded Systems
+	\item Digital Communication
+	\item 5G Concepts
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Online assessments are predominantly MCQ-based with negative marking.
+	\item Strong C programming knowledge is essential for software roles.
+	\item Operating Systems questions frequently extend into practical systems programming discussions.
+	\item Resume projects heavily influence the direction of technical interviews.
+	\item AI/ML roles emphasize project reasoning rather than theoretical derivations.
+	\item Interviewers often ask candidates to explain \emph{why} a technology or algorithm was chosen.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with Qualcomm, ensure that you can confidently:
+
+\begin{itemize}
+	\item Explain deadlocks, mutexes, semaphores, and process memory layout.
+	\item Solve C programming questions involving pointers, memory allocation, and debugging.
+	\item Discuss C++ object-oriented programming concepts with practical examples.
+	\item Explain memory segmentation, stack, heap, and structure padding.
+	\item Solve standard linked list and array interview problems.
+	\item Defend every major technical decision made in your projects.
+	\item Relate operating system concepts to real-world software or embedded systems.
+	\item Answer behavioural questions with examples from internships, projects, and extracurricular activities.
+\end{itemize}
+
+\section{SAP Labs Interview Preparation Guide}
+
+\subsection{Interview Philosophy}
+
+SAP Labs evaluates candidates as complete software engineers rather than purely algorithmic programmers. The interview process combines data structures and algorithms, object-oriented programming, low-level design, database concepts, resume discussions, and behavioural evaluation. Interviewers consistently explore engineering reasoning, communication skills, and software design ability.
+
+Unlike companies that focus almost exclusively on DSA, SAP places considerable emphasis on modelling real-world software systems and explaining technical decisions clearly.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Interview Structure}
+
+The interview process generally consists of:
+
+\begin{enumerate}
+	\item Online Assessment
+	\item Technical Round I
+	\item Technical / Managerial Round
+	\item Technical / Resume Round
+	\item HR Round
+\end{enumerate}
+
+Some candidates may have three rounds while others may have four depending on the role and panel.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Online Assessment}
+
+\subsubsection{Pattern}
+
+\begin{itemize}
+	\item Platform: HackerRank
+	\item Duration: 60 Minutes
+	\item Number of Coding Questions: 2
+\end{itemize}
+
+Observed difficulty:
+
+\begin{itemize}
+	\item One Easy
+	\item One Medium
+\end{itemize}
+
+Representative problems:
+
+\begin{itemize}
+	\item Tree Problems
+	\item Knapsack with Multiple Constraints
+	\item Sliding Window
+	\item Array Manipulation
+	\item Longest Common Subsequence
+	\item Course Schedule
+	\item Palindromic Array
+	\item Remove Vowels
+\end{itemize}
+
+Interview experiences indicate that submission speed plays an important role during shortlisting.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Technical Round I}
+
+Interview flow:
+
+\begin{enumerate}
+	\item Introduction
+	\item DSA Questions
+	\item Complexity Analysis
+	\item Core CS Questions
+	\item Resume Discussion
+\end{enumerate}
+
+Frequently observed DSA topics:
+
+\begin{itemize}
+	\item Sliding Window
+	\item Dynamic Programming
+	\item Graph Algorithms
+	\item Topological Sort
+	\item Trie
+	\item Trees
+	\item Strings
+	\item Linked Lists
+\end{itemize}
+
+Representative questions:
+
+\begin{itemize}
+	\item Sliding Window Maximum
+	\item Course Schedule
+	\item Longest Common Subsequence
+	\item Longest Common Prefix
+	\item Roman to Integer
+	\item Sudoku Solver
+	\item Tree Distance
+	\item Multiply using Bit Manipulation
+\end{itemize}
+
+Interviewers generally expect:
+
+\begin{itemize}
+	\item Brute-force approach
+	\item Optimized solution
+	\item Complexity derivation
+	\item Clean implementation
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Object-Oriented Programming}
+
+Object-oriented programming is one of the strongest recurring themes.
+
+Frequently discussed topics:
+
+\begin{itemize}
+	\item Encapsulation
+	\item Inheritance
+	\item Polymorphism
+	\item Abstraction
+	\item Class Design
+	\item UML
+	\item Relationships
+\end{itemize}
+
+Interviewers often evaluate design through practical systems rather than theoretical questions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Low-Level Design}
+
+SAP frequently asks practical object-oriented design questions.
+
+Observed design problems include:
+
+\begin{itemize}
+	\item Chess Game
+	\item Coding Platform
+	\item Compiler
+	\item Movie Streaming Platform
+	\item Car Manufacturing System
+	\item Undo / Redo System
+\end{itemize}
+
+Expected concepts:
+
+\begin{itemize}
+	\item UML Diagrams
+	\item Class Diagrams
+	\item Entity Relationships
+	\item Design Patterns
+	\item SOLID Principles
+	\item Modular Design
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Database Concepts}
+
+Observed topics:
+
+\begin{itemize}
+	\item ER Diagrams
+	\item Schema Design
+	\item MySQL vs MongoDB
+	\item Database Design
+	\item Recommendation Logic
+\end{itemize}
+
+Candidates should justify technology choices rather than merely describing them.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Operating Systems}
+
+Observed topics:
+
+\begin{itemize}
+	\item Threads
+	\item Critical Section
+	\item Mutex
+\end{itemize}
+
+The emphasis is generally lighter than in systems companies.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Version Control}
+
+Interviewers occasionally discuss:
+
+\begin{itemize}
+	\item Git Workflow
+	\item Branching
+	\item Merge Conflicts
+	\item Collaborative Development
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Projects}
+
+Project discussions are extensive.
+
+Interviewers commonly ask about:
+
+\begin{itemize}
+	\item Architecture
+	\item Technology Stack
+	\item APIs
+	\item Backend Flow
+	\item Design Choices
+	\item Alternative Implementations
+\end{itemize}
+
+Candidates should explain both technical implementation and business motivation.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Behavioural Assessment}
+
+Behavioural and managerial questions frequently include:
+
+\begin{itemize}
+	\item Teamwork
+	\item Leadership
+	\item Conflict Resolution
+	\item Strengths and Weaknesses
+	\item Favourite Subject
+	\item Career Goals
+	\item Why SAP?
+\end{itemize}
+
+Interviewers also use hobbies to transition into technical design discussions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Topic Weightage}
+
+\begin{center}
+	\begin{tabular}{|l|c|}
+		\hline
+		Topic & Importance \\
+		\hline
+		DSA & 30\% \\
+		Object-Oriented Programming & 20\% \\
+		Low-Level Design & 20\% \\
+		Projects & 15\% \\
+		DBMS & 5\% \\
+		Operating Systems & 5\% \\
+		Behavioural & 5\% \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Preparation Roadmap}
+
+\subsubsection{Tier 1 (Mandatory)}
+
+\begin{itemize}
+	\item Dynamic Programming
+	\item Graph Algorithms
+	\item Trees
+	\item Sliding Window
+	\item Strings
+	\item Trie
+	\item Object-Oriented Programming
+	\item Low-Level Design
+\end{itemize}
+
+\subsubsection{Tier 2 (Strongly Recommended)}
+
+\begin{itemize}
+	\item UML Diagrams
+	\item Design Patterns
+	\item SOLID Principles
+	\item Database Design
+	\item Git
+	\item REST APIs
+\end{itemize}
+
+\subsubsection{Tier 3 (Bonus)}
+
+\begin{itemize}
+	\item Compiler Basics
+	\item Recommendation Systems
+	\item System Design Fundamentals
+	\item Product Thinking
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Important Observations}
+
+\begin{enumerate}
+	\item Standard LeetCode and Striver problems appear frequently with emphasis on explanation rather than novelty.
+	\item Low-Level Design is a core component of the interview process.
+	\item Hobbies often become entry points for design discussions.
+	\item Interviewers value clean object-oriented thinking over memorized design patterns.
+	\item Resume projects are explored from both technical and architectural perspectives.
+	\item Behavioural rounds focus on collaboration, communication, and engineering maturity.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Final Checklist}
+
+Before interviewing with SAP Labs, ensure that you can confidently:
+
+\begin{itemize}
+	\item Solve standard medium-level DSA problems with clear explanations.
+	\item Design object-oriented systems using UML and clean class hierarchies.
+	\item Explain SOLID principles and common design patterns.
+	\item Model databases using ER diagrams and justify SQL versus NoSQL choices.
+	\item Discuss Git workflows and collaborative software development.
+	\item Explain every project on your résumé from both technical and business perspectives.
+	\item Handle behavioural questions on teamwork, leadership, and communication with concrete examples.
+\end{itemize}
+
+\end{document}
