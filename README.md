@@ -1,4 +1,5 @@
-# RuralSliceAI
+# Context Aware Rural Service Slice Framework
+
 ### AI-Driven Context-Aware Rural Service Slicing Framework for Resilient 5G Private Networks
 
 ---
