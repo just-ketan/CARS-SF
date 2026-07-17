@@ -1,8 +1,9 @@
 """
-Online Examination
+Digital Library
 
-Represents secure real-time online examinations requiring
-low latency, high reliability and continuous synchronization.
+Represents digital library platforms providing access to
+e-books, journals, lecture notes, recorded classes and
+educational multimedia resources.
 
 Author: RSNSD
 """
@@ -26,21 +27,22 @@ from RSNSD.traffic_generator.common.distributions import (
 )
 
 
-ONLINE_EXAM = ApplicationProfile(
+DIGITAL_LIBRARY = ApplicationProfile(
 
     # ======================================================
     # Identity
     # ======================================================
 
-    name="Online Examination",
+    name="Digital Library",
 
-    application_id="education.online_exam",
+    application_id="education.digital_library",
 
     service_class=ServiceClass.EDUCATION,
 
     description=(
-        "Secure online examination platform with continuous "
-        "answer synchronization and proctoring."
+        "Educational digital library providing access to "
+        "books, journals, lecture recordings, research "
+        "papers and multimedia learning resources."
     ),
 
     # ======================================================
@@ -49,7 +51,7 @@ ONLINE_EXAM = ApplicationProfile(
 
     protocol=TransportProtocol.TCP,
 
-    transport_mode="bidirectional",
+    transport_mode="download",
 
     default_port=443,
 
@@ -61,9 +63,9 @@ ONLINE_EXAM = ApplicationProfile(
 
         distribution=DistributionType.NORMAL,
 
-        mean=700,
+        mean=1400,
 
-        std=120,
+        std=200,
 
     ),
 
@@ -71,7 +73,7 @@ ONLINE_EXAM = ApplicationProfile(
 
         distribution=DistributionType.EXPONENTIAL,
 
-        rate=120,
+        rate=80,
 
     ),
 
@@ -79,9 +81,9 @@ ONLINE_EXAM = ApplicationProfile(
 
         distribution=DistributionType.NORMAL,
 
-        mean=7200,
+        mean=2400,
 
-        std=900,
+        std=600,
 
     ),
 
@@ -89,9 +91,9 @@ ONLINE_EXAM = ApplicationProfile(
 
         distribution=DistributionType.NORMAL,
 
-        mean=1.2,
+        mean=8.0,
 
-        std=0.3,
+        std=2.0,
 
     ),
 
@@ -99,21 +101,21 @@ ONLINE_EXAM = ApplicationProfile(
     # QoS Targets
     # ======================================================
 
-    latency_requirement_ms=30,
+    latency_requirement_ms=120,
 
-    jitter_requirement_ms=10,
+    jitter_requirement_ms=30,
 
-    packet_loss_requirement_pct=0.1,
+    packet_loss_requirement_pct=1.0,
 
-    throughput_requirement_mbps=1.0,
+    throughput_requirement_mbps=6.0,
 
     # ======================================================
     # Service Context
     # ======================================================
 
-    priority=PriorityLevel.CRITICAL,
+    priority=PriorityLevel.MEDIUM,
 
-    slice_type=SliceType.URLLC,
+    slice_type=SliceType.EMBB,
 
     mobility=MobilityProfile.STATIC,
 
@@ -125,11 +127,15 @@ ONLINE_EXAM = ApplicationProfile(
 
     metadata={
 
-        "exam_type": "MCQ + Subjective",
+        "supports_video_lectures": True,
 
-        "proctoring": True,
+        "supports_document_download": True,
 
-        "camera_required": True,
+        "supports_research_papers": True,
+
+        "supports_offline_access": True,
+
+        "content_type": "Educational Resources",
 
     },
 

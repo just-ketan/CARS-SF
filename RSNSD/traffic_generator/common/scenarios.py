@@ -6,7 +6,7 @@ is generated.
 """
 
 from dataclasses import dataclass
-
+from RSNSD.domain.enums import ServiceClass
 
 @dataclass(slots=True, frozen=True)
 class Scenario:
@@ -28,6 +28,11 @@ class Scenario:
     slice_utilization_min: float
     slice_utilization_max: float
 
+    # Application sampling
+    preferred_services: tuple[ServiceClass, ...]
+
+    service_bias_multiplier: float = 2.0
+
 
 NORMAL = Scenario(
 
@@ -47,6 +52,15 @@ NORMAL = Scenario(
 
     slice_utilization_min=25,
     slice_utilization_max=55,
+
+    preferred_services=(
+        ServiceClass.HEALTHCARE,
+        ServiceClass.EDUCATION,
+        ServiceClass.AGRICULTURE,
+        ServiceClass.GENERAL,
+    ),
+
+    service_bias_multiplier=1.0,
 )
 
 
@@ -68,6 +82,12 @@ SCHOOL_HOURS = Scenario(
 
     slice_utilization_min=60,
     slice_utilization_max=90,
+
+    preferred_services=(
+    ServiceClass.EDUCATION,
+    ),
+
+    service_bias_multiplier=2.5,
 )
 
 
@@ -89,6 +109,12 @@ HARVEST = Scenario(
 
     slice_utilization_min=40,
     slice_utilization_max=70,
+
+    preferred_services=(
+        ServiceClass.AGRICULTURE,
+    ),
+
+    service_bias_multiplier=2.5,
 )
 
 
@@ -110,4 +136,11 @@ DISASTER = Scenario(
 
     slice_utilization_min=80,
     slice_utilization_max=100,
+
+    preferred_services=(
+        ServiceClass.HEALTHCARE,
+        ServiceClass.GENERAL,
+    ),
+
+    service_bias_multiplier=3.0,
 )

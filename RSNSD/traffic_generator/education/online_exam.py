@@ -1,8 +1,9 @@
 """
-Live Classroom
+Online Examination
 
-Represents real-time online classroom sessions with
-interactive audio/video communication.
+Represents secure online examination systems supporting
+real-time assessments, answer synchronization, identity
+verification and remote proctoring.
 
 Author: RSNSD
 """
@@ -26,28 +27,29 @@ from RSNSD.traffic_generator.common.distributions import (
 )
 
 
-LIVE_CLASSROOM = ApplicationProfile(
+ONLINE_EXAM = ApplicationProfile(
 
     # ======================================================
     # Identity
     # ======================================================
 
-    name="Live Classroom",
+    name="Online Examination",
 
-    application_id="education.live_classroom",
+    application_id="education.online_exam",
 
     service_class=ServiceClass.EDUCATION,
 
     description=(
-        "Real-time online classroom with HD audio/video "
-        "streaming between teacher and students."
+        "Secure online examination platform supporting "
+        "real-time assessments, continuous answer "
+        "synchronization and AI-based remote proctoring."
     ),
 
     # ======================================================
     # Network Behaviour
     # ======================================================
 
-    protocol=TransportProtocol.UDP,
+    protocol=TransportProtocol.TCP,
 
     transport_mode="bidirectional",
 
@@ -61,9 +63,9 @@ LIVE_CLASSROOM = ApplicationProfile(
 
         distribution=DistributionType.NORMAL,
 
-        mean=1200,
+        mean=700,
 
-        std=180,
+        std=120,
 
     ),
 
@@ -71,7 +73,7 @@ LIVE_CLASSROOM = ApplicationProfile(
 
         distribution=DistributionType.EXPONENTIAL,
 
-        rate=180,
+        rate=120,
 
     ),
 
@@ -79,9 +81,9 @@ LIVE_CLASSROOM = ApplicationProfile(
 
         distribution=DistributionType.NORMAL,
 
-        mean=3600,
+        mean=7200,
 
-        std=600,
+        std=900,
 
     ),
 
@@ -89,9 +91,9 @@ LIVE_CLASSROOM = ApplicationProfile(
 
         distribution=DistributionType.NORMAL,
 
-        mean=5.0,
+        mean=1.2,
 
-        std=1.0,
+        std=0.3,
 
     ),
 
@@ -99,21 +101,21 @@ LIVE_CLASSROOM = ApplicationProfile(
     # QoS Targets
     # ======================================================
 
-    latency_requirement_ms=80,
+    latency_requirement_ms=30,
 
-    jitter_requirement_ms=20,
+    jitter_requirement_ms=10,
 
-    packet_loss_requirement_pct=1.0,
+    packet_loss_requirement_pct=0.1,
 
-    throughput_requirement_mbps=4.0,
+    throughput_requirement_mbps=1.0,
 
     # ======================================================
     # Service Context
     # ======================================================
 
-    priority=PriorityLevel.HIGH,
+    priority=PriorityLevel.CRITICAL,
 
-    slice_type=SliceType.EMBB,
+    slice_type=SliceType.URLLC,
 
     mobility=MobilityProfile.STATIC,
 
@@ -125,11 +127,15 @@ LIVE_CLASSROOM = ApplicationProfile(
 
     metadata={
 
-        "video_resolution": "1080p",
+        "supports_remote_proctoring": True,
 
-        "codec": "H.264",
+        "supports_identity_verification": True,
 
-        "fps": 30,
+        "supports_live_answer_sync": True,
+
+        "supports_auto_submission": True,
+
+        "exam_mode": "Online",
 
     },
 
