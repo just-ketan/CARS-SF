@@ -1,4 +1,6 @@
-# RuralSliceAI (CARS-SF)
+# Context Aware Rural Service Slice Framework
+
+### AI-Driven Context-Aware Rural Service Slicing Framework for Resilient 5G Private Networks
 
 **AI-Driven Context-Aware Rural Service Slicing and Autonomous Self-Healing Framework for Private 5G Networks**
 
