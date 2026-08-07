@@ -15,6 +15,9 @@ from RSNSD.qos import QoSEngine
 from RSNSD.traffic_generator.common.profile_sampler import (
     ProfileSampler,
 )
+from RSNSD.traffic_generator.common.clock import SimulationClock
+from RSNSD.traffic_generator.common.scenario_evolver import ScenarioEvolver
+from datetime import datetime
 
 class DatasetBuilder:
 
@@ -30,6 +33,7 @@ class DatasetBuilder:
         self.qos_engine = QoSEngine()
         self.random = random.Random(seed)
         self.profile_sampler = ProfileSampler(seed)
+        self.clock = SimulationClock(start_time=datetime(2026, 1, 1, 6, 0), step_minutes=5)
 
     # ----------------------------------------------------------
     # Generate One Record
@@ -41,12 +45,13 @@ class DatasetBuilder:
         scenario,
     ) -> DatasetRecord:
 
-        flow = self.flow_generator.generate(profile)
-
         context = self.context_generator.generate(
             profile,
             scenario,
+            self.clock,
         )
+
+        flow = self.flow_generator.generate(profile, context=context)
 
         qos = self.qos_engine.compute(
             flow,
@@ -70,10 +75,14 @@ class DatasetBuilder:
         n_records: int,
         weights=None,
     ):
-
-        dataset = []
+        """
+        Yields records one-by-one to support streaming generation.
+        """
+        evolver = ScenarioEvolver(scenario)
 
         for _ in range(n_records):
+            self.clock.tick()
+            current_scenario = evolver.evolve(self.clock)
 
             if weights is None:
                 profile = self.random.choice(profiles)
@@ -81,14 +90,13 @@ class DatasetBuilder:
                 profile = self.profile_sampler.sample(
                     profiles,
                     weights,
-                    scenario,
+                    current_scenario,
+                    self.clock,
                 )
 
             record = self.generate_record(
                 profile,
-                scenario,
+                current_scenario,
             )
 
-            dataset.append(record)
-
-        return dataset
+            yield record

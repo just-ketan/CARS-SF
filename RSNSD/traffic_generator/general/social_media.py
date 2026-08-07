@@ -8,6 +8,7 @@ streaming.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ SOCIAL_MEDIA = ApplicationProfile(
     application_id="general.social_media",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
 
@@ -127,6 +130,11 @@ SOCIAL_MEDIA = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_image_upload": True,

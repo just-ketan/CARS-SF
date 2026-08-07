@@ -7,6 +7,7 @@ conditions and automatically control irrigation equipment.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ SMART_IRRIGATION = ApplicationProfile(
     application_id="agriculture.smart_irrigation",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Automated irrigation system using environmental "
@@ -123,6 +126,11 @@ SMART_IRRIGATION = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "communication_protocol": "MQTT",

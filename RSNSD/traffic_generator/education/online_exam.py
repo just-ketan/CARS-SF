@@ -8,6 +8,7 @@ verification and remote proctoring.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ ONLINE_EXAM = ApplicationProfile(
     application_id="education.online_exam",
 
     service_class=ServiceClass.EDUCATION,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
         "Secure online examination platform supporting "
@@ -125,6 +128,11 @@ ONLINE_EXAM = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_remote_proctoring": True,

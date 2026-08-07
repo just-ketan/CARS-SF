@@ -1,0 +1,232 @@
+# Application Registry
+# Single source of truth for Mininet-spawnable rural service applications.
+# Sourced from RSNSD v1 profiles (frozen reference).
+
+applications:
+  # Healthcare
+  - application_id: healthcare.telemedicine
+    name: Telemedicine Consultation
+    service_class: healthcare
+    slice_type: URLLC
+    priority: 1
+    host: h_health
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5001
+    protocol: udp
+    tool: iperf3
+    bitrate_mbps: 5.0
+    latency_requirement_ms: 50
+
+  - application_id: healthcare.ecg_streaming
+    name: ECG Streaming
+    service_class: healthcare
+    slice_type: URLLC
+    priority: 1
+    host: h_health
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5003
+    protocol: udp
+    tool: iperf3
+    bitrate_mbps: 2.0
+    latency_requirement_ms: 20
+
+  - application_id: healthcare.health_monitoring
+    name: Health Monitoring
+    service_class: healthcare
+    slice_type: mMTC
+    priority: 1
+    host: h_health
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5004
+    protocol: icmp
+    tool: ping
+    packet_size: 64
+    interval_s: 1
+
+  - application_id: healthcare.ambulance
+    name: Ambulance Telemetry
+    service_class: healthcare
+    slice_type: URLLC
+    priority: 1
+    host: h_health
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5005
+    protocol: udp
+    tool: iperf3
+    bitrate_mbps: 1.0
+    latency_requirement_ms: 10
+
+  # Education
+  - application_id: education.live_classroom
+    name: Live Classroom
+    service_class: education
+    slice_type: eMBB
+    priority: 2
+    host: h_edu
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5001
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 20.0
+    latency_requirement_ms: 100
+
+  - application_id: education.digital_library
+    name: Digital Library
+    service_class: education
+    slice_type: eMBB
+    priority: 2
+    host: h_edu
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5003
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 50.0
+    latency_requirement_ms: 200
+
+  - application_id: education.online_exam
+    name: Online Examination
+    service_class: education
+    slice_type: eMBB
+    priority: 2
+    host: h_edu
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5004
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 5.0
+    latency_requirement_ms: 150
+
+  - application_id: education.learning_management
+    name: Learning Management System
+    service_class: education
+    slice_type: eMBB
+    priority: 2
+    host: h_edu
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5005
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 10.0
+    latency_requirement_ms: 200
+
+  # Agriculture
+  - application_id: agriculture.soil_monitoring
+    name: Soil Monitoring
+    service_class: agriculture
+    slice_type: mMTC
+    priority: 3
+    host: h_agri
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5002
+    protocol: icmp
+    tool: ping
+    packet_size: 64
+    interval_s: 5
+
+  - application_id: agriculture.weather_station
+    name: Weather Station
+    service_class: agriculture
+    slice_type: mMTC
+    priority: 3
+    host: h_agri
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5006
+    protocol: icmp
+    tool: ping
+    packet_size: 128
+    interval_s: 10
+
+  - application_id: agriculture.crop_surveillance
+    name: Crop Surveillance
+    service_class: agriculture
+    slice_type: eMBB
+    priority: 3
+    host: h_agri
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5007
+    protocol: udp
+    tool: iperf3
+    bitrate_mbps: 8.0
+    latency_requirement_ms: 200
+
+  - application_id: agriculture.smart_irrigation
+    name: Smart Irrigation
+    service_class: agriculture
+    slice_type: mMTC
+    priority: 3
+    host: h_agri
+    server: srv_edge
+    server_ip: 10.0.2.10
+    port: 5008
+    protocol: icmp
+    tool: ping
+    packet_size: 32
+    interval_s: 30
+
+  # General
+  - application_id: general.web_browsing
+    name: Web Browsing
+    service_class: general
+    slice_type: eMBB
+    priority: 4
+    host: h_gen
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5002
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 5.0
+    latency_requirement_ms: 500
+
+  - application_id: general.video_streaming
+    name: Video Streaming
+    service_class: general
+    slice_type: eMBB
+    priority: 4
+    host: h_gen
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5006
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 15.0
+    latency_requirement_ms: 300
+
+  - application_id: general.social_media
+    name: Social Media
+    service_class: general
+    slice_type: eMBB
+    priority: 4
+    host: h_gen
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5007
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 3.0
+    latency_requirement_ms: 500
+
+  - application_id: general.mobile_banking
+    name: Mobile Banking
+    service_class: general
+    slice_type: eMBB
+    priority: 4
+    host: h_gen
+    server: srv_core
+    server_ip: 10.0.3.10
+    port: 5008
+    protocol: tcp
+    tool: iperf3
+    bitrate_mbps: 1.0
+    latency_requirement_ms: 200

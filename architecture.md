@@ -1,5 +1,8 @@
 # Architecture.md
 
+> **Note:** This document is superseded by [ARCHITECTURE.md](ARCHITECTURE.md) (unified architecture).
+> The content below is preserved for historical reference.
+
 # RuralSliceAI
 ## System Architecture Document
 

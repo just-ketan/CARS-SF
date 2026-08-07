@@ -8,6 +8,7 @@ alerts and public safety broadcasts.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ EMERGENCY_ALERT = ApplicationProfile(
     application_id="general.emergency_alert",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.EMERGENCY,
 
     description=(
 
@@ -127,6 +130,11 @@ EMERGENCY_ALERT = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "broadcast_type": "Public Safety",

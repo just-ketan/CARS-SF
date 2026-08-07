@@ -7,6 +7,7 @@ responders, ambulances, rural clinics and hospitals.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ EMERGENCY_VOICE = ApplicationProfile(
     application_id="healthcare.emergency_voice",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.CONVERSATIONAL,
 
     description=(
         "Mission-critical emergency voice communication "
@@ -109,6 +112,11 @@ EMERGENCY_VOICE = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "codec": "AMR-WB",

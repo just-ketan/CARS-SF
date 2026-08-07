@@ -13,15 +13,9 @@ from RSNSD.traffic_generator.common.scenarios import SCHOOL_HOURS
 
 
 builder = DatasetBuilder(
-
-    FlowGenerator(Sampler(seed=42)),
-
-    ContextGenerator(seed=42),
-
-    QoSGenerator(seed=42),
-
-    seed=42,
-
+    flow_generator=FlowGenerator(Sampler(seed=42)),
+    context_generator=ContextGenerator(seed=42),
+    seed=42
 )
 
 record = builder.generate_record(

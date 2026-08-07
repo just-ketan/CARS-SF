@@ -8,6 +8,7 @@ services.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ MOBILE_BANKING = ApplicationProfile(
     application_id="general.mobile_banking",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.TRANSACTIONAL,
 
     description=(
 
@@ -127,6 +130,11 @@ MOBILE_BANKING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_upi": True,

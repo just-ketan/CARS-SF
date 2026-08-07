@@ -7,6 +7,7 @@ online pharmacy services and healthcare transaction systems.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ PHARMACY_SERVICE = ApplicationProfile(
     application_id="healthcare.pharmacy",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.CONVERSATIONAL,
 
     description=(
         "Electronic prescription processing, medicine "
@@ -108,6 +111,11 @@ PHARMACY_SERVICE = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "electronic_prescription": True,

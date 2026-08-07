@@ -7,6 +7,7 @@ low latency and ultra-high reliability.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ REMOTE_SURGERY = ApplicationProfile(
     application_id="healthcare.remote_surgery",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.CONVERSATIONAL,
 
     description=(
         "Robotic telesurgery with haptic feedback and "
@@ -108,6 +111,11 @@ REMOTE_SURGERY = ApplicationProfile(
     # Metadata
     # --------------------------------------------------
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "video_resolution": "4K",

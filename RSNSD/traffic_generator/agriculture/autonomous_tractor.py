@@ -8,6 +8,7 @@ and safety-critical farming operations.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ AUTONOMOUS_TRACTOR = ApplicationProfile(
     application_id="agriculture.autonomous_tractor",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Autonomous farming vehicle performing precision "
@@ -125,6 +128,11 @@ AUTONOMOUS_TRACTOR = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "automation_level": "Fully Autonomous",

@@ -26,7 +26,21 @@ class ContextEngine:
 			"education" : 1,
 			"agriculture" : 1,
 			"general" : 1
-		}
+		},
+
+		"medical_emergency": {
+			"healthcare": 15,
+			"education": 1,
+			"agriculture": 1,
+			"general": 1,
+		},
+
+		"fiber_cut": {
+			"healthcare": 10,
+			"education": 2,
+			"agriculture": 2,
+			"general": 1,
+		},
 	}
 
 	def get_context(self, context):

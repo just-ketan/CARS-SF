@@ -2,7 +2,7 @@ from slicing.context_engine import ContextEngine
 from slicing.priority_engine import PriorityEngine
 from slicing.allocation_engine import AllocationEngine
 from slicing.qos_enforcer import QoSEnforcer
-from traffic.demand_generator import DemandGenerator
+from traffic_models.demand_generator import DemandGenerator
 
 
 TOTAL_BANDWIDTH = 100

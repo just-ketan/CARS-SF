@@ -1,0 +1,79 @@
+# Feature Schema Registry
+# Full 89-column schema aligned with RSNSD v1.
+# See features/schema_mapper.py for the canonical column list.
+
+schema_column_count: 89
+
+# ML-safe feature columns (excludes labels and leakage columns)
+ml_feature_columns:
+  - flow_duration_ms
+  - packet_count
+  - byte_count
+  - packet_rate_pps
+  - byte_rate_bps
+  - mean_iat_ms
+  - std_iat_ms
+  - mean_packet_size
+  - median_packet_size
+  - min_packet_size
+  - max_packet_size
+  - throughput_mbps
+  - goodput_mbps
+  - end_to_end_latency_ms
+  - jitter_ms
+  - packet_loss_rate
+  - queue_drops
+  - ovs_bytes
+  - link_utilization_pct
+  - network_load_pct
+  - active_flows
+  - host_cpu_pct
+  - host_mem_pct
+
+# Columns excluded from ML inputs (label leakage prevention)
+excluded_from_ml:
+  - service_type
+  - application_name
+  - slice_type
+  - service_priority
+  - service_class
+  - application_id
+  - slice_type_label
+  - priority_level
+
+label_columns:
+  - service_class
+  - application_id
+  - slice_type_label
+  - priority_level
+  - sla_satisfied
+  - reward_score
+
+context_injected_columns:
+  - network_load_pct
+  - scenario_id
+  - context_name
+  - tick
+
+radio_derived_columns:
+  - signal_strength_dbm
+  - sinr_db
+  - cqi
+  - mobility_state
+
+provenance:
+  flow_duration_ms: PCAP
+  packet_count: PCAP
+  byte_count: PCAP
+  throughput_mbps: DERIVED_PCAP
+  end_to_end_latency_ms: DERIVED_PCAP
+  jitter_ms: DERIVED_PCAP
+  packet_loss_rate: DERIVED_PCAP
+  queue_drops: TC
+  ovs_bytes: OVS
+  link_utilization_pct: DERIVED_OVS
+  network_load_pct: CONTEXT_INJECTED
+  host_cpu_pct: PSUTIL
+  host_mem_pct: PSUTIL
+  service_class: SPAWN_METADATA
+  sla_satisfied: DERIVED_QOS

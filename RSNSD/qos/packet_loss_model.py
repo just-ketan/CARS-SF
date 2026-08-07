@@ -1,11 +1,14 @@
 """
 Packet Loss Model
 
-Computes packet loss based on radio quality, congestion,
-mobility and achieved throughput.
+Computes packet loss based on radio quality,
+network congestion, scheduling conditions,
+and achieved throughput.
 
 Author: RSNSD
 """
+
+from __future__ import annotations
 
 from random import uniform
 
@@ -17,8 +20,15 @@ class PacketLossModel:
     """
     Analytical packet loss model.
 
-    Packet loss increases under congestion,
-    weak radio conditions and handovers.
+    Packet loss depends on
+
+        Radio Quality
+            ↓
+        Congestion
+            ↓
+        Throughput Deficit
+            ↓
+        Handover
     """
 
     def compute(
@@ -29,72 +39,109 @@ class PacketLossModel:
     ) -> float:
 
         # ==================================================
-        # Base packet loss
+        # Base Packet Loss
         # ==================================================
 
         loss = 0.02
 
         # ==================================================
-        # Poor CQI
+        # CQI Penalty
         # ==================================================
 
         if context.cqi < 10:
 
-            loss += (10 - context.cqi) * 0.15
+            cqi_penalty = (
+                (10 - context.cqi) / 10
+            ) ** 2
+
+            loss += cqi_penalty * 3.0
 
         # ==================================================
-        # Poor SINR
+        # SINR Penalty
         # ==================================================
 
         if context.sinr_db < 20:
 
-            loss += (20 - context.sinr_db) * 0.08
+            sinr_penalty = (
+                (20 - context.sinr_db) / 20
+            ) ** 2
+
+            loss += sinr_penalty * 4.0
 
         # ==================================================
         # Network Congestion
         # ==================================================
 
-        if context.network_load_pct > 70:
+        if context.network_load_pct > 60:
 
-            loss += (
-                context.network_load_pct - 70
-            ) * 0.04
+            congestion = (
+                (context.network_load_pct - 60) / 40
+            ) ** 2
+
+            loss += congestion * 5.0
 
         # ==================================================
         # Cell Congestion
         # ==================================================
 
-        if context.cell_load_pct > 70:
+        if context.cell_load_pct > 60:
 
-            loss += (
-                context.cell_load_pct - 70
-            ) * 0.03
+            congestion = (
+                (context.cell_load_pct - 60) / 40
+            ) ** 2
+
+            loss += congestion * 3.5
 
         # ==================================================
         # Slice Resource Saturation
         # ==================================================
 
-        if context.slice_resource_utilization_pct > 80:
+        if context.slice_resource_utilization_pct > 75:
 
-            loss += (
-                context.slice_resource_utilization_pct - 80
-            ) * 0.04
+            saturation = (
+                (
+                    context.slice_resource_utilization_pct
+                    - 75
+                ) / 25
+            ) ** 2
+
+            loss += saturation * 4.0
 
         # ==================================================
         # Throughput Deficit
         # ==================================================
 
-        if throughput_mbps < flow.throughput_requirement_mbps:
+        required = max(
+            flow.throughput_requirement_mbps,
+            0.01,
+        )
+
+        ratio = throughput_mbps / required
+
+        if ratio < 1.0:
 
             deficit = (
+                1.0 - ratio
+            ) ** 2
 
-                flow.throughput_requirement_mbps
+            loss += deficit * 10.0
 
-                - throughput_mbps
+        # ==================================================
+        # Mobility
+        # ==================================================
 
-            )
+        mobility = context.mobility_state.lower()
 
-            loss += deficit * 0.30
+        if mobility in (
+            "vehicular",
+            "vehicle",
+        ):
+
+            loss += 0.30
+
+        elif mobility == "aerial":
+
+            loss += 0.15
 
         # ==================================================
         # Handover
@@ -102,12 +149,33 @@ class PacketLossModel:
 
         if context.handover_in_progress:
 
-            loss += uniform(0.5, 2.0)
+            loss += uniform(
+                1.0,
+                3.0,
+            )
 
         # ==================================================
-        # Small Random Noise
+        # Small Noise
         # ==================================================
 
-        loss += uniform(0.0, 0.1)
+        loss += uniform(
+            0.0,
+            0.08,
+        )
 
-        return round(max(0.0, loss), 3)
+        # ==================================================
+        # Clamp
+        # ==================================================
+
+        loss = max(
+            0.0,
+            min(
+                loss,
+                30.0,
+            ),
+        )
+
+        return round(
+            loss,
+            3,
+        )

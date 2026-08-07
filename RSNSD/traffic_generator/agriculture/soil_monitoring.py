@@ -8,6 +8,7 @@ soil properties to assist irrigation and crop management.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ SOIL_MONITORING = ApplicationProfile(
     application_id="agriculture.soil_monitoring",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Distributed soil monitoring network measuring soil "
@@ -124,6 +127,11 @@ SOIL_MONITORING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "measurements": [

@@ -16,6 +16,7 @@ from RSNSD.domain.enums import (
     SliceType,
     TransportProtocol,
 )
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from .distributions import Distribution
 
 
@@ -40,6 +41,8 @@ class ApplicationProfile:
     # ==========================================================
     # Network Behaviour
     # ==========================================================
+
+    behaviour_type: BehaviourType
 
     protocol: TransportProtocol
 
@@ -84,7 +87,12 @@ class ApplicationProfile:
     device_type: DeviceType
 
     # ==========================================================
-    # Optional Metadata
+    # Optional Metadata & Requested Params
     # ==========================================================
+    
+    expected_user_density: str = "Medium"
+    failure_sensitivity: str = "Medium"
+    burstiness: str = "Moderate"
+    traffic_pattern: str = "Continuous"
 
     metadata: Optional[Dict] = field(default_factory=dict)

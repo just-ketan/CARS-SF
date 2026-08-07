@@ -35,3 +35,6 @@ class DemandGenerator:
             "agriculture": 20,
             "general": 20
         }
+
+    def get_demands_for_scenario(self, scenario: dict) -> dict[str, float]:
+        return scenario.get("demand_mbps", self.get_demands(scenario.get("id", "normal")))

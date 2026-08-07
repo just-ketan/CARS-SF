@@ -18,23 +18,22 @@ class FlowGenerator:
 
         self.sampler = sampler
 
-    def generate(self, profile: ApplicationProfile) -> FlowRecord:
+    def generate(self, profile: ApplicationProfile, context=None) -> FlowRecord:
 
-        packet_size = self.sampler.sample(
-            profile.packet_size_distribution
-        )
+        from RSNSD.traffic_generator.behaviour.factory import BehaviourFactory
+        behaviour = BehaviourFactory.create(profile, self.sampler, context)
 
-        inter_arrival = self.sampler.sample(
-            profile.inter_arrival_distribution
-        )
+        packet_size = behaviour.generate_packet_size()
 
-        duration = self.sampler.sample(
-            profile.session_duration_distribution
-        )
+        inter_arrival = behaviour.generate_inter_arrival_time()
 
-        bitrate = self.sampler.sample(
-            profile.bitrate_distribution
-        )
+        duration = behaviour.generate_session_duration()
+
+        bitrate = behaviour.generate_bitrate()
+
+        burst_size = behaviour.generate_burst_size()
+
+        idle_time = behaviour.generate_idle_time()
 
         return FlowRecord(
 
@@ -51,6 +50,10 @@ class FlowGenerator:
             session_duration_s=duration,
 
             bitrate_mbps=bitrate,
+
+            burst_size=burst_size,
+
+            idle_time_s=idle_time,
 
             latency_requirement_ms=profile.latency_requirement_ms,
 

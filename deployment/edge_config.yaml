@@ -1,0 +1,63 @@
+# CARS-SF Edge Server Deployment Configuration
+# Maps Mininet modules to production private 5G edge services.
+
+edge_server:
+  hostname: cars-sf-edge
+  os: Ubuntu 22.04 LTS
+  min_cpu: 4
+  min_ram_gb: 8
+  min_disk_gb: 50
+
+services:
+  telemetry_collector:
+    module: telemetry.collector.TelemetryCollector
+    port: 9100
+    description: OVS/tc/PCAP metrics collection
+    production_replacement: Prometheus node_exporter + ovs_exporter
+
+  feature_extractor:
+    module: features.extractor.FlowFeatureExtractor
+    description: PCAP to flow feature pipeline
+    production_replacement: nProbe or custom Go extractor
+
+  slicenet_inference:
+    module: classification.slicenet.SliceNetClassifier
+    port: 8080
+    model_path: classification/models/slicenet_model.pkl
+    description: Real-time traffic classification API
+
+  rl_scheduler:
+    module: scheduler.agent.RLAgent
+    port: 8081
+    model_path: scheduler/models/rl_agent.pkl
+    description: Dynamic resource allocation decisions
+
+  qos_enforcer:
+    module: slicing.qos_enforcer.QoSEnforcer
+    description: HTB queue management via tc
+    production_replacement: OVS + tc on UPF interfaces
+
+  monitor:
+    module: monitoring.monitor.Monitor
+    port: 9090
+    description: SLA violation detection and alerting
+
+  self_healing:
+    module: self_healing.recovery.RecoveryPlanner
+    description: Automatic failure recovery
+
+network:
+  upf_interface: eth0
+  bottleneck_interface: s_rural-eth4
+  service_subnets:
+    ue: 10.0.1.0/24
+    edge: 10.0.2.0/24
+    core: 10.0.3.0/24
+
+optional_extensions:
+  open5gs:
+    enabled: false
+    description: 5G core network (modular extension)
+  ueransim:
+    enabled: false
+    description: UE/RAN simulator (modular extension)

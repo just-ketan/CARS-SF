@@ -8,6 +8,7 @@ edge servers and cloud-based diagnostic systems.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ MEDICAL_IMAGING = ApplicationProfile(
     application_id="healthcare.medical_imaging",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.STREAMING,
 
     description=(
         "Transfer of high-resolution medical images for "
@@ -109,6 +112,11 @@ MEDICAL_IMAGING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "image_type": "MRI",

@@ -1,22 +1,32 @@
 """
 SLA Model
 
-Evaluates whether a traffic flow satisfies the application's
-QoS requirements.
+Evaluates QoS satisfaction using weighted analytical scoring.
 
 Author: RSNSD
 """
+
+from __future__ import annotations
 
 from RSNSD.domain.flow import FlowRecord
 
 
 class SLAModel:
     """
-    Computes QoS satisfaction.
+    Computes SLA satisfaction and QoS score.
 
-    A flow satisfies the SLA only if every QoS requirement
-    defined by the application profile is met.
+    QoS score is a weighted combination of
+    normalized QoS metrics.
+
+    SLA is considered satisfied only if every
+    hard requirement is met.
     """
+
+    LATENCY_WEIGHT = 0.30
+    THROUGHPUT_WEIGHT = 0.30
+    PACKET_LOSS_WEIGHT = 0.20
+    JITTER_WEIGHT = 0.10
+    AVAILABILITY_WEIGHT = 0.10
 
     def compute(
         self,
@@ -28,80 +38,118 @@ class SLAModel:
         availability_pct: float,
     ) -> tuple[bool, float]:
 
-        checks = []
-
         # ==================================================
-        # Latency
+        # Hard SLA Checks
         # ==================================================
 
-        checks.append(
-
-            latency_ms <= flow.latency_requirement_ms
-
+        latency_ok = (
+            latency_ms
+            <= flow.latency_requirement_ms
         )
 
-        # ==================================================
-        # Throughput
-        # ==================================================
-
-        checks.append(
-
-            throughput_mbps >= flow.throughput_requirement_mbps
-
+        throughput_ok = (
+            throughput_mbps
+            >= flow.throughput_requirement_mbps
         )
 
-        # ==================================================
-        # Packet Loss
-        # ==================================================
-
-        checks.append(
-
-            packet_loss_pct <= flow.packet_loss_requirement_pct
-
+        packet_loss_ok = (
+            packet_loss_pct
+            <= flow.packet_loss_requirement_pct
         )
 
-        # ==================================================
-        # Jitter
-        # ==================================================
-
-        checks.append(
-
-            jitter_ms <= flow.jitter_requirement_ms
-
+        jitter_ok = (
+            jitter_ms
+            <= flow.jitter_requirement_ms
         )
 
-        # ==================================================
-        # Availability
-        # ==================================================
-
-        checks.append(
-
+        availability_ok = (
             availability_pct >= 99.0
+        )
 
+        satisfied = all(
+            (
+                latency_ok,
+                throughput_ok,
+                packet_loss_ok,
+                jitter_ok,
+                availability_ok,
+            )
         )
 
         # ==================================================
-        # SLA Decision
+        # Normalized Scores
         # ==================================================
 
-        satisfied = all(checks)
+        latency_score = min(
+            1.0,
+            flow.latency_requirement_ms
+            / max(latency_ms, 0.01),
+        )
+
+        throughput_score = min(
+            1.0,
+            throughput_mbps
+            / max(
+                flow.throughput_requirement_mbps,
+                0.01,
+            ),
+        )
+
+        packet_loss_score = min(
+            1.0,
+            flow.packet_loss_requirement_pct
+            / max(
+                packet_loss_pct,
+                0.01,
+            ),
+        )
+
+        jitter_score = min(
+            1.0,
+            flow.jitter_requirement_ms
+            / max(
+                jitter_ms,
+                0.01,
+            ),
+        )
+
+        availability_score = min(
+            1.0,
+            availability_pct / 100.0,
+        )
 
         # ==================================================
-        # QoS Satisfaction Score
+        # Weighted QoS Score
         # ==================================================
 
-        score = (
+        qos_score = (
 
-            sum(checks)
+            latency_score
+            * self.LATENCY_WEIGHT
 
-            / len(checks)
+            +
+
+            throughput_score
+            * self.THROUGHPUT_WEIGHT
+
+            +
+
+            packet_loss_score
+            * self.PACKET_LOSS_WEIGHT
+
+            +
+
+            jitter_score
+            * self.JITTER_WEIGHT
+
+            +
+
+            availability_score
+            * self.AVAILABILITY_WEIGHT
 
         ) * 100.0
 
         return (
-
             satisfied,
-
-            round(score, 2),
-
+            round(qos_score, 2),
         )

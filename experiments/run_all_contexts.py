@@ -1,8 +1,12 @@
 import csv
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from slicing.context_engine import ContextEngine
 from slicing.allocation_engine import AllocationEngine
-from traffic.demand_generator import DemandGenerator
+from traffic_models.demand_generator import DemandGenerator
 
 
 TOTAL_BANDWIDTH = 100

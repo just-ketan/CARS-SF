@@ -1,11 +1,13 @@
 """
 Jitter Model
 
-Computes network jitter based on latency, congestion,
-packet loss and mobility.
+Computes network jitter based on congestion,
+latency variation, packet loss and mobility.
 
 Author: RSNSD
 """
+
+from __future__ import annotations
 
 from random import uniform
 
@@ -17,11 +19,20 @@ class JitterModel:
     """
     Analytical jitter model.
 
-    Jitter represents latency variation and is strongly
-    correlated with congestion and unstable radio links.
-    """
+    Jitter represents packet delay variation.
 
-    CONGESTION_THRESHOLD = 70
+    It increases due to
+
+        Queueing
+            ↓
+        Congestion
+            ↓
+        Packet Loss
+            ↓
+        Mobility
+            ↓
+        Handover
+    """
 
     def compute(
         self,
@@ -35,53 +46,84 @@ class JitterModel:
         # Base Jitter
         # ==================================================
 
-        jitter = max(1.0, latency_ms * 0.10)
+        jitter = max(
+            0.5,
+            latency_ms * 0.05,
+        )
 
         # ==================================================
-        # Packet Loss Contribution
+        # Queueing / Congestion
         # ==================================================
 
-        jitter += packet_loss_pct * 1.5
+        network_load = context.network_load_pct
 
-        # ==================================================
-        # Network Congestion
-        # ==================================================
+        if network_load < 60:
 
-        if context.network_load_pct > self.CONGESTION_THRESHOLD:
+            jitter += network_load * 0.03
 
+        elif network_load < 80:
+
+            jitter += 2.0
             jitter += (
+                network_load - 60
+            ) * 0.12
 
-                context.network_load_pct
+        else:
 
-                - self.CONGESTION_THRESHOLD
-
-            ) * 0.15
+            jitter += 4.4
+            jitter += (
+                network_load - 80
+            ) * 0.35
 
         # ==================================================
         # Cell Congestion
         # ==================================================
 
-        if context.cell_load_pct > self.CONGESTION_THRESHOLD:
+        jitter += context.cell_load_pct * 0.03
 
-            jitter += (
+        # ==================================================
+        # Packet Loss
+        # ==================================================
 
-                context.cell_load_pct
+        jitter += packet_loss_pct * 0.80
 
-                - self.CONGESTION_THRESHOLD
+        # ==================================================
+        # Poor Radio Quality
+        # ==================================================
 
-            ) * 0.10
+        jitter += max(
+            0,
+            15 - context.cqi,
+        ) * 0.35
+
+        jitter += max(
+            0,
+            20 - context.sinr_db,
+        ) * 0.15
 
         # ==================================================
         # Mobility
         # ==================================================
 
-        if context.mobility_state == "vehicular":
+        mobility = context.mobility_state.lower()
 
-            jitter += 2
+        if mobility in (
+            "vehicular",
+            "vehicle",
+        ):
 
-        elif context.mobility_state == "aerial":
+            jitter += 2.5
 
-            jitter += 1.5
+        elif mobility in (
+            "walking",
+            "pedestrian",
+        ):
+
+            jitter += 0.8
+
+        elif mobility == "aerial":
+
+            jitter += 2.0
 
         # ==================================================
         # Handover
@@ -89,12 +131,24 @@ class JitterModel:
 
         if context.handover_in_progress:
 
-            jitter += uniform(5, 12)
+            jitter += uniform(
+                6,
+                15,
+            )
 
         # ==================================================
-        # Small Random Noise
+        # Random Noise
         # ==================================================
 
-        jitter += uniform(-1.0, 1.0)
+        jitter += uniform(
+            -0.5,
+            0.5,
+        )
 
-        return round(max(0.5, jitter), 2)
+        return round(
+            max(
+                0.5,
+                jitter,
+            ),
+            2,
+        )

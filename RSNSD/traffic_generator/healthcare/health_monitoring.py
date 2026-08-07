@@ -7,6 +7,7 @@ IoT devices for chronic disease management and elderly care.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ HEALTH_MONITORING = ApplicationProfile(
     application_id="healthcare.health_monitoring",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Periodic transmission of physiological measurements "
@@ -108,6 +111,11 @@ HEALTH_MONITORING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "heart_rate": True,

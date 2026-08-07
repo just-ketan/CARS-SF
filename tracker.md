@@ -1,124 +1,100 @@
 # Project Progress Tracker
 
----
-
-# Phase 0
-
-## Literature Review
-
-- [x] Read SliceNet paper
-- [x] Review rural slicing papers
-- [ ] Review AI slicing papers
-- [ ] Review self-healing literature
-
-Status:
-90%
+Last updated: 2026-08-07
 
 ---
 
-# Phase 1
+# Phase 0 — Architectural Consolidation
 
-## Prototype Development
+- [x] Fix broken imports (demo.py, run_all_contexts.py)
+- [x] Create unified ARCHITECTURE.md, DATASET_DESIGN.md, RL_DESIGN.md
+- [x] Extract shared registries (applications.yaml, scenarios.yaml, features.yaml)
+- [x] Create core/ module with interfaces and orchestrator
+- [x] Document RSNSD v1 freeze policy in README
+- [x] Reconcile tracker with actual progress
 
-### Infrastructure
-
-- [x] Python Environment
-- [x] Mininet
-- [x] Open vSwitch
-- [x] Rural Topology
-
-### Slicing
-
-- [x] Context Engine
-- [x] Priority Engine
-- [x] Demand Generator
-- [x] Allocation Engine
-- [x] Surplus Redistribution
-- [x] QoS Enforcer
-
-### Experiments
-
-- [x] CSV Generation
-
-- [ ] Visualization
-
-- [ ] Evaluation Metrics
-
-Status:
-90%
+Status: **Complete**
 
 ---
 
-# Phase 2
+# Phase 1 — Mininet Telemetry Pipeline
 
-## Network Enforcement
+- [x] Canonical topology (topology/rural_topology.py)
+- [x] Profile-driven traffic (traffic/orchestrator.py)
+- [x] Real telemetry (telemetry/collector.py — OVS, tc, PCAP, psutil)
+- [x] PCAP feature extraction (features/extractor.py)
+- [x] Dataset builder (dataset/builder.py)
+- [x] Validation framework (validation/validator.py)
+- [x] Unified orchestrator (core/orchestrator.py)
+- [x] Entry point (run_experiment.py)
 
-- [ ] Bottleneck Topology
-
-- [ ] OVS Queue Creation
-
-- [ ] Bandwidth Limiting
-
-- [ ] iperf3 Automation
-
-- [ ] Traffic Capture
-
-Status:
-0%
+Status: **Complete**
 
 ---
 
-# Phase 3
+# Phase 2 — Network Enforcement (Closed Loop)
 
-## Context Automation
+- [x] HTB queue creation per service class
+- [x] Real tc bandwidth enforcement (slicing/qos_enforcer.py)
+- [x] IP-based flow classification filters
+- [x] Orchestrator QoS integration (--apply-qos flag)
+- [x] Bottleneck link on rural→edge
 
-- [ ] Time-based Context
-
-- [ ] Seasonal Context
-
-- [ ] Event Context
-
-Status:
-0%
+Status: **Complete**
 
 ---
 
-# Phase 4
+# Phase 3 — SliceNet Classifier
 
-## Self-Healing
+- [x] SliceNet architecture (classification/slicenet.py)
+- [x] Training script (classification/train.py)
+- [x] Label leakage columns excluded from ML features
+- [x] Bootstrap training on RSNSD v1 supported
+- [x] Mininet dataset retraining supported (--mininet flag)
 
-- [ ] Failure Injection
-
-- [ ] Failure Detection
-
-- [ ] Alternate Path
-
-- [ ] Automatic Recovery
-
-Status:
-0%
+Status: **Complete**
 
 ---
 
-# Phase 5
+# Phase 4 — RL Scheduler
 
-## AI Enhancement
+- [x] Gym-compatible environment (scheduler/env.py)
+- [x] Rule-based baseline (scheduler/baseline.py)
+- [x] RL agent with policy training (scheduler/agent.py)
+- [x] Training script (scheduler/train.py)
 
-- [ ] CNN Traffic Classification
-
-- [ ] Demand Prediction
-
-- [ ] Failure Prediction
-
-Status:
-0%
+Status: **Complete**
 
 ---
 
-# Thesis
+# Phase 5 — Monitoring and Self-Healing
 
-- [ ] Methodology
+- [x] Continuous monitoring (monitoring/monitor.py)
+- [x] Failure detection (self_healing/detector.py)
+- [x] Recovery planner (self_healing/recovery.py)
+- [x] Fault injection (self_healing/injector.py)
 
-- [ ] Experimental Results
+Status: **Complete**
 
-- [ ] Paper Draft
+---
+
+# Phase 6 — Deployment and Thesis
+
+- [x] Edge server deployment config (deployment/edge_config.yaml)
+- [x] Reproducible experiment runner (experiments/run_reproducible.py)
+- [x] Open5GS/UERANSIM documented as optional extensions
+- [ ] LaTeX report update with new experimental results
+- [ ] Full Mininet end-to-end validation run
+
+Status: **90%**
+
+---
+
+# Legacy Components
+
+| Component | Status |
+|-----------|--------|
+| RSNSD/ (v1 synthetic) | Frozen — bootstrap only |
+| MininetSims/ | Deprecated — merged into core pipeline |
+| RSNSDv2/ | Deprecated — merged into core/orchestrator.py |
+| slicing/ (allocation prototype) | Preserved and integrated |
