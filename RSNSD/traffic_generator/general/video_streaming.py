@@ -7,6 +7,7 @@ Netflix and educational multimedia platforms.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ VIDEO_STREAMING = ApplicationProfile(
     application_id="general.video_streaming",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.STREAMING,
 
     description=(
         "Adaptive bitrate video streaming for entertainment "
@@ -123,6 +126,11 @@ VIDEO_STREAMING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "video_resolution": "Adaptive",

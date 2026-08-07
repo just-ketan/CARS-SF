@@ -8,6 +8,7 @@ course materials and announcements.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ LEARNING_MANAGEMENT = ApplicationProfile(
     application_id="education.learning_management",
 
     service_class=ServiceClass.EDUCATION,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
         "Interactive web-based learning platform supporting "
@@ -124,6 +127,11 @@ LEARNING_MANAGEMENT = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_assignments": True,

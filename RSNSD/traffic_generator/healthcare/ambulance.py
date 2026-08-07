@@ -7,6 +7,7 @@ critical patients towards healthcare facilities.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ AMBULANCE_TELEMETRY = ApplicationProfile(
     application_id="healthcare.ambulance",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.EMERGENCY,
 
     description=(
         "Continuous transmission of patient vitals, GPS "
@@ -109,6 +112,11 @@ AMBULANCE_TELEMETRY = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "gps_enabled": True,

@@ -1,0 +1,7 @@
+| Metric                | Unit   |
+|:----------------------|:-------|
+| End-to-End Latency    | ms     |
+| Throughput            | Mbps   |
+| Jitter                | ms     |
+| Packet Loss           | %      |
+| Bandwidth Utilization | %      |

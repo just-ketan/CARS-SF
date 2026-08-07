@@ -8,6 +8,7 @@ precision farming operations.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ WEATHER_STATION = ApplicationProfile(
     application_id="agriculture.weather_station",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Automated weather station providing real-time "
@@ -124,6 +127,11 @@ WEATHER_STATION = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "measurements": [

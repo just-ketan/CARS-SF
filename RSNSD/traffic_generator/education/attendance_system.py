@@ -7,6 +7,7 @@ systems used in educational institutions.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ ATTENDANCE_SYSTEM = ApplicationProfile(
     application_id="education.attendance_system",
 
     service_class=ServiceClass.EDUCATION,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
         "Automated attendance system using RFID, NFC, QR "
@@ -123,6 +126,11 @@ ATTENDANCE_SYSTEM = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "authentication": "RFID/NFC/Biometric",

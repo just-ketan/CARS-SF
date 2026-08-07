@@ -34,6 +34,10 @@ class FlowRecord:
 
     bitrate_mbps: float
 
+    burst_size: int
+
+    idle_time_s: float
+
     # ==========================================================
     # QoS Targets
     # ==========================================================

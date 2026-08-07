@@ -7,6 +7,7 @@ VoLTE, VoNR, VoIP and internet calling applications.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ VOICE_OVER_IP = ApplicationProfile(
     application_id="general.voice_over_ip",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.CONVERSATIONAL,
 
     description=(
         "Real-time voice communication including VoLTE, "
@@ -123,6 +126,11 @@ VOICE_OVER_IP = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "codec": "AMR-WB",

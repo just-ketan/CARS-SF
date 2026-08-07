@@ -8,6 +8,7 @@ to generate actionable insights for farmers.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ PRECISION_AGRICULTURE = ApplicationProfile(
     application_id="agriculture.precision_agriculture",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "AI-driven precision agriculture platform performing "
@@ -125,6 +128,11 @@ PRECISION_AGRICULTURE = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "analytics_modules": [

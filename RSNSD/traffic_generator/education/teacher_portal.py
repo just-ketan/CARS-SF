@@ -7,6 +7,7 @@ grades, attendance, assignments and communication.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ TEACHER_PORTAL = ApplicationProfile(
     application_id="education.teacher_portal",
 
     service_class=ServiceClass.EDUCATION,
+
+    behaviour_type=BehaviourType.TRANSACTIONAL,
 
     description=(
         "Faculty portal supporting attendance management, "
@@ -123,6 +126,11 @@ TEACHER_PORTAL = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_grading": True,

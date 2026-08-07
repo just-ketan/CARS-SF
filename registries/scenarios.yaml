@@ -1,0 +1,100 @@
+# Scenario Registry
+# Context definitions for rural network operating conditions.
+
+scenarios:
+  - id: normal
+    name: Normal Day
+    description: Balanced allocation across all service classes.
+    priority_weights:
+      healthcare: 5
+      education: 4
+      agriculture: 3
+      general: 1
+    demand_mbps:
+      healthcare: 20
+      education: 20
+      agriculture: 20
+      general: 20
+    network_load_pct: 40
+    duration_ticks: 60
+
+  - id: school
+    name: School Hours
+    description: Education receives higher priority during school hours.
+    priority_weights:
+      healthcare: 5
+      education: 5
+      agriculture: 2
+      general: 1
+    demand_mbps:
+      healthcare: 5
+      education: 80
+      agriculture: 10
+      general: 50
+    network_load_pct: 80
+    duration_ticks: 60
+
+  - id: harvest
+    name: Harvest Season
+    description: Agriculture receives higher priority during harvest.
+    priority_weights:
+      healthcare: 5
+      education: 3
+      agriculture: 5
+      general: 1
+    demand_mbps:
+      healthcare: 5
+      education: 20
+      agriculture: 80
+      general: 50
+    network_load_pct: 75
+    duration_ticks: 60
+
+  - id: disaster
+    name: Disaster
+    description: Healthcare maximum priority; general traffic throttled.
+    priority_weights:
+      healthcare: 10
+      education: 1
+      agriculture: 1
+      general: 1
+    demand_mbps:
+      healthcare: 90
+      education: 5
+      agriculture: 5
+      general: 20
+    network_load_pct: 95
+    duration_ticks: 60
+
+  - id: medical_emergency
+    name: Medical Emergency
+    description: Critical healthcare traffic protected above all else.
+    priority_weights:
+      healthcare: 15
+      education: 1
+      agriculture: 1
+      general: 1
+    demand_mbps:
+      healthcare: 95
+      education: 5
+      agriculture: 5
+      general: 10
+    network_load_pct: 98
+    duration_ticks: 30
+
+  - id: fiber_cut
+    name: Fiber Cut
+    description: Backhaul failure with degraded capacity.
+    priority_weights:
+      healthcare: 10
+      education: 2
+      agriculture: 2
+      general: 1
+    demand_mbps:
+      healthcare: 40
+      education: 15
+      agriculture: 15
+      general: 30
+    network_load_pct: 90
+    backhaul_degraded: true
+    duration_ticks: 45

@@ -7,6 +7,7 @@ government portals, online shopping and information access.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ WEB_BROWSING = ApplicationProfile(
     application_id="general.web_browsing",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.TRANSACTIONAL,
 
     description=(
         "General internet browsing including websites, "
@@ -123,6 +126,11 @@ WEB_BROWSING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_https": True,

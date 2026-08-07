@@ -8,6 +8,7 @@ content sharing between instructors and students.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ INTERACTIVE_WHITEBOARD = ApplicationProfile(
     application_id="education.interactive_whiteboard",
 
     service_class=ServiceClass.EDUCATION,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
         "Collaborative real-time digital whiteboard for "
@@ -125,6 +128,11 @@ INTERACTIVE_WHITEBOARD = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_annotation": True,

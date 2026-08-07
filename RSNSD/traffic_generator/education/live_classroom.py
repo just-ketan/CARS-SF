@@ -7,6 +7,7 @@ interactive audio/video communication.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ LIVE_CLASSROOM = ApplicationProfile(
     application_id="education.live_classroom",
 
     service_class=ServiceClass.EDUCATION,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
         "Real-time online classroom with HD audio/video "
@@ -123,6 +126,11 @@ LIVE_CLASSROOM = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "video_resolution": "1080p",

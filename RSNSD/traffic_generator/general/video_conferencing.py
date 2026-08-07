@@ -7,6 +7,7 @@ remote work, meetings, teleconsultation and online collaboration.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ VIDEO_CONFERENCING = ApplicationProfile(
     application_id="general.video_conferencing",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.STREAMING,
 
     description=(
 
@@ -125,6 +128,11 @@ VIDEO_CONFERENCING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "video_resolution": "1080p",

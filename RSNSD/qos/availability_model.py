@@ -1,11 +1,13 @@
 """
 Availability Model
 
-Computes service availability based on current network
-conditions and QoS degradation.
+Computes service availability based on
+network congestion and QoS degradation.
 
 Author: RSNSD
 """
+
+from __future__ import annotations
 
 from random import uniform
 
@@ -17,8 +19,8 @@ class AvailabilityModel:
     """
     Analytical availability model.
 
-    Availability is expressed as a percentage and decreases
-    under congestion, packet loss and handovers.
+    Availability starts at 100% and is reduced by
+    cumulative QoS degradation.
     """
 
     def compute(
@@ -31,60 +33,107 @@ class AvailabilityModel:
     ) -> float:
 
         # ==================================================
-        # Start from ideal availability
+        # Ideal Availability
         # ==================================================
 
         availability = 100.0
 
         # ==================================================
-        # Packet Loss
+        # Packet Loss Penalty
         # ==================================================
 
-        availability -= packet_loss_pct * 2.5
+        availability -= packet_loss_pct * 2.0
 
         # ==================================================
-        # Excess Latency
+        # Latency Penalty
         # ==================================================
 
         if latency_ms > flow.latency_requirement_ms:
 
-            excess = latency_ms - flow.latency_requirement_ms
+            ratio = (
+                latency_ms /
+                flow.latency_requirement_ms
+            )
 
-            availability -= excess * 0.05
+            availability -= (
+                (ratio - 1.0) ** 2
+            ) * 8.0
 
         # ==================================================
-        # Excess Jitter
+        # Jitter Penalty
         # ==================================================
 
         if jitter_ms > flow.jitter_requirement_ms:
 
-            excess = jitter_ms - flow.jitter_requirement_ms
+            ratio = (
+                jitter_ms /
+                flow.jitter_requirement_ms
+            )
 
-            availability -= excess * 0.08
+            availability -= (
+                (ratio - 1.0) ** 2
+            ) * 6.0
 
         # ==================================================
         # Network Congestion
         # ==================================================
 
-        if context.network_load_pct > 80:
+        if context.network_load_pct > 75:
 
-            availability -= (
+            congestion = (
+                (
+                    context.network_load_pct
+                    - 75
+                ) / 25
+            ) ** 2
 
-                context.network_load_pct - 80
-
-            ) * 0.20
+            availability -= congestion * 6.0
 
         # ==================================================
         # Cell Congestion
         # ==================================================
 
-        if context.cell_load_pct > 80:
+        if context.cell_load_pct > 75:
 
-            availability -= (
+            congestion = (
+                (
+                    context.cell_load_pct
+                    - 75
+                ) / 25
+            ) ** 2
 
-                context.cell_load_pct - 80
+            availability -= congestion * 4.0
 
-            ) * 0.15
+        # ==================================================
+        # Poor Radio Quality
+        # ==================================================
+
+        availability -= max(
+            0,
+            10 - context.cqi,
+        ) * 0.30
+
+        availability -= max(
+            0,
+            15 - context.sinr_db,
+        ) * 0.10
+
+        # ==================================================
+        # Mobility
+        # ==================================================
+
+        mobility = context.mobility_state.lower()
+
+        if mobility in (
+            "vehicular",
+            "vehicle",
+        ):
+
+            availability -= 0.50
+
+        elif mobility == "aerial":
+
+            availability -= 0.30
 
         # ==================================================
         # Handover
@@ -92,24 +141,33 @@ class AvailabilityModel:
 
         if context.handover_in_progress:
 
-            availability -= uniform(1.0, 3.0)
+            availability -= uniform(
+                1.5,
+                3.5,
+            )
 
         # ==================================================
-        # Small Noise
+        # Small Measurement Noise
         # ==================================================
 
-        availability += uniform(-0.3, 0.3)
+        availability += uniform(
+            -0.20,
+            0.20,
+        )
+
+        # ==================================================
+        # Clamp
+        # ==================================================
+
+        availability = max(
+            80.0,
+            min(
+                availability,
+                100.0,
+            ),
+        )
 
         return round(
-
-            min(
-
-                100.0,
-
-                max(80.0, availability),
-
-            ),
-
+            availability,
             2,
-
         )

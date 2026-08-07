@@ -8,6 +8,7 @@ and public administration services.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -38,6 +39,8 @@ E_GOVERNANCE = ApplicationProfile(
     application_id="general.e_governance",
 
     service_class=ServiceClass.GENERAL,
+
+    behaviour_type=BehaviourType.BURSTY,
 
     description=(
 
@@ -127,6 +130,11 @@ E_GOVERNANCE = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "supports_document_upload": True,

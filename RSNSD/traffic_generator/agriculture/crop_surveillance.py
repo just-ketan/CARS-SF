@@ -7,6 +7,7 @@ multispectral sensors and AI-assisted crop inspection.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ CROP_SURVEILLANCE = ApplicationProfile(
     application_id="agriculture.crop_surveillance",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Autonomous drone performing crop monitoring using "
@@ -123,6 +126,11 @@ CROP_SURVEILLANCE = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "camera_resolution": "4K",

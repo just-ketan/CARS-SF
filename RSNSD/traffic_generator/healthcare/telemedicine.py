@@ -7,6 +7,7 @@ This profile represents delay-sensitive healthcare traffic
 requiring URLLC characteristics.
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ TELEMEDICINE = ApplicationProfile(
     application_id="healthcare.telemedicine",
 
     service_class=ServiceClass.HEALTHCARE,
+
+    behaviour_type=BehaviourType.CONVERSATIONAL,
 
     description="Real-time doctor-patient video consultation.",
 
@@ -101,6 +104,11 @@ TELEMEDICINE = ApplicationProfile(
 
     device_type=DeviceType.SMARTPHONE,
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
         "codec": "H.265",
         "video_resolution": "1080p",

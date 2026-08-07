@@ -7,6 +7,7 @@ tracking health, location and activity in smart farming.
 Author: RSNSD
 """
 
+from RSNSD.traffic_generator.behaviour.behaviour_type import BehaviourType
 from RSNSD.domain.enums import (
     DeviceType,
     MobilityProfile,
@@ -37,6 +38,8 @@ LIVESTOCK_MONITORING = ApplicationProfile(
     application_id="agriculture.livestock_monitoring",
 
     service_class=ServiceClass.AGRICULTURE,
+
+    behaviour_type=BehaviourType.PERIODIC,
 
     description=(
         "Wearable IoT devices for continuous livestock "
@@ -123,6 +126,11 @@ LIVESTOCK_MONITORING = ApplicationProfile(
     # Metadata
     # ======================================================
 
+    
+    expected_user_density="Medium",
+    failure_sensitivity="High",
+    burstiness="Moderate",
+    traffic_pattern="Continuous",
     metadata={
 
         "animal_types": [
