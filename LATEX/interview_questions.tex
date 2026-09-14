@@ -1,0 +1,434 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    urlcolor=blue!60!black,
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small CARS-SF Interview Preparation}
+\fancyhead[R]{\small Rural Service Slicing Framework}
+\fancyfoot[C]{\thepage}
+
+\titleformat{\section}{\large\bfseries\color{blue!70!black}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+
+\setlist[enumerate,1]{leftmargin=*, itemsep=0.4em, topsep=0.3em}
+\setlist[description]{leftmargin=2em, itemsep=0.2em, font=\itshape}
+
+\newcommand{\proj}[1]{\textbf{\texttt{#1}}}
+\newcommand{\hint}[1]{\par\vspace{0.2em}\noindent\textit{Hint:} #1\par}
+
+\title{
+    \textbf{CARS-SF / RuralSliceAI}\\
+    \large Interview Question Bank\\
+    \normalsize Design Choices, Architecture, Core Systems, and 5G Modules
+}
+\author{M.Tech Major Project Preparation}
+\date{August 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{Project Vision and Research Motivation}
+%=============================================================================
+
+\begin{enumerate}
+    \item What is the core research problem your project addresses, and why is traditional eMBB/URLLC/mMTC slicing insufficient for rural deployments?
+    \item Explain the shift from \emph{technology-centric} slices to \emph{service-centric} slices (Healthcare, Education, Agriculture, General Internet).
+    \item What is the novelty of CARS-SF if SliceNet and RL already exist independently?
+    \item Why focus on \emph{rural} private 5G rather than urban macro networks?
+    \item How does context-awareness (school hours, harvest season, disaster) change allocation compared to static slicing?
+    \item What societal impact does service-aware slicing claim beyond throughput optimization?
+    \item Why is bandwidth scarcity a first-class constraint in your architecture rather than an afterthought?
+    \item How would you defend the project contribution in a viva if asked ``Is this just a classifier plus a scheduler?''
+    \item What future service classes (Emergency, Government, Industrial IoT) would require architectural changes vs.\ registry extensions?
+    \item Why is the \emph{complete closed loop} (perceive $\rightarrow$ decide $\rightarrow$ act $\rightarrow$ measure $\rightarrow$ learn) essential to your thesis claim?
+\end{enumerate}
+
+%=============================================================================
+\section{System Architecture and Module Decomposition}
+%=============================================================================
+
+\begin{enumerate}
+    \item Draw the end-to-end pipeline from incoming traffic to policy improvement. Label every module in your repository.
+    \item Why separate \textbf{perception} (SliceNet) from \textbf{control} (RL scheduler)? What breaks if you merge them?
+    \item Explain the role of \proj{core/orchestrator.py} and why a single entry point matters for reproducibility.
+    \item What is the purpose of \proj{registries/} (applications, scenarios, features YAML)? Why not hardcode profiles in Python?
+    \item Why did you preserve \proj{slicing/} (context, priority, allocation) while building new modules around it?
+    \item What is the difference between \proj{scenario/engine.py} and \proj{context/engine.py}?
+    \item Why is \proj{traffic\_models/demand\_generator.py} separate from \proj{traffic/orchestrator.py}?
+    \item Explain modular interfaces in \proj{core/interfaces.py}: \texttt{TelemetrySource}, \texttt{FeatureExtractor}, \texttt{Labeler}.
+    \item Why deprecate \proj{MininetSims/} and \proj{RSNSDv2/} instead of deleting them immediately?
+    \item What is the deployment mapping from Mininet modules to edge server services (\proj{deployment/edge\_config.yaml})?
+    \item How does your architecture support replacing Mininet with a real UPF without rewriting SliceNet?
+    \item What is the dependency graph between modules? Which modules can run without Mininet?
+\end{enumerate}
+
+%=============================================================================
+\section{Design Choices and Architectural Trade-offs}
+%=============================================================================
+
+\begin{enumerate}
+    \item Why Mininet-first development instead of starting with Open5GS + UERANSIM?
+    \item Why use Linux \texttt{tc} HTB queues instead of only OpenFlow for QoS enforcement?
+    \item Why registry-driven YAML configuration instead of a central database or protobuf schemas?
+    \item Why freeze RSNSD v1 synthetic generation rather than continuously extending it?
+    \item What are the trade-offs of using RandomForest for SliceNet vs.\ a 1D-CNN as described in literature?
+    \item Why two-pass weighted fair allocation with surplus redistribution instead of strict priority queuing?
+    \item Why exclude categorical context columns (\texttt{device\_type}, \texttt{mobility\_state}) from ML inputs?
+    \item Why map Mininet flows to an 89-column RSNSD schema instead of defining a new minimal schema?
+    \item What are the risks of label leakage when \texttt{service\_type} appears as both feature and label?
+    \item Why poll OVS, \texttt{tc}, PCAP, and \texttt{psutil} synchronously per tick instead of async streaming?
+    \item Why use spawn metadata for ground-truth labels instead of only post-hoc port heuristics?
+    \item What breaks if telemetry collectors return stubbed constants (as in early RSNSDv2)?
+    \item Why is self-healing modular and rule-based first before RL-based recovery?
+    \item How do you justify synthetic-to-real domain gap when baseline F1 $\gg$ Mininet F1?
+    \item What would you change if the bottleneck link were 10\,Mbps instead of 100\,Mbps?
+\end{enumerate}
+
+%=============================================================================
+\section{Architectural Correctness and Validation}
+%=============================================================================
+
+\begin{enumerate}
+    \item How do you verify that allocation decisions actually affect measured QoS in Mininet?
+    \item What does ``architecturally correct'' mean for a closed-loop control system in your project?
+    \item How does \proj{validation/validator.py} ensure dataset consistency? What is the pass threshold?
+    \item What correlation checks prove internal QoS consistency (e.g., load $\uparrow$ $\Rightarrow$ latency $\uparrow$)?
+    \item How do you detect when the pipeline produces fake data vs.\ measured telemetry?
+    \item What is the ground truth for \texttt{service\_class} labels in Mininet vs.\ RSNSD v1?
+    \item How do you validate that HTB filters correctly map UE IPs to service classes?
+    \item What test cases in \proj{tests/} cover allocation, monitoring, and scheduler correctness?
+    \item How would you prove SLA violations are detected within 5 seconds after fault injection?
+    \item What happens to architectural correctness if PCAP capture fails but iperf3 traffic runs?
+    \item How do you ensure RL observations originate from measurable telemetry (Markovian state)?
+    \item What is the traceability matrix (\proj{docs/report\_traceability.md}) and why does it matter for viva?
+    \item How do you reconcile documentation drift (tracker vs.\ traceability matrix)?
+    \item What are the failure modes when static routes are used instead of a full SDN controller?
+    \item How would you audit whether every feature in the 89-column schema has documented provenance?
+\end{enumerate}
+
+%=============================================================================
+\section{5G Fundamentals and Network Slicing}
+%=============================================================================
+
+\begin{enumerate}
+    \item What is network slicing in 5G, and how does it differ from VLANs or DiffServ?
+    \item Explain eMBB, URLLC, and mMTC. Which service classes in your project map to each?
+    \item What is a network slice instance (NSI) vs.\ a network slice subnet (NSS)?
+    \item What role does the SMF play in slice selection, and what is your project's analogue?
+    \item What is the UPF, and how does \proj{srv\_edge} / \proj{srv\_core} approximate it in Mininet?
+    \item Explain RAN, fronthaul, midhaul, and backhaul in your three-tier topology.
+    \item What is MEC (Multi-access Edge Computing), and why do you have \proj{mec\_hlt} and \proj{mec\_ctv} hosts?
+    \item What are RSRP, RSRQ, SINR, and CQI? Which are measured vs.\ context-injected in your dataset?
+    \item What is SLA in 5G slicing, and how is \texttt{sla\_satisfied} computed in your pipeline?
+    \item What is slice isolation, and how do HTB queues + u32 filters provide it?
+    \item How does your project relate to 3GPP service-based architecture (SBA)?
+    \item What is the difference between hard slicing and soft slicing in your implementation?
+    \item Why might URLLC healthcare traffic be pinned to the edge server while education goes to core?
+    \item What is network function virtualization (NFV) relevance to your edge deployment vision?
+    \item How would Open5GS integration change your architecture without invalidating the core design?
+\end{enumerate}
+
+%=============================================================================
+\section{Private 5G and Rural Deployment Context}
+%=============================================================================
+
+\begin{enumerate}
+    \item What distinguishes a private 5G network from public operator 5G?
+    \item Why are rural deployments characterized by scarce backhaul and intermittent demand patterns?
+    \item What is the digital divide argument in your problem statement?
+    \item How does school-hours context change education slice priority mathematically in \proj{context\_engine.py}?
+    \item What happens to allocation during disaster context? Walk through the two-pass algorithm.
+    \item Why throttle general internet during medical emergency rather than drop healthcare packets?
+    \item What is the role of an edge compute server in a rural private 5G deployment?
+    \item How does fiber cut scenario differ from congestion in terms of telemetry signatures?
+    \item What regulatory or spectrum considerations affect private 5G in India (if applicable to your thesis)?
+    \item How would you scale from 4 UEs in Mininet to hundreds of rural users?
+\end{enumerate}
+
+%=============================================================================
+\section{Mininet, OVS, and Network Emulation}
+%=============================================================================
+
+\begin{enumerate}
+    \item Why Mininet for all experiments instead of pure simulation (ns-3) or pure analytics?
+    \item Explain \proj{topology/rural\_topology.py}: hosts, switches, link bandwidths, and delays.
+    \item Why use \texttt{TCLink} instead of default Mininet links?
+    \item Why configure static routes manually instead of relying on Mininet defaults?
+    \item What is \texttt{OVSBridge} vs.\ a learning switch, and why OVS in your topology?
+    \item How does \proj{traffic/orchestrator.py} spawn iperf3 and ping from application registry profiles?
+    \item Why capture PCAP on \proj{s\_edge} and \proj{s\_core} switch interfaces?
+    \item What requires root privileges in your experiments, and how would you run CI without it?
+    \item How do you reproduce a 30-second school-hours experiment end-to-end?
+    \item What is the difference between your canonical topology and the legacy one-switch star topology?
+    \item How does \proj{FaultInjector} simulate backhaul failure at the Linux link layer?
+    \item What limitations does Mininet impose on radio-layer modeling?
+    \item How would UERANSIM extend the architecture as a modular plugin?
+    \item What is the bottleneck link (\proj{s\_rural-eth4}) and why shape it at 100\,Mbps?
+\end{enumerate}
+
+%=============================================================================
+\section{Telemetry, Feature Extraction, and Dataset Design}
+%=============================================================================
+
+\begin{enumerate}
+    \item What telemetry sources does \proj{telemetry/collector.py} use? (\texttt{ovs-ofctl}, \texttt{tc}, PCAP, \texttt{psutil})
+    \item Why is the network the source of truth for features, not the traffic generator?
+    \item Explain the 89-column schema and how \proj{features/schema\_mapper.py} maps partial PCAP data to it.
+    \item Which features are PCAP-derived, OVS-derived, TC-derived, context-injected, or spawn-metadata labels?
+    \item How are flow duration, IAT statistics, and throughput computed from PCAP timestamps?
+    \item What TCP flag counts are extracted and why do they matter for classification?
+    \item Why derive jitter from IAT standard deviation, and what are the limitations?
+    \item What is the RSNSD v1 synthetic dataset, and why is it frozen as bootstrap only?
+    \item Explain the baseline $\rightarrow$ Mininet $\rightarrow$ compare SliceNet training pipeline.
+    \item Why might synthetic F1 be 0.98 while Mininet F1 is much lower? Is that expected?
+    \item What is label leakage, and which columns were excluded from ML inputs?
+    \item How does time-aligned dataset building work in \proj{dataset/builder.py}?
+    \item What validation score (out of 100) indicates a publishable Mininet-generated dataset?
+    \item Why use both CSV and optional Parquet export?
+    \item How would you extend feature extraction for encrypted traffic (no DPI)?
+\end{enumerate}
+
+%=============================================================================
+\section{SliceNet and Traffic Classification}
+%=============================================================================
+
+\begin{enumerate}
+    \item What is SliceNet's role in CARS-SF? What does it \emph{not} do?
+    \item Classify flows into which four service classes? What are example applications per class?
+    \item Why flow-level classification instead of per-packet deep inspection?
+    \item What input features does \proj{classification/slicenet.py} use after leakage exclusion?
+    \item How does inference integrate with the RL scheduler's observation vector?
+    \item What metrics do you report: macro F1, weighted F1, per-class F1, confusion matrix?
+    \item Why bootstrap on RSNSD v1 before retraining on Mininet data?
+    \item What is the difference between \proj{slicenet\_baseline.pkl} and \proj{slicenet\_mininet.pkl}?
+    \item How would a 1D-CNN on flow feature vectors differ from your RandomForest approach?
+    \item What happens when SliceNet misclassifies agriculture traffic as general?
+    \item How do you handle unknown or encrypted flows at inference time?
+    \item What is the latency budget for SliceNet inference on the edge server?
+    \item How would you update the model when new applications are added to the registry?
+    \item Why is classification accuracy alone insufficient for thesis claims?
+\end{enumerate}
+
+%=============================================================================
+\section{Context Engine, Allocation, and QoS Enforcement}
+%=============================================================================
+
+\begin{enumerate}
+    \item How does \proj{slicing/context\_engine.py} assign priority weights for normal, school, harvest, disaster?
+    \item What is the difference between priority weights and bandwidth allocation?
+    \item Explain the two-pass allocation in \proj{slicing/allocation\_engine.py} step by step.
+    \item What is surplus redistribution, and why a second pass?
+    \item How does \proj{slicing/qos\_enforcer.py} create HTB root qdisc and per-service classes?
+    \item What are u32 filters, and how do they map UE IPs to HTB class IDs?
+    \item What command applies 81.82\,Mbps to healthcare class during disaster allocation?
+    \item Why might printed OVS commands (prototype mode) differ from real \texttt{tc} enforcement?
+    \item How does \proj{--apply-qos} flag wire allocation output to the network?
+    \item What is the relationship between demand (Mbps), priority weight, and granted bandwidth?
+    \item How would weighted fair queuing differ from your proportional allocation approach?
+    \item What QoS metrics define SLA satisfaction per application in \proj{registries/applications.yaml}?
+    \item How do you prevent starvation of general traffic while prioritizing healthcare?
+    \item What happens when total demand exceeds bottleneck capacity?
+\end{enumerate}
+
+%=============================================================================
+\section{RL Scheduler and Control Loop}
+%=============================================================================
+
+\begin{enumerate}
+    \item Why does the RL agent observe network state but not inspect raw packets?
+    \item List all observation dimensions in \proj{scheduler/env.py} (context, demands, allocations, QoS).
+    \item What actions can the RL agent take on slice priorities and bandwidth caps?
+    \item How is the reward function defined? What is penalized?
+    \item What is \proj{scheduler/baseline.py} and why must RL beat this heuristic?
+    \item Why use a Gym-compatible environment even without stable-baselines3?
+    \item What is the action space dimensionality, and how are actions normalized?
+    \item How does the RL agent differ from the rule-based context engine?
+    \item What is policy improvement in your closed loop, and what triggers it?
+    \item Why MultiOutputRegressor for action vectors instead of single-output regression?
+    \item How would PPO or DQN be integrated without changing the environment interface?
+    \item What are the risks of training RL on simulated QoS vs.\ live Mininet feedback?
+    \item How often should the RL agent reallocate (per tick, per second, on SLA violation)?
+    \item What is the exploration vs.\ exploitation trade-off during disaster scenarios?
+    \item How would you explain RL scheduler failure modes to a non-ML networking examiner?
+\end{enumerate}
+
+%=============================================================================
+\section{Monitoring, Self-Healing, and Resilience}
+%=============================================================================
+
+\begin{enumerate}
+    \item What does \proj{monitoring/monitor.py} detect: latency, packet loss, queue overflow?
+    \item How are SLA thresholds tied to per-application \texttt{latency\_requirement\_ms}?
+    \item What failure signatures does \proj{self\_healing/detector.py} recognize?
+    \item How do you distinguish congestion-induced loss from fiber-cut-induced loss?
+    \item What recovery actions does \proj{self\_healing/recovery.py} plan?
+    \item Explain boost-priority vs.\ throttle-general vs.\ reroute-and-protect strategies.
+    \item How does \proj{self\_healing/injector.py} inject link down and latency (\texttt{netem})?
+    \item Why must self-healing consume the same telemetry pipeline as SliceNet and RL?
+    \item What is the target: detection under 5s, automatic reroute, QoS restoration?
+    \item How would RL-based recovery extend rule-based recovery without merging modules?
+    \item What is the difference between failure detection and failure prediction?
+    \item How does monitoring integrate into \proj{core/orchestrator.py} per tick?
+    \item What root cause analysis (RCA) labels does the v3 blueprint propose?
+    \item How would you test self-healing without destabilizing the entire Mininet experiment?
+\end{enumerate}
+
+%=============================================================================
+\section{Core Systems and Software Engineering}
+%=============================================================================
+
+\begin{enumerate}
+    \item Why Python for the control plane? What are latency implications on the edge?
+    \item How do you handle Mininet requiring root while ML training runs as normal user?
+    \item What is the single responsibility of each module per your engineering principles?
+    \item How do you avoid unnecessary coupling between RSNSD, MininetSims, and RSNSDv2?
+    \item Why \texttt{sys.path} inserts in experiment scripts, and what is the proper packaging fix?
+    \item How would you containerize the telemetry + SliceNet + scheduler stack?
+    \item What secrets or credentials must never appear in \proj{registries/} or datasets?
+    \item How do you version datasets (\texttt{cars\_sf\_dataset.csv}, \texttt{mininet\_full\_dataset.csv})?
+    \item What is reproducibility: fixed seeds, scenario YAML, duration, allocation bandwidth?
+    \item How would you add a fifth service class without rewriting the allocation engine?
+    \item What logging and observability would you add for production deployment?
+    \item How do you test modules that require Mininet without running full experiments?
+    \item What is the difference between orchestrator monolith and plugin-based pipeline?
+    \item How would you handle concurrent experiments on the same host?
+    \item What technical debt remains in the repository after architectural consolidation?
+\end{enumerate}
+
+%=============================================================================
+\section{SDN, OpenFlow, and Linux Networking Internals}
+%=============================================================================
+
+\begin{enumerate}
+    \item What is Open vSwitch, and how does it differ from Linux bridge?
+    \item What does \texttt{ovs-ofctl dump-flows} return, and how do you aggregate byte counts?
+    \item What is HTB (Hierarchical Token Bucket) and how does it differ from CBQ?
+    \item Explain \texttt{tc qdisc}, \texttt{tc class}, and \texttt{tc filter} hierarchy on an interface.
+    \item What is \texttt{netem} and when would you use it for failure injection?
+    \item How does iperf3 UDP vs.\ TCP traffic patterns differ for URLLC vs.\ eMBB emulation?
+    \item What is goodput vs.\ throughput, and how is goodput derived in your feature extractor?
+    \item How do queue drops in \texttt{tc -s class show} relate to packet loss rate features?
+    \item What is ARP timeout signature in fiber-cut failure detection?
+    \item Why static routes on multi-subnet Mininet topology (10.0.1.x, 10.0.2.x, 10.0.3.x)?
+    \item What would a Ryu/ONOS controller add that your current design lacks?
+    \item How does SDN enable dynamic rerouting in self-healing recovery?
+\end{enumerate}
+
+%=============================================================================
+\section{Experimental Methodology and Evaluation}
+%=============================================================================
+
+\begin{enumerate}
+    \item What experiments does \proj{experiments/run\_reproducible.py} run across scenarios?
+    \item How do you generate figures in \proj{docs/figures/} for the thesis report?
+    \item What does \proj{simulation\_vs\_synthetic.png} demonstrate?
+    \item What tables are in \proj{docs/tables/} and what claims do they support?
+    \item How do you evaluate RL vs.\ rule-based scheduler quantitatively?
+    \item What is the success criterion for SliceNet on held-out Mininet flows ($>$85\% F1)?
+    \item How many scenarios, applications, and flows constitute a sufficient Mininet dataset?
+    \item What ablation studies would strengthen the thesis (no context, no SliceNet, no RL)?
+    \item How do you report confidence in results given Mininet is not real 5G RAN?
+    \item What limitations section must you include for academic integrity?
+    \item How would field deployment on a real testbed validate Mininet findings?
+    \item What is the internship report vs.\ M.Tech thesis scope boundary in your repo?
+\end{enumerate}
+
+%=============================================================================
+\section{Scenario-Based and Viva Questions}
+%=============================================================================
+
+\begin{enumerate}
+    \item \textbf{Scenario:} School hours start at 8 AM with 80\,Mbps education demand and only 100\,Mbps backhaul. Walk through allocation and QoS enforcement.
+    \item \textbf{Scenario:} A fiber cut reduces OVS byte counters by 90\% in one tick. What detects it, what recovers, and what metrics improve?
+    \item \textbf{Scenario:} SliceNet mislabels telemedicine as general during harvest season. What is the impact on allocation and patient SLA?
+    \item \textbf{Scenario:} An examiner says RSNSD v1 invalidates your ``network is source of truth'' claim. How do you respond?
+    \item \textbf{Scenario:} You must add Police/Emergency as a fifth slice with highest priority. What files change?
+    \item \textbf{Scenario:} PCAP capture fails mid-experiment. What does the pipeline produce, and is it scientifically valid?
+    \item \textbf{Scenario:} RL agent learns to starve general traffic entirely. Is that acceptable in disaster context?
+    \item \textbf{Scenario:} Compare your project to a standard 5G core network slicing implementation commercially.
+    \item \textbf{Scenario:} You have 10 minutes to demo the project live. What commands do you run and in what order?
+    \item \textbf{Scenario:} A journal asks for reproducibility. What do you publish besides code?
+\end{enumerate}
+
+%=============================================================================
+\section{Quick-Fire Definitions (Oral Exam)}
+%=============================================================================
+
+\begin{description}
+    \item[Service slice] Logical end-to-end network partition with isolated resources and QoS.
+    \item[Context-aware slicing] Allocation driven by operational scenario, not static reservations.
+    \item[SliceNet] Flow-level classifier mapping traffic to rural service classes.
+    \item[RL scheduler] Agent that adjusts priorities/allocations from network state observations.
+    \item[HTB] Linux hierarchical token bucket scheduler for bandwidth shaping.
+    \item[UPF] User Plane Function; packet forwarding anchor in 5G core.
+    \item[MEC] Edge compute hosting low-latency applications near the RAN.
+    \item[URLLC] Ultra-reliable low-latency communications slice type.
+    \item[Ground truth label] Deterministic label from spawn metadata or measured SLA violation.
+    \item[Label leakage] Using oracle label information as ML input, inflating accuracy.
+    \item[Closed loop] Sense $\rightarrow$ decide $\rightarrow$ act $\rightarrow$ measure $\rightarrow$ learn cycle.
+    \item[Digital twin] Mininet emulation mirroring production network topology and traffic.
+    \item[Surplus redistribution] Reallocating unused bandwidth to still-starved slices.
+    \item[Markovian state] RL observation containing sufficient information for optimal decisions.
+    \item[Zero-synthetic policy] Features must originate from measurable network behaviour.
+\end{description}
+
+%=============================================================================
+\section{Repository Map (Answer Key Reference)}
+%=============================================================================
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Module} & \textbf{Path} \\
+\midrule
+Orchestrator & \texttt{core/orchestrator.py} \\
+Application registry & \texttt{registries/applications.yaml} \\
+Scenario registry & \texttt{registries/scenarios.yaml} \\
+Rural topology & \texttt{topology/rural\_topology.py} \\
+Traffic spawn & \texttt{traffic/orchestrator.py} \\
+Telemetry & \texttt{telemetry/collector.py} \\
+Feature extraction & \texttt{features/extractor.py}, \texttt{features/schema\_mapper.py} \\
+SliceNet & \texttt{classification/slicenet.py}, \texttt{classification/pipeline.py} \\
+RL scheduler & \texttt{scheduler/agent.py}, \texttt{scheduler/env.py} \\
+Allocation & \texttt{slicing/allocation\_engine.py} \\
+QoS enforcement & \texttt{slicing/qos\_enforcer.py} \\
+Monitoring & \texttt{monitoring/monitor.py} \\
+Self-healing & \texttt{self\_healing/recovery.py} \\
+Mininet entry & \texttt{run\_experiment.py} \\
+SliceNet pipeline & \texttt{experiments/run\_slicenet\_pipeline.py} \\
+\bottomrule
+\end{tabular}
+\caption{Key repository paths for interview cross-reference.}
+\end{table}
+
+\vspace{1em}
+\noindent\textbf{Suggested preparation workflow:}
+\begin{enumerate}[noitemsep]
+    \item Answer each section without looking at code (30 min per section).
+    \item Cross-check answers against repository files and \texttt{ARCHITECTURE.md}.
+    \item Practice drawing the pipeline and rural topology from memory.
+    \item Run \texttt{demo.py}, \texttt{run\_slicenet\_pipeline.py --skip-collect}, and explain outputs live.
+    \item Prepare 2-minute and 10-minute project pitches using Sections 1 and 2.
+\end{enumerate}
+
+\end{document}
