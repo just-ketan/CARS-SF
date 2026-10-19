@@ -1,18 +1,30 @@
-"""Statistical validation for Mininet-generated datasets."""
+"""Statistical validation for Mininet-generated datasets.
+
+Score (max 100, pass ≥ 80):
+  schema completeness        20   required ML + label columns present
+  class coverage / balance   15   every service class present, minority ≥ 5 %
+  physical consistency       20   goodput ≤ throughput, loss ∈ [0,100], delays ≥ 0
+  measurement coverage       15   records with a measured (non-NaN) latency
+  load–delay relationship    15   queueing delay rises with link utilisation
+  feature quality            15   few near-constant ML features, few extreme outliers
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from core.config import load_features
+
+SERVICE_CLASSES = ("healthcare", "education", "agriculture", "general")
 
 
 class DatasetValidator:
     """Validates dataset schema, QoS consistency, and basic statistics."""
 
-    PASS_THRESHOLD = 85
+    PASS_THRESHOLD = 80
 
     def __init__(self, df: pd.DataFrame):
         self.df = df
@@ -21,23 +33,30 @@ class DatasetValidator:
         self.report: dict[str, Any] = {}
 
     def validate(self) -> dict[str, Any]:
-        schema_score = self._check_schema()
-        qos_score = self._check_qos_consistency()
-        corr_score = self._check_correlations()
-        outlier_score = self._check_outliers()
-
-        self.score = schema_score + qos_score + corr_score + outlier_score
+        parts = {
+            "schema_score": self._check_schema(),
+            "class_score": self._check_classes(),
+            "qos_score": self._check_qos_consistency(),
+            "measurement_score": self._check_measurement_coverage(),
+            "correlation_score": self._check_correlations(),
+            "feature_quality_score": self._check_feature_quality(),
+        }
+        self.score = int(sum(parts.values()))
         self.report = {
             "total_score": self.score,
             "passed": self.score >= self.PASS_THRESHOLD,
-            "schema_score": schema_score,
-            "qos_score": qos_score,
-            "correlation_score": corr_score,
-            "outlier_score": outlier_score,
+            **parts,
             "row_count": len(self.df),
             "column_count": len(self.df.columns),
+            "class_counts": (
+                self.df["service_class"].value_counts().to_dict()
+                if "service_class" in self.df.columns else {}
+            ),
         }
         return self.report
+
+    def _col(self, name: str) -> pd.Series | None:
+        return self.df[name] if name in self.df.columns else None
 
     def _check_schema(self) -> int:
         required = (
@@ -45,57 +64,85 @@ class DatasetValidator:
             + self.feature_config.get("label_columns", [])
         )
         present = sum(1 for col in required if col in self.df.columns)
-        ratio = present / max(len(required), 1)
-        return int(25 * ratio)
+        return int(round(20 * present / max(len(required), 1)))
+
+    def _check_classes(self) -> int:
+        labels = self._col("service_class")
+        if labels is None or labels.empty:
+            return 0
+        shares = labels.value_counts(normalize=True)
+        coverage = sum(1 for c in SERVICE_CLASSES if c in shares.index) / len(SERVICE_CLASSES)
+        balanced = 1.0 if shares.min() >= 0.05 else shares.min() / 0.05
+        return int(round(10 * coverage + 5 * balanced))
 
     def _check_qos_consistency(self) -> int:
-        score = 25
-        if "goodput_mbps" in self.df.columns and "throughput_mbps" in self.df.columns:
-            violations = (self.df["goodput_mbps"] > self.df["throughput_mbps"] + 0.01).sum()
-            score -= min(10, violations)
-        if "packet_loss_rate" in self.df.columns:
-            out_of_range = (
-                (self.df["packet_loss_rate"] < 0) | (self.df["packet_loss_rate"] > 100)
-            ).sum()
-            score -= min(10, out_of_range)
-        if "end_to_end_latency_ms" in self.df.columns:
-            negative = (self.df["end_to_end_latency_ms"] < 0).sum()
-            score -= min(5, negative)
-        return max(0, score)
+        if self.df.empty:
+            return 0
+        n = len(self.df)
+        bad = pd.Series(False, index=self.df.index)
+        tput, good = self._col("throughput_mbps"), self._col("goodput_mbps")
+        if tput is not None and good is not None:
+            bad |= good > tput + 1e-6
+        loss = self._col("packet_loss_rate")
+        if loss is not None:
+            bad |= (loss < 0) | (loss > 100)
+        for name in ("end_to_end_latency_ms", "jitter_ms", "queueing_delay_ms"):
+            col = self._col(name)
+            if col is not None:
+                bad |= col < -1e-6
+        return int(round(20 * (1 - bad.sum() / n)))
+
+    def _check_measurement_coverage(self) -> int:
+        latency = self._col("end_to_end_latency_ms")
+        if latency is None or latency.empty:
+            return 0
+        return int(round(15 * latency.notna().mean()))
 
     def _check_correlations(self) -> int:
-        if "network_load_pct" not in self.df.columns or "end_to_end_latency_ms" not in self.df.columns:
-            return 15
-        if len(self.df) < 5:
-            return 15
-        corr = self.df["network_load_pct"].corr(self.df["end_to_end_latency_ms"])
-        return 20 if corr >= 0 else 10
+        util, delay = self._col("link_utilization_pct"), self._col("queueing_delay_ms")
+        if util is None or delay is None or len(self.df) < 5:
+            return 8
+        pair = pd.concat([util, delay], axis=1).dropna()
+        if len(pair) < 5 or pair.iloc[:, 0].nunique() < 2 or pair.iloc[:, 1].nunique() < 2:
+            return 8  # not enough load variation in this run to judge
+        corr = pair.iloc[:, 0].corr(pair.iloc[:, 1], method="spearman")
+        return 15 if corr >= 0 else 5
 
-    def _check_outliers(self) -> int:
-        numeric_cols = self.df.select_dtypes(include="number").columns
-        if len(numeric_cols) == 0:
-            return 15
-        outlier_count = 0
-        for col in numeric_cols:
-            q1, q3 = self.df[col].quantile(0.25), self.df[col].quantile(0.75)
+    def _check_feature_quality(self) -> int:
+        ml_cols = [c for c in self.feature_config.get("ml_feature_columns", []) if c in self.df.columns]
+        numeric = self.df[ml_cols].select_dtypes(include="number") if ml_cols else pd.DataFrame()
+        if numeric.empty:
+            return 0
+        constant = (numeric.nunique(dropna=True) <= 1).mean()
+        outliers = 0
+        for col in numeric.columns:
+            q1, q3 = numeric[col].quantile(0.25), numeric[col].quantile(0.75)
             iqr = q3 - q1
             if iqr > 0:
-                outliers = ((self.df[col] < q1 - 3 * iqr) | (self.df[col] > q3 + 3 * iqr)).sum()
-                outlier_count += outliers
-        ratio = outlier_count / max(len(self.df) * len(numeric_cols), 1)
-        return 15 if ratio < 0.05 else max(5, int(15 * (1 - ratio)))
+                outliers += ((numeric[col] < q1 - 3 * iqr) | (numeric[col] > q3 + 3 * iqr)).sum()
+        outlier_ratio = outliers / max(numeric.size, 1)
+        return int(round(8 * (1 - constant) + 7 * max(0.0, 1 - outlier_ratio / 0.05)))
+
+    def constant_ml_features(self) -> list[str]:
+        ml_cols = [c for c in self.feature_config.get("ml_feature_columns", []) if c in self.df.columns]
+        return [c for c in ml_cols if self.df[c].nunique(dropna=True) <= 1]
 
     def format_report(self) -> str:
+        r = self.report
         lines = [
             "CARS-SF Dataset Validation Report",
             "=" * 40,
-            f"Score: {self.report.get('total_score', 0)}/100",
-            f"Passed: {self.report.get('passed', False)}",
-            f"Rows: {self.report.get('row_count', 0)}",
-            f"Columns: {self.report.get('column_count', 0)}",
-            f"  Schema: {self.report.get('schema_score', 0)}/25",
-            f"  QoS: {self.report.get('qos_score', 0)}/25",
-            f"  Correlations: {self.report.get('correlation_score', 0)}/20",
-            f"  Outliers: {self.report.get('outlier_score', 0)}/15",
+            f"Score: {r.get('total_score', 0)}/100 (pass ≥ {self.PASS_THRESHOLD})",
+            f"Passed: {r.get('passed', False)}",
+            f"Rows: {r.get('row_count', 0)}",
+            f"Columns: {r.get('column_count', 0)}",
+            f"Classes: {r.get('class_counts', {})}",
+            f"  Schema:              {r.get('schema_score', 0)}/20",
+            f"  Class coverage:      {r.get('class_score', 0)}/15",
+            f"  Physical QoS:        {r.get('qos_score', 0)}/20",
+            f"  Measured latency:    {r.get('measurement_score', 0)}/15",
+            f"  Load-delay relation: {r.get('correlation_score', 0)}/15",
+            f"  Feature quality:     {r.get('feature_quality_score', 0)}/15",
+            f"Constant ML features: {self.constant_ml_features()}",
         ]
         return "\n".join(lines)

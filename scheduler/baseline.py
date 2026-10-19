@@ -33,7 +33,14 @@ class RuleBasedScheduler:
         allocation: dict[str, float],
         measured_qos: dict[str, dict[str, float]],
         priorities: dict[str, int],
+        demands: dict[str, float] | None = None,
     ) -> float:
+        """reward = 100·Σ wᵢ·min(1, throughputᵢ/demandᵢ) − 10·SLA violations.
+
+        ``priorities`` should be the context's base weights, not weights an
+        agent has adjusted, otherwise the agent can inflate its own reward.
+        Without ``demands`` satisfaction is measured against the allocation.
+        """
         total_weight = sum(priorities.values())
         reward = 0.0
         sla_violations = 0
@@ -42,7 +49,8 @@ class RuleBasedScheduler:
             qos = measured_qos.get(service, {})
             throughput = qos.get("throughput_mbps", 0)
             latency = qos.get("latency_ms", 0)
-            satisfaction = min(1.0, throughput / max(bw, 0.01))
+            target = (demands or {}).get(service, bw)
+            satisfaction = min(1.0, throughput / max(target, 0.01))
             if latency > 100:
                 sla_violations += 1
             weight = priorities.get(service, 1) / total_weight

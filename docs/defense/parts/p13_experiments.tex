@@ -1,0 +1,212 @@
+\part{Experiments, statistics and reproducibility}
+\textit{Reconstructed section (the questionnaire was truncated; see the note in Part XII).}
+
+\section{Experimental design}
+
+\begin{qa}{E1}{Which experiments did you run?}
+340 emulated runs in 8 studies (\code{configs/experiments/thesis.yaml}), plus 18 dataset-collection runs, real-OVS
+runs and 5G-core runs:
+\begin{center}\scriptsize
+\begin{tabular}{@{}lll@{}}\toprule
+Study & Design & Runs \\\midrule
+main & 7 schedulers $\times$ 5 contexts $\times$ 5 seeds & 175 \\
+ablation & 6 variants $\times$ 2 contexts $\times$ 3 seeds & 36 \\
+capacity sensitivity & 2 schedulers $\times$ 2 contexts $\times$ \{50,100,150\} $\times$ 3 & 36 \\
+load sensitivity & 2 $\times$ 2 $\times$ \{0.5,1,1.5\} $\times$ 3 & 36 \\
+scalability & UEs per service \{1,2,4\} $\times$ 3 & 9 \\
+resilience & 3 failures $\times$ 3 healing variants $\times$ 3 & 27 \\
+timeline & 3 schedulers $\times$ 3 seeds (rural day) & 9 \\
+in-loop SliceNet & 2 contexts $\times$ \{host, slicenet\} $\times$ 3 & 12 \\\bottomrule
+\end{tabular}\end{center}
+\end{qa}
+
+\begin{qa}{E2}{Why 40\,s runs, 5\,s windows and a 1\,s tick?}
+40\,s gives 8 windows per flow and 8 control intervals, enough for steady state after warm-up, and 340 runs fit in
+about 1.5\,h with 4 workers. Resilience runs are 45\,s so that failure, recovery and repair all fit.
+\honest{Long-run effects (minutes to hours: TCP fairness drift, diurnal patterns) are not captured.}
+\end{qa}
+
+\begin{qa}{E3}{Why 5 seeds in the main study and 3 elsewhere? Is that enough statistical power?}
+The main study pairs 25 (context, seed) observations per comparison, which suits Wilcoxon. With the observed spread
+(CIs of about $\pm$0.01--0.03 on utility), it can detect differences of about 0.02 or more. The observed allocator
+differences ($<$0.012) are below that, so ``no significant difference'' means ``any difference is small'', not ``no
+difference''.
+\honest{3-seed studies are descriptive: CIs are reported, no tests.}
+\end{qa}
+
+\begin{qa}{E4}{How are seeds paired across schedulers?}
+The same seed produces the same per-application traffic schedules for every scheduler in a context, so schedulers face
+identical offered traffic, and comparisons are paired by (context, seed).
+\end{qa}
+
+\begin{qa}{E5}{Why the Wilcoxon signed-rank test rather than a t-test?}
+Paired differences are not guaranteed to be normal (bounded metrics, heavy tails in delay). Wilcoxon is distribution-free
+and robust, at a small loss of power.
+\end{qa}
+
+\begin{qa}{E6}{How do you handle multiple comparisons?}
+Bonferroni over all scheduler $\times$ metric tests ($\alpha=\NBonferroniAlpha$). Both nominal and corrected significance are
+reported. The healthcare-SLA effect of slicing survives correction ($p=\NSlaPNoSlicing$).
+\end{qa}
+
+\begin{qa}{E7}{Do you report effect sizes?}
+Mean paired differences with CIs, in the metric's own units: utility, ms, shares.
+\honest{No standardised effect sizes (Cohen's $d$ or the rank-biserial correlation); easy to add.}
+\end{qa}
+
+\begin{qa}{E8}{Were hypotheses fixed before seeing results?}
+\code{docs/thesis/research_design.md} was written before the full matrix ran, and git history timestamps it. Verdicts are
+computed mechanically by \code{experiments/report.py}.
+\honest{The design and the evaluation were developed in the same project period, not externally pre-registered.}
+\end{qa}
+
+\begin{qa}{E9}{Which metrics are primary, and why?}
+Primary: priority-weighted demand satisfaction (the allocation objective as stakeholders weigh it) and the
+healthcare SLA-met share and p95 delay (critical-service protection). Secondary: fairness, loss, jitter, outage, MTTD
+and MTTR.
+\end{qa}
+
+\begin{qa}{E10}{Isn't weighted utility circular, since the proposed scheduler is designed with those weights?}
+Partly, yes. It is the stakeholders' objective, so a scheduler using it has an advantage by design.
+That is why it is reported alongside unweighted metrics (Jain fairness, per-slice satisfaction, SLA-met share). Even
+with this home advantage, the proposed scheduler is not significantly better, which makes the null result stronger,
+not weaker.
+\end{qa}
+
+\begin{qa}{E11}{Why p95 delay rather than mean delay?}
+Critical applications fail on tail delay (late ECG samples, frozen video), not on averages. p95 is computed per window
+and summarised across windows; p99 is also reported.
+\end{qa}
+
+\section{Validity of the measurement campaign}
+
+\begin{qa}{E12}{Were any runs invalidated? Why?}
+Yes, twice, all archived and fully re-run:
+\begin{enumerate}
+\item \textbf{Busy-wait pacing} (111 runs): generators spun at about 100\% CPU each; host load reached 40--56 on 20
+cores, perturbing kernel timers and therefore delays. Fixed with sleep-only pacing (\NGenCpuAfter\% CPU per 40\,Mb/s).
+\item \textbf{Pre-OVS-validation} (340 runs):
+  \begin{itemize}
+  \item uplink-only utilisation (downlink saturation invisible);
+  \item false failover under AQM-less queues;
+  \item slow failover on OVS;
+  \end{itemize}
+  all discovered by running real OVS, fixed, and the matrix re-run.
+\end{enumerate}
+Archives: \code{results/runs_archive_*}.
+\end{qa}
+
+\begin{qa}{E13}{What other measurement bugs did you find?}
+\begin{itemize}
+\item \textbf{Partial final window}: traffic stops mid-window, and a stray near-empty last window divided delivered rate by
+$N{+}1$ instead of $N$ (``static beats proposed at low load'' was this artefact). KPIs are now recomputed from each
+run's dataset excluding the final window, uniformly for every run.
+\item \textbf{Mislabelled RSNSD split}: the RSNSD baseline was reported as a ``group split'' when it was a random row
+split (Q347).
+\item \textbf{Hidden propagation delay}: netem on the bottleneck was silently replaced by HTB (delay placement redesigned).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{E14}{How do you know the measurement is right?}
+\begin{itemize}
+\item Delay floors equal the configured propagation to within 0.01\,ms (\NFloorEdge/\NFloorCore\,ms).
+\item Unit tests feed synthetic captures with known one-way delay, loss and jitter and recover them exactly.
+\item Probe RTT/2 agrees with the measured one-way delay.
+\item All runs have packet-level data (\NRunsPcap/\NRuns).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{E15}{Could parallel runs interfere with each other?}
+Each run has its own network namespace, capture directory and log directory, so packets and files cannot mix. Only
+CPU is shared, and it is bounded by 4 workers (load stays below the 20 cores; no process spins).
+\end{qa}
+
+\begin{qa}{E16}{Are results from Linux bridges valid for Open vSwitch?}
+The allocation and QoS mechanisms are identical (same tc qdiscs). Healing differs in timing: OVS failover took
+\NOvsMttrAfter\,s and had a \NOvsOutageAfter\,s outage, against about 0.05\,s on bridges. Conclusions hold (sub-second
+outage) but absolute numbers differ, and we report both.
+\end{qa}
+
+\begin{qa}{E17}{How reproducible is a single figure?}
+Every figure is generated from \code{results/tables/*.csv} by \code{plot_thesis.py}; the tables come from per-run
+artefacts via \code{aggregate.py}; each run is reproducible from its \code{run_meta.json} (parameters, seed, commit).
+Bit-identical packet timing is not expected; distributions are.
+\end{qa}
+
+\begin{qa}{E18}{What does the full study cost to reproduce?}
+About 1.5\,h for the matrix (4 workers, 20-core machine), minutes for training, under 1\,h for the 5G runs. No GPU.
+About 100\,MB of captures per run (gitignored, regenerable).
+\end{qa}
+
+\section{Results by study}
+
+\begin{qa}{E19}{Main study: what is the result?}
+\begin{itemize}
+\item Weighted utility \NUtilMin--\NUtilMax{} across the seven schedulers, with no significant difference.
+\item Healthcare SLA-met share: \NHcSlaProposed{} (proposed) vs \NHcSlaNoSlicing{} (no slicing),
+$\Delta=\NSlaDeltaNoSlicing$, $p=\NSlaPNoSlicing$.
+\end{itemize}
+Interpretation: \emph{enforcing} service slices with AQM matters; \emph{how} the shares are computed matters little
+when borrowing is enabled.
+\end{qa}
+
+\begin{qa}{E20}{Ablation: what is the result?}
+School:
+\begin{itemize}
+\item strict caps: utility \NAblSchoolFullUtil$\rightarrow$\NAblSchoolFullStrictUtil, healthcare p95
+\NAblSchoolFullHc$\rightarrow$\NAblSchoolFullStrictHc\,ms;
+\item no surplus redistribution (strict): $\rightarrow$\NAblSchoolNoSurplusStrictUtil;
+\item no AQM: \NAblSchoolNoAqmUtil{}, \emph{higher}, because nothing is dropped; but general p95 \NAblSchoolFullGenP$\rightarrow$\NAblSchoolNoAqmGenP\,ms
+and disaster healthcare SLA share \NAblDisasterFullHcSla$\rightarrow$\NAblDisasterNoAqmHcSla;
+\item no context: \NAblSchoolNoContextUtil{} (identical to full);
+\item oracle demand: \NAblSchoolOracleDemandUtil{} (an upper bound on what better demand estimation could add).
+\end{itemize}
+Borrowing is the dominant mechanism; surplus redistribution substitutes for it when borrowing is disabled; AQM trades
+throughput for delay and SLA compliance; context awareness has no measurable effect.
+\end{qa}
+
+\begin{qa}{E21}{Sensitivity: what is the result?}
+At 0.5$\times$ load all schedulers satisfy almost everything (static even edges ahead:
+\NSensLoadSchoolStaticZeropFive{} vs \NSensLoadSchoolProposedZeropFive). At 1$\times$ the proposed scheduler leads
+(\NSensLoadSchoolProposedOne{} vs \NSensLoadSchoolStaticOne); at 1.5$\times$ (\NSensLoadSchoolProposedOnepFive{} vs
+\NSensLoadSchoolStaticOnepFive). H7 (``advantage everywhere'') is not supported. The advantage is conditional on
+scarcity.
+\end{qa}
+
+\begin{qa}{E22}{Resilience: what is the result?}
+\begin{itemize}
+\item Fiber cut: outage \NOutCutFullMean\,s (full) vs \NOutCutNoneMean\,s (none).
+\item Degradation: \NOutDegFullMean\,s (predictive) vs \NOutDegReactiveMean\,s (reactive) vs \NOutDegNoneMean\,s (none).
+\item Core switch: \NOutCoreFullMean\,s in all variants; healing cannot fix it, but localises the fault in
+\NCoreDiagnosedShare{} of runs.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{E23}{Timeline and scalability: what is the result?}
+Timeline (a rural day with school and flood): all three schedulers adapt within one control interval of each context
+change. Utility differences are within CIs (\code{timeline_summary.csv}). Scalability (1, 2, 4 UEs per service): the
+pipeline and controller scale, and KPIs stay stable (\code{scalability_summary.csv}).
+\honest{Scale is tiny compared with real deployments.}
+\end{qa}
+
+\begin{qa}{E24}{In-loop SliceNet: what is the result?}
+Mixed-UE SLA-met share:
+\begin{itemize}
+\item school: \NMixedSchoolSlicenetSla{} (SliceNet) vs \NMixedSchoolHostSla{} (address-based); its education flows'
+p95 fell from \NMixedSchoolHostEduPninefive{} to \NMixedSchoolSlicenetEduPninefive\,ms;
+\item disaster: equal (\NMixedDisasterSlicenetSla{} vs \NMixedDisasterHostSla);
+\item online classification accuracy \NMixedSchoolOnlineAcc.
+\end{itemize}
+H5b required gains in both contexts, so it is not supported. The benefit appears only where the mixed UE's misplaced
+traffic actually contends.
+\end{qa}
+
+\begin{qa}{E25}{Which interactions between factors were not tested?}
+\begin{itemize}
+\item ablations combined (no AQM $\times$ strict caps);
+\item failures during timelines or under overload;
+\item RL policies under failures;
+\item SliceNet under failures;
+\item capacity $\times$ load jointly.
+\end{itemize}
+\end{qa}

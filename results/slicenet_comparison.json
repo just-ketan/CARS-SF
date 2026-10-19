@@ -1,34 +1,137 @@
 {
-  "timestamp": "2026-08-07T10:54:09.663539",
+  "timestamp": "2026-10-18T21:58:26.714754",
   "baseline": {
     "dataset": "RSNSD_v1_synthetic",
+    "model": "random_forest",
     "rows": 108000,
-    "features": 89,
-    "f1_macro": 0.9803739507242025,
-    "f1_weighted": 0.9833613096365578,
+    "features": 51,
+    "f1_macro": 0.9455637997241008,
+    "f1_weighted": 0.9503524579672088,
     "per_class": {
-      "healthcare": 0.9976379046825066,
-      "education": 0.9568125636178566,
-      "agriculture": 0.9874832908008263,
-      "general": 0.9795620437956204
+      "healthcare": 0.9813,
+      "education": 0.8909,
+      "agriculture": 0.9776,
+      "general": 0.9325
     }
   },
   "mininet": {
     "dataset": "mininet_measured",
-    "rows": 500,
-    "features": 85,
-    "f1_macro": 0.2790384779144313,
-    "f1_weighted": 0.2790384779144313,
+    "model": "cnn_1d",
+    "rows": 4655,
+    "runs": 18,
+    "f1_macro": 0.850357499179921,
+    "f1_weighted": 0.8495841960261928,
     "per_class": {
-      "healthcare": 0.2553191489361702,
-      "education": 0.26666666666666666,
-      "agriculture": 0.2545454545454545,
-      "general": 0.33962264150943394
+      "healthcare": 0.8605,
+      "education": 0.8007,
+      "agriculture": 0.8696,
+      "general": 0.8707
     }
   },
-  "delta": {
-    "f1_macro": -0.7013,
-    "f1_weighted": -0.7043
+  "mininet_models": {
+    "random_forest": {
+      "f1_macro": 0.955290318084121,
+      "accuracy": 0.9487825356842989,
+      "per_class": {
+        "healthcare": 0.9835,
+        "education": 0.9167,
+        "agriculture": 0.9849,
+        "general": 0.936
+      }
+    },
+    "cnn_1d": {
+      "f1_macro": 0.850357499179921,
+      "accuracy": 0.8513853904282116,
+      "per_class": {
+        "healthcare": 0.8605,
+        "education": 0.8007,
+        "agriculture": 0.8696,
+        "general": 0.8707
+      }
+    }
   },
-  "interpretation": "Baseline trained on RSNSD v1 synthetic data (parametric models). Mininet model trained on PCAP/OVS/tc-measured telemetry. A significant F1 drop on Mininet indicates synthetic-to-real domain gap."
+  "transfer": {
+    "shared_columns": [
+      "flow_duration_ms",
+      "packet_count",
+      "byte_count",
+      "forward_packet_count",
+      "backward_packet_count",
+      "forward_byte_count",
+      "backward_byte_count",
+      "packet_rate_pps",
+      "byte_rate_bps",
+      "vlan_present",
+      "vlan_priority",
+      "broadcast_frame",
+      "multicast_frame",
+      "ecn",
+      "ip_packet_length",
+      "fragmented",
+      "ip_header_length",
+      "tcp_syn_count",
+      "tcp_ack_count",
+      "tcp_fin_count",
+      "tcp_rst_count",
+      "tcp_window_size",
+      "tcp_retransmissions",
+      "udp_packet_count",
+      "mean_iat_ms",
+      "std_iat_ms",
+      "min_iat_ms",
+      "max_iat_ms",
+      "forward_mean_iat_ms",
+      "backward_mean_iat_ms",
+      "flow_active_time_ms",
+      "flow_idle_time_ms",
+      "mean_packet_size",
+      "median_packet_size",
+      "min_packet_size",
+      "max_packet_size",
+      "std_packet_size",
+      "variance_packet_size",
+      "packet_size_range",
+      "packet_size_skewness",
+      "packet_size_kurtosis",
+      "coefficient_of_variation_packet_size",
+      "end_to_end_latency_ms",
+      "jitter_ms",
+      "packet_loss_rate",
+      "throughput_mbps",
+      "goodput_mbps",
+      "bandwidth_utilization_pct",
+      "queueing_delay_ms",
+      "retransmission_rate",
+      "link_utilization_pct"
+    ],
+    "test_groups": 72,
+    "curve": [
+      {
+        "mininet_fraction": 0.0,
+        "mininet_groups": 0,
+        "f1_macro": 0.1035
+      },
+      {
+        "mininet_fraction": 0.1,
+        "mininet_groups": 7,
+        "f1_macro": 0.6058
+      },
+      {
+        "mininet_fraction": 0.25,
+        "mininet_groups": 18,
+        "f1_macro": 0.8425
+      },
+      {
+        "mininet_fraction": 0.5,
+        "mininet_groups": 36,
+        "f1_macro": 0.9021
+      }
+    ],
+    "mininet_only_f1_macro": 0.9287
+  },
+  "delta": {
+    "f1_macro": -0.0952,
+    "f1_weighted": -0.1008
+  },
+  "interpretation": "Baseline: random forest on RSNSD synthetic flows, scored on held-out RSNSD scenarios. Mininet: classifiers on measured traffic shape, scored on held-out runs \u00d7 UEs. The transfer curve shows how much measured data is needed on top of synthetic pre-training."
 }

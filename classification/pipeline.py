@@ -1,306 +1,216 @@
 """
-Full SliceNet training pipeline:
-  1. Baseline training on RSNSD v1 synthetic dataset
-  2. Mininet data collection across all scenarios
-  3. SliceNet training on Mininet-measured dataset
-  4. Baseline vs Mininet comparison report
+SliceNet training pipeline:
+  1. Baseline on the RSNSD v1 synthetic dataset (random forest)
+  2. Mininet-measured dataset (experiments/collect_dataset.py)
+  3. SliceNet on Mininet data: random forest (shape features) and 1D-CNN
+     (packet sequences + shape), both scored on held-out runs × UEs
+  4. Transfer study: synthetic model zero-shot on Mininet data, and the same
+     model fine-tuned with a growing share of Mininet groups
 """
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 from datetime import datetime
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
-from classification.slicenet import SliceNetClassifier, MODEL_DIR
-from core.config import GENERATED_DIR, REPO_ROOT, load_scenarios
-from features.schema_mapper import ML_FEATURE_COLUMNS, SCHEMA_COLUMNS
+from classification.slicenet import (
+    MODEL_DIR, SERVICE_CLASSES, SliceNetClassifier, SliceNetCNN, group_labels,
+)
+from core.config import GENERATED_DIR, REPO_ROOT
+from features.schema_mapper import ML_FEATURE_COLUMNS
 
 SYNTHETIC_DATASET = REPO_ROOT / "RSNSD" / "dataset" / "raw" / "rsnsd_v1.0.csv"
 BASELINE_MODEL = MODEL_DIR / "slicenet_baseline.pkl"
 MININET_MODEL = MODEL_DIR / "slicenet_mininet.pkl"
 RESULTS_DIR = REPO_ROOT / "results"
 MININET_MERGED = GENERATED_DIR / "datasets" / "mininet_full_dataset.csv"
+MININET_SEQUENCES = GENERATED_DIR / "datasets" / "mininet_full_dataset.npz"
 COMPARISON_REPORT = RESULTS_DIR / "slicenet_comparison.json"
 
 
-def train_baseline(test_size: float = 0.2) -> dict[str, Any]:
-    """Step 1: Train SliceNet on RSNSD v1 synthetic dataset."""
-    if not SYNTHETIC_DATASET.exists():
-        raise FileNotFoundError(f"Synthetic dataset not found: {SYNTHETIC_DATASET}")
-
-    print("=" * 60)
-    print("STEP 1: Baseline training on RSNSD v1 synthetic dataset")
-    print("=" * 60)
-
-    df = pd.read_csv(SYNTHETIC_DATASET, low_memory=False)
-    print(f"  Loaded {len(df):,} rows, {len(df.columns)} columns")
-
-    classifier = SliceNetClassifier(model_path=str(BASELINE_MODEL))
-    metrics = classifier.train(df, test_size=test_size)
-    metrics["dataset"] = "RSNSD_v1_synthetic"
-    metrics["dataset_path"] = str(SYNTHETIC_DATASET)
-    metrics["model_path"] = str(BASELINE_MODEL)
-    metrics["feature_count"] = len(df.columns)
-    metrics["timestamp"] = datetime.now().isoformat()
-
+def _save(name: str, payload: dict[str, Any]):
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    baseline_path = RESULTS_DIR / "slicenet_baseline_metrics.json"
-    with open(baseline_path, "w", encoding="utf-8") as handle:
-        json.dump(metrics, handle, indent=2, default=str)
+    with open(RESULTS_DIR / name, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, default=str)
 
-    print(f"\n  Baseline F1 (macro):    {metrics['f1_macro']:.4f}")
-    print(f"  Baseline F1 (weighted): {metrics['f1_weighted']:.4f}")
-    print(f"  Model saved: {BASELINE_MODEL}")
-    print(f"  Metrics saved: {baseline_path}")
+
+def train_baseline(test_size: float = 0.2) -> dict[str, Any]:
+    """Step 1: SliceNet (RF) on RSNSD v1 synthetic data."""
+    if not SYNTHETIC_DATASET.exists():
+        raise FileNotFoundError(f"Synthetic dataset not found: {SYNTHETIC_DATASET} (run `make data`)")
+    print("STEP 1: baseline on RSNSD v1 synthetic dataset")
+    df = pd.read_csv(SYNTHETIC_DATASET, low_memory=False)
+    metrics = SliceNetClassifier(model_path=str(BASELINE_MODEL)).train(df, test_size=test_size)
+    metrics.update({
+        "dataset": "RSNSD_v1_synthetic", "dataset_path": str(SYNTHETIC_DATASET),
+        "rows": len(df), "model_path": str(BASELINE_MODEL), "timestamp": datetime.now().isoformat(),
+    })
+    _save("slicenet_baseline_metrics.json", metrics)
+    print(f"  F1 macro {metrics['f1_macro']:.4f} ({metrics['split']})")
     return metrics
 
 
-def collect_mininet_data(
-    scenarios: list[str] | None = None,
-    duration: int = 30,
-    apply_qos: bool = False,
-) -> str:
-    """Step 2: Run Mininet experiments across scenarios and merge datasets."""
-    print("=" * 60)
-    print("STEP 2: Mininet data collection (full 89-column schema)")
-    print("=" * 60)
-
-    if scenarios is None:
-        scenarios = [s["id"] for s in load_scenarios()]
-
-    all_frames: list[pd.DataFrame] = []
-    per_scenario_paths: list[str] = []
-
-    for scenario_id in scenarios:
-        output = GENERATED_DIR / "datasets" / f"mininet_{scenario_id}.csv"
-        if output.exists() and output.stat().st_size > 100:
-            print(f"  Reusing existing: {output}")
-            all_frames.append(pd.read_csv(output))
-            per_scenario_paths.append(str(output))
-            continue
-
-        print(f"\n  Running Mininet scenario: {scenario_id} ({duration}s)")
-        cmd = [
-            sys.executable, str(REPO_ROOT / "run_experiment.py"),
-            "--scenario", scenario_id,
-            "--duration", str(duration),
-        ]
-        if apply_qos:
-            cmd.append("--apply-qos")
-
-        if os.geteuid() != 0:
-            print("  WARNING: Not running as root — generating mock schema records")
-            df = _generate_mock_mininet_data(scenario_id, n_rows=200)
-        else:
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"  ERROR: {result.stderr[:200]}")
-                df = _generate_mock_mininet_data(scenario_id, n_rows=200)
-            else:
-                src = GENERATED_DIR / "datasets" / "cars_sf_dataset.csv"
-                if src.exists():
-                    df = pd.read_csv(src)
-                else:
-                    df = _generate_mock_mininet_data(scenario_id, n_rows=200)
-
-        df.to_csv(output, index=False)
-        all_frames.append(df)
-        per_scenario_paths.append(str(output))
-        print(f"  Saved {len(df)} records → {output}")
-
-    merged = pd.concat(all_frames, ignore_index=True)
-    os.makedirs(MININET_MERGED.parent, exist_ok=True)
-    merged.to_csv(MININET_MERGED, index=False)
-
-    print(f"\n  Merged dataset: {len(merged):,} rows, {len(merged.columns)} columns")
-    print(f"  Output: {MININET_MERGED}")
-    return str(MININET_MERGED)
-
-
-def train_mininet(test_size: float = 0.2, dataset_path: str | None = None) -> dict[str, Any]:
-    """Step 3: Train SliceNet on Mininet-measured dataset."""
-    print("=" * 60)
-    print("STEP 3: SliceNet training on Mininet-measured dataset")
-    print("=" * 60)
-
-    path = dataset_path or str(MININET_MERGED)
-    if not os.path.exists(path):
+def load_mininet() -> tuple[pd.DataFrame, np.ndarray | None]:
+    if not MININET_MERGED.exists():
         raise FileNotFoundError(
-            f"Mininet dataset not found: {path}\n"
-            "Run collect_mininet_data() first or use --collect flag."
+            f"Mininet dataset not found: {MININET_MERGED}\n"
+            "Collect it first: python experiments/collect_dataset.py"
         )
-
-    df = pd.read_csv(path, low_memory=False)
-    print(f"  Loaded {len(df):,} rows, {len(df.columns)} columns")
-
-    if len(df) < 20:
-        print("  WARNING: Very few records — results may be unreliable")
-
-    classifier = SliceNetClassifier(model_path=str(MININET_MODEL))
-    metrics = classifier.train(df, test_size=test_size)
-    metrics["dataset"] = "mininet_measured"
-    metrics["dataset_path"] = path
-    metrics["model_path"] = str(MININET_MODEL)
-    metrics["feature_count"] = len(df.columns)
-    metrics["timestamp"] = datetime.now().isoformat()
-
-    mininet_path = RESULTS_DIR / "slicenet_mininet_metrics.json"
-    with open(mininet_path, "w", encoding="utf-8") as handle:
-        json.dump(metrics, handle, indent=2, default=str)
-
-    print(f"\n  Mininet F1 (macro):    {metrics['f1_macro']:.4f}")
-    print(f"  Mininet F1 (weighted): {metrics['f1_weighted']:.4f}")
-    print(f"  Model saved: {MININET_MODEL}")
-    return metrics
+    df = pd.read_csv(MININET_MERGED, low_memory=False)
+    seqs = np.load(MININET_SEQUENCES)["X"] if MININET_SEQUENCES.exists() else None
+    if seqs is not None and len(seqs) != len(df):
+        seqs = None
+    return df, seqs
 
 
-def compare(baseline_metrics: dict | None = None, mininet_metrics: dict | None = None) -> dict[str, Any]:
-    """Step 4: Compare baseline (synthetic) vs Mininet-trained models."""
-    print("=" * 60)
-    print("STEP 4: Baseline vs Mininet comparison")
-    print("=" * 60)
+def train_mininet(test_size: float = 0.25) -> dict[str, Any]:
+    """Step 3: RF and 1D-CNN on Mininet-measured traffic shape."""
+    print("STEP 3: SliceNet on Mininet-measured dataset")
+    df, seqs = load_mininet()
+    results: dict[str, Any] = {
+        "dataset": "mininet_measured", "rows": len(df),
+        "runs": int(df["run_id"].nunique()) if "run_id" in df else None,
+        "groups": int(len(set(group_labels(df)))),
+        "timestamp": datetime.now().isoformat(),
+    }
+    rf = SliceNetClassifier(model_path=str(MININET_MODEL)).train(df, test_size=test_size)
+    results["random_forest"] = rf
+    print(f"  RF  F1 macro {rf['f1_macro']:.4f} ({rf['split']}, {rf['test_size']} test windows)")
+    if seqs is not None:
+        cnn = SliceNetCNN().train(df, seqs, test_size=test_size)
+        results["cnn_1d"] = cnn
+        print(f"  CNN F1 macro {cnn['f1_macro']:.4f}")
+    _save("slicenet_mininet_metrics.json", results)
+    return results
 
-    if baseline_metrics is None:
-        baseline_path = RESULTS_DIR / "slicenet_baseline_metrics.json"
-        if baseline_path.exists():
-            with open(baseline_path, encoding="utf-8") as handle:
-                baseline_metrics = json.load(handle)
-        else:
-            baseline_metrics = train_baseline()
 
-    if mininet_metrics is None:
-        mininet_path = RESULTS_DIR / "slicenet_mininet_metrics.json"
-        if mininet_path.exists():
-            with open(mininet_path, encoding="utf-8") as handle:
-                mininet_metrics = json.load(handle)
-        else:
-            mininet_metrics = train_mininet()
+def transfer_study(fractions=(0.0, 0.1, 0.25, 0.5), seed: int = 42) -> dict[str, Any]:
+    """Step 4: does synthetic pre-training transfer to measured traffic?
 
+    Uses the feature columns both datasets share. Mininet groups (run × UE)
+    are split once into a held-out test half; a growing fraction of the other
+    half is mixed into the synthetic training data.
+    """
+    from sklearn.ensemble import RandomForestClassifier
+
+    print("STEP 4: synthetic → Mininet transfer study")
+    synthetic = pd.read_csv(SYNTHETIC_DATASET, low_memory=False)
+    mininet, _ = load_mininet()
+    columns = [c for c in ML_FEATURE_COLUMNS if c in synthetic.columns and c in mininet.columns]
+    columns = [c for c in columns if pd.api.types.is_numeric_dtype(synthetic[c])]
+    label = {c: i for i, c in enumerate(SERVICE_CLASSES)}
+
+    def xy(df):
+        df = df[df["service_class"].isin(SERVICE_CLASSES)]
+        X = df[columns].apply(pd.to_numeric, errors="coerce").fillna(0).to_numpy()
+        return X, df["service_class"].map(label).to_numpy()
+
+    groups = group_labels(mininet)
+    unique = np.array(sorted(set(groups)))
+    rng = np.random.default_rng(seed)
+    rng.shuffle(unique)
+    test_groups = set(unique[: len(unique) // 2])
+    pool_groups = list(unique[len(unique) // 2:])
+    test = mininet[np.isin(groups, list(test_groups))]
+    X_test, y_test = xy(test)
+    X_syn, y_syn = xy(synthetic.sample(min(len(synthetic), 40_000), random_state=seed))
+
+    from sklearn.metrics import f1_score
+
+    curve = []
+    for fraction in fractions:
+        chosen = set(pool_groups[: int(round(fraction * len(pool_groups)))])
+        X_train, y_train = X_syn, y_syn
+        if chosen:
+            X_add, y_add = xy(mininet[np.isin(groups, list(chosen))])
+            X_train, y_train = np.vstack([X_syn, X_add]), np.concatenate([y_syn, y_add])
+        model = RandomForestClassifier(n_estimators=200, max_depth=16, random_state=seed, n_jobs=-1)
+        model.fit(X_train, y_train)
+        f1 = f1_score(y_test, model.predict(X_test), average="macro", labels=list(range(4)), zero_division=0)
+        curve.append({"mininet_fraction": fraction, "mininet_groups": len(chosen), "f1_macro": round(float(f1), 4)})
+        print(f"  synthetic + {fraction:.0%} Mininet groups → F1 macro {f1:.4f}")
+
+    X_pool, y_pool = xy(mininet[np.isin(groups, pool_groups)])
+    only = RandomForestClassifier(n_estimators=200, max_depth=16, random_state=seed, n_jobs=-1).fit(X_pool, y_pool)
+    mininet_only = f1_score(y_test, only.predict(X_test), average="macro", labels=list(range(4)), zero_division=0)
+    result = {
+        "shared_columns": columns,
+        "test_groups": len(test_groups),
+        "curve": curve,
+        "mininet_only_f1_macro": round(float(mininet_only), 4),
+    }
+    _save("slicenet_transfer.json", result)
+    return result
+
+
+def compare(baseline: dict | None = None, mininet: dict | None = None, transfer: dict | None = None) -> dict[str, Any]:
+    def load(name):
+        path = RESULTS_DIR / name
+        return json.load(open(path, encoding="utf-8")) if path.exists() else None
+
+    baseline = baseline or load("slicenet_baseline_metrics.json")
+    mininet = mininet or load("slicenet_mininet_metrics.json")
+    transfer = transfer or load("slicenet_transfer.json")
+    if not baseline or not mininet:
+        raise FileNotFoundError("run the baseline and Mininet training steps first")
+
+    def per_class(m):
+        return {c: round(m["report"][c]["f1-score"], 4) for c in SERVICE_CLASSES if c in m.get("report", {})}
+
+    best = mininet.get("cnn_1d") or mininet["random_forest"]
     comparison = {
         "timestamp": datetime.now().isoformat(),
         "baseline": {
-            "dataset": baseline_metrics.get("dataset", "RSNSD_v1_synthetic"),
-            "rows": baseline_metrics.get("train_size", 0) + baseline_metrics.get("test_size", 0),
-            "features": baseline_metrics.get("feature_count", 89),
-            "f1_macro": baseline_metrics.get("f1_macro", 0),
-            "f1_weighted": baseline_metrics.get("f1_weighted", 0),
-            "per_class": _extract_per_class(baseline_metrics),
+            "dataset": "RSNSD_v1_synthetic", "model": "random_forest",
+            "rows": baseline.get("rows"), "features": baseline.get("feature_count"),
+            "f1_macro": baseline["f1_macro"], "f1_weighted": baseline["f1_weighted"],
+            "per_class": per_class(baseline),
         },
         "mininet": {
-            "dataset": mininet_metrics.get("dataset", "mininet_measured"),
-            "rows": mininet_metrics.get("train_size", 0) + mininet_metrics.get("test_size", 0),
-            "features": mininet_metrics.get("feature_count", 89),
-            "f1_macro": mininet_metrics.get("f1_macro", 0),
-            "f1_weighted": mininet_metrics.get("f1_weighted", 0),
-            "per_class": _extract_per_class(mininet_metrics),
+            "dataset": "mininet_measured", "model": best.get("model"),
+            "rows": mininet.get("rows"), "runs": mininet.get("runs"),
+            "f1_macro": best["f1_macro"], "f1_weighted": best["f1_weighted"],
+            "per_class": per_class(best),
         },
+        "mininet_models": {
+            name: {"f1_macro": m["f1_macro"], "accuracy": m["accuracy"], "per_class": per_class(m)}
+            for name, m in mininet.items() if isinstance(m, dict) and "f1_macro" in m
+        },
+        "transfer": transfer,
         "delta": {
-            "f1_macro": round(
-                mininet_metrics.get("f1_macro", 0) - baseline_metrics.get("f1_macro", 0), 4
-            ),
-            "f1_weighted": round(
-                mininet_metrics.get("f1_weighted", 0) - baseline_metrics.get("f1_weighted", 0), 4
-            ),
+            "f1_macro": round(best["f1_macro"] - baseline["f1_macro"], 4),
+            "f1_weighted": round(best["f1_weighted"] - baseline["f1_weighted"], 4),
         },
         "interpretation": (
-            "Baseline trained on RSNSD v1 synthetic data (parametric models). "
-            "Mininet model trained on PCAP/OVS/tc-measured telemetry. "
-            "A significant F1 drop on Mininet indicates synthetic-to-real domain gap."
+            "Baseline: random forest on RSNSD synthetic flows, scored on held-out RSNSD scenarios. "
+            "Mininet: classifiers on measured traffic shape, scored on held-out runs × UEs. "
+            "The transfer curve shows how much measured data is needed on top of synthetic pre-training."
         ),
     }
-
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    with open(COMPARISON_REPORT, "w", encoding="utf-8") as handle:
-        json.dump(comparison, handle, indent=2)
-
-    _print_comparison_table(comparison)
-    print(f"\n  Report saved: {COMPARISON_REPORT}")
+    _save("slicenet_comparison.json", comparison)
     return comparison
 
 
-def run_full_pipeline(
-    duration: int = 30,
-    apply_qos: bool = False,
-    skip_collect: bool = False,
-) -> dict[str, Any]:
-    """Run the complete baseline → Mininet → compare pipeline."""
+def run_full_pipeline(skip_collect: bool = True, **collect_args) -> dict[str, Any]:
     baseline = train_baseline()
-
     if not skip_collect:
-        collect_mininet_data(duration=duration, apply_qos=apply_qos)
-    elif not MININET_MERGED.exists():
-        print("No Mininet data found — generating mock data for pipeline demo")
-        _generate_mock_mininet_data("normal", n_rows=500).to_csv(MININET_MERGED, index=False)
-
+        import subprocess
+        import sys
+        cmd = [sys.executable, str(REPO_ROOT / "experiments" / "collect_dataset.py")]
+        for key, value in collect_args.items():
+            cmd += [f"--{key.replace('_', '-')}"] + ([str(v) for v in value] if isinstance(value, (list, tuple)) else [str(value)])
+        subprocess.run(cmd, check=True)
     mininet = train_mininet()
-    comparison = compare(baseline, mininet)
-
+    transfer = transfer_study()
+    comparison = compare(baseline, mininet, transfer)
     try:
         from experiments.plots.plot_slicenet_evaluation import generate_comparison_plots
         generate_comparison_plots(comparison)
     except Exception as exc:
         print(f"  Plot generation skipped: {exc}")
-
-    return {"baseline": baseline, "mininet": mininet, "comparison": comparison}
-
-
-def _extract_per_class(metrics: dict) -> dict[str, float]:
-    report = metrics.get("report", {})
-    result = {}
-    for cls in ("healthcare", "education", "agriculture", "general"):
-        if cls in report:
-            result[cls] = report[cls].get("f1-score", 0)
-    return result
-
-
-def _print_comparison_table(comparison: dict):
-    b, m, d = comparison["baseline"], comparison["mininet"], comparison["delta"]
-    print(f"\n  {'Metric':<25} {'Synthetic':>12} {'Mininet':>12} {'Delta':>10}")
-    print(f"  {'-'*25} {'-'*12} {'-'*12} {'-'*10}")
-    print(f"  {'F1 (macro)':<25} {b['f1_macro']:>12.4f} {m['f1_macro']:>12.4f} {d['f1_macro']:>+10.4f}")
-    print(f"  {'F1 (weighted)':<25} {b['f1_weighted']:>12.4f} {m['f1_weighted']:>12.4f} {d['f1_weighted']:>+10.4f}")
-    print(f"  {'Rows':<25} {b['rows']:>12,} {m['rows']:>12,}")
-    print(f"  {'Features':<25} {b['features']:>12} {m['features']:>12}")
-    for cls in ("healthcare", "education", "agriculture", "general"):
-        bf = b["per_class"].get(cls, 0)
-        mf = m["per_class"].get(cls, 0)
-        print(f"  {'F1 (' + cls + ')':<25} {bf:>12.4f} {mf:>12.4f} {mf - bf:>+10.4f}")
-
-
-def _generate_mock_mininet_data(scenario_id: str, n_rows: int = 200) -> pd.DataFrame:
-    """Generate schema-aligned mock data when Mininet is unavailable."""
-    import numpy as np
-    from features.schema_mapper import map_to_schema
-
-    services = ["healthcare", "education", "agriculture", "general"]
-    records = []
-    ctx = {"network_load_pct": 50, "signal_strength_dbm": -85, "sinr_db": 15, "cqi": 10}
-    for i in range(n_rows):
-        svc = services[i % 4]
-        partial = {
-            "packet_count": int(np.random.randint(10, 500)),
-            "byte_count": int(np.random.randint(1000, 500000)),
-            "flow_duration_ms": float(np.random.uniform(100, 5000)),
-            "mean_iat_ms": float(np.random.uniform(0.5, 50)),
-            "std_iat_ms": float(np.random.uniform(0.1, 10)),
-            "throughput_mbps": float(np.random.uniform(0.1, 50)),
-            "end_to_end_latency_ms": float(np.random.uniform(1, 100)),
-            "jitter_ms": float(np.random.uniform(0.1, 5)),
-            "packet_loss_rate": float(np.random.uniform(0, 5)),
-            "service_class": svc,
-            "application_id": f"{svc}.mock_app",
-            "slice_type_label": "URLLC" if svc == "healthcare" else "eMBB",
-            "priority_level": services.index(svc) + 1,
-            "sla_satisfied": True,
-            "reward_score": float(np.random.uniform(60, 100)),
-            "_packet_lengths": list(np.random.randint(64, 1500, size=20)),
-        }
-        records.append(map_to_schema(partial, flow_index=i, scenario_context=ctx))
-
-    return pd.DataFrame(records)
+    return {"baseline": baseline, "mininet": mininet, "transfer": transfer, "comparison": comparison}

@@ -1,68 +1,40 @@
 #!/usr/bin/env python3
 """
-SliceNet full training pipeline.
+SliceNet pipeline: synthetic baseline → Mininet dataset → RF + 1D-CNN → transfer study.
 
-  Step 1: Baseline on RSNSD v1 synthetic dataset
-  Step 2: Mininet data collection (89-column schema)
-  Step 3: Train on Mininet-measured data
-  Step 4: Compare baseline vs Mininet
-
-Usage:
-    # Full pipeline (Mininet collection requires sudo)
-    python experiments/run_slicenet_pipeline.py
-
-    # Baseline only (no Mininet)
+    python experiments/run_slicenet_pipeline.py                  # uses the collected dataset
+    python experiments/run_slicenet_pipeline.py --collect --seeds 0 1 --duration 45
     python experiments/run_slicenet_pipeline.py --baseline-only
-
-    # Skip Mininet collection (use existing data)
-    python experiments/run_slicenet_pipeline.py --skip-collect
-
-    # Compare existing results
     python experiments/run_slicenet_pipeline.py --compare-only
 """
 
 import argparse
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from classification.pipeline import (
-    collect_mininet_data,
-    compare,
-    run_full_pipeline,
-    train_baseline,
-    train_mininet,
-)
+from classification.pipeline import compare, run_full_pipeline, train_baseline  # noqa: E402
 
 
 def main():
     parser = argparse.ArgumentParser(description="SliceNet training pipeline")
-    parser.add_argument("--baseline-only", action="store_true",
-                        help="Train baseline on synthetic data only")
-    parser.add_argument("--skip-collect", action="store_true",
-                        help="Skip Mininet collection, use existing data")
-    parser.add_argument("--compare-only", action="store_true",
-                        help="Compare existing baseline and mininet metrics")
-    parser.add_argument("--duration", type=int, default=30,
-                        help="Mininet experiment duration per scenario (seconds)")
-    parser.add_argument("--apply-qos", action="store_true",
-                        help="Apply HTB QoS during Mininet collection")
+    parser.add_argument("--baseline-only", action="store_true")
+    parser.add_argument("--compare-only", action="store_true")
+    parser.add_argument("--collect", action="store_true", help="collect Mininet runs first")
+    parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1])
+    parser.add_argument("--duration", type=int, default=45)
     args = parser.parse_args()
 
     if args.baseline_only:
         train_baseline()
         return
-
     if args.compare_only:
-        compare()
+        print(json.dumps(compare(), indent=2))
         return
-
-    run_full_pipeline(
-        duration=args.duration,
-        apply_qos=args.apply_qos,
-        skip_collect=args.skip_collect,
-    )
+    result = run_full_pipeline(skip_collect=not args.collect, seeds=args.seeds, duration=args.duration)
+    print(json.dumps(result["comparison"], indent=2, default=str))
 
 
 if __name__ == "__main__":

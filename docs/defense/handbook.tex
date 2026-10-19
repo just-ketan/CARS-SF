@@ -1,0 +1,89 @@
+\documentclass[10pt,a4paper]{article}
+\input{preamble}
+\input{numbers}
+\input{figures}
+
+\title{\vspace{-1.2cm}\textbf{CARS-SF}\\[2pt]\large Design-Defense Handbook for the RPAC and Thesis Panel\\[2pt]
+\normalsize Context-Aware Rural Service Slicing Framework with autonomous self-healing}
+\author{Prepared for the thesis presenter}
+\date{October 2026 \textperiodcentered{} numbers generated from \code{results/} by \code{experiments/defense_numbers.py}}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{keybox}{How to use this handbook}
+Every design question is answered in five parts:
+\textbf{Why} (the requirement), \textbf{Choice} (what was built), \textbf{Alternative} (what else was possible),
+\textbf{Trade-off} (what was gained and given up) and \textbf{Evidence}. Each piece of evidence carries a
+\emph{maturity badge}. The four levels are different kinds of evidence, never interchangeable:\\[2pt]
+\Lone{} the code exists \quad \Ltwo{} isolated tests pass \quad
+\Lthree{} works with the real connected components \emph{in the stated environment} \quad
+\Lfour{} tested on real infrastructure.\\[2pt]
+\textbf{No CARS-SF claim is at L4.} The strongest evidence is L3, and the environment is always named:
+Mininet with Linux bridges (sudo-free harness), Mininet with a real Open vSwitch (privileged container), or
+the Open5GS 5G core with a UERANSIM-simulated RAN. When an examiner asks ``does it work?'', answer with the
+level and the environment, never just ``yes''.\\[2pt]
+\textcolor{cH}{\textbf{Honest limit}} marks a weakness to volunteer before it is found; \textbf{If pressed} gives a fallback line for hostile follow-ups.
+All numbers are macros generated from the result tables, so they cannot drift from the data.
+\end{keybox}
+
+\FigLadder
+
+\begin{keybox}{The ten numbers to know cold}
+\begin{enumerate}[leftmargin=1.4em]
+\item \NRuns{} emulated runs (\NRunsMain{} in the main study), all with packet-matched measurements; median validation score \NValidationMedian/100.
+\item Main study: weighted satisfaction lies between \NUtilMin{} and \NUtilMax{} across all seven schedulers.
+  \textbf{No allocation policy is significantly better} after Bonferroni correction (smallest $p=\NUtilPMin$).
+\item \textbf{Slicing vs none:} healthcare SLA-met share rises by \NSlaDeltaNoSlicing{} ($p=\NSlaPNoSlicing$, $n=\NSlaPairs$, survives Bonferroni). This is an exploratory finding, not a pre-registered hypothesis.
+\item Ablation (school): removing HTB borrowing raises healthcare p95 from \NAblSchoolFullHc{} to \NAblSchoolFullStrictHc{}\,ms.
+  Surplus redistribution matters only once borrowing is disabled (\NAblSchoolFullStrictUtil{} $\rightarrow$ \NAblSchoolNoSurplusStrictUtil).
+  Removing AQM \emph{raises} throughput satisfaction (\NAblSchoolNoAqmUtil) but general-internet p95 explodes (\NAblSchoolFullGenP{} $\rightarrow$ \NAblSchoolNoAqmGenP\,ms). Removing context awareness changes nothing measurable.
+\item Fiber cut: core-bound outage averages \NOutCutFullMean\,s with healing vs \NOutCutNoneMean\,s without. On real OVS, recovery takes \NOvsMttrAfter\,s.
+\item Backhaul degradation: the predictive detector switched over before the cut in \NDegBeforeCutShare{} of runs (outage \NOutDegFullMean\,s vs \NOutDegReactiveMean\,s reactive-only).
+\item SliceNet on measured traffic: RF macro-F1 \NSnRfFone, 1D-CNN \NSnCnnFone, on held-out runs$\times$UEs (\NSnRows{} windows, \NSnRunsCount{} runs).
+\item Synthetic RSNSD scores macro-F1 \NTrZero{} zero-shot on measured flows (near chance), \NTrHalf{} with half the measured groups added.
+\item RL: PPO vs the rule-based policy differs by $\Delta=\NPpoDelta$ ($p=\NPpoP$). \textbf{No significant gain.}
+\item Real 5G core (10\,Mb/s UPF, disaster): healthcare p95 \NFgDisasterCarsHcP\,ms with CARS-SF vs \NFgDisasterNoneHcP\,ms without. No gain in school, where healthcare is uncontended (\NFgSchoolCarsHcP{} vs \NFgSchoolNoneHcP\,ms), so H8 as pre-registered is \textbf{not supported}.
+\end{enumerate}
+\end{keybox}
+
+\begin{warnbox}{The claims boundary: what the thesis does and does not claim}
+\textbf{Claims (L3, emulation):}
+\begin{itemize}
+\item service-centric slices enforced at a shared rural bottleneck measurably protect critical-service SLAs;
+\item the closed loop detects and heals backhaul and core faults without loops, in sub-second time on real OVS;
+\item service classes can be recognised from traffic shape and used to slice a multi-service device.
+\end{itemize}
+\textbf{Does not claim:}
+\begin{itemize}
+\item radio-layer QoS or any real-deployment performance;
+\item that the demand-aware allocator beats simple slicing on average (it does not, significantly);
+\item that RL adds value here (it does not);
+\item that context awareness itself improves outcomes (the ablation shows no measurable effect);
+\item that RSNSD represents real rural traffic (the transfer study says it does not);
+\item load balancing across primary and backup (not implemented).
+\end{itemize}
+\end{warnbox}
+
+\tableofcontents
+\clearpage
+
+\input{parts/p01_problem}
+\input{parts/p02_literature}
+\input{parts/p03_architecture}
+\input{parts/p04_context_traffic}
+\input{parts/p05_networking}
+\input{parts/p06_telemetry_features}
+\input{parts/p07_rsnsd}
+\input{parts/p08_slicenet}
+\input{parts/p09_allocation_qos}
+\input{parts/p10_selfhealing}
+\input{parts/p11_rl}
+\input{parts/p12_5g}
+\input{parts/p13_experiments}
+\input{parts/p14_critical}
+\appendix
+\input{parts/appendix}
+
+\end{document}

@@ -1,0 +1,277 @@
+\part{Literature review, novelty and research contribution}
+
+\begin{warnbox}{Read this before Part II}
+The repository's literature folder holds three papers. In \code{tracker.md}, the AI-slicing and self-healing literature
+reviews are still \emph{open}. The answers below use those three papers plus canonical references; references marked
+\textsuperscript{†} are not in the repository and must be checked against the original before citing.
+\textbf{Do not cite anything you have not read.} The honest framing for the panel is a targeted review around
+three anchors, with a systematic review protocol defined (Q76--77) but not yet fully executed.
+\end{warnbox}
+
+\section{Positioning against existing work}
+
+\begin{qa}{59}{What are the three closest research papers to CARS-SF?}
+\begin{enumerate}[leftmargin=1.3em]
+\item S.~S.~Badawadagi, M.~K.~CM, ``SliceNet: A Hybrid CNN Model for Network Slicing in 5G Communications'', ICEEICT 2024.
+\item X.~Limani et~al., ``Demonstrating Isolation Principles for 5G Network Slicing'', IEEE NFV-SDN 2024.
+\item A.~M.~Alwakeel, ``Network Slicing and Stand Alone 5G Architectures: Paving the Way for Smart Cities and IoT'', ICEIEC 2025.
+\end{enumerate}
+Also relevant, cited by [1]: A.~Thantharate et~al., ``DeepSlice'', IEEE UEMCON 2019\textsuperscript{†}.
+\end{qa}
+
+\begin{qa}{60}{What problem does each paper solve?}
+\begin{itemize}
+\item [1] predicts the 3GPP slice type (eMBB/URLLC/mMTC) for a device from a KPI table, using a hybrid CNN, including
+for device types not seen in training (reported accuracy \NPaperSnAcc).
+\item [2] demonstrates isolation between slices across RAN, transport and 5G core in a real 5G SA proof of concept.
+\item [3] surveys 5G SA architecture and NFV-based slicing for smart cities and IoT.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{61}{What are their assumptions, evaluation environments and limitations?}
+\begin{itemize}
+\item [1] Tabular KPIs (LTE/5G category, QCI, packet loss, delay; about 31.6k train and 31.6k test rows, 17 columns)
+whose label is a deterministic function of declared attributes. There is no network in the loop. Classes are
+technology-centric, and evaluation is on a single held-out file.
+\item [2] Real hardware; it is a demonstration of isolation mechanisms, not an allocation policy, and has no context
+or self-healing.
+\item [3] A conceptual and architectural survey with no experimental evaluation of allocation.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{62}{Which existing approaches already do context-aware network resource allocation?}
+Context-aware or intent-based slicing and policy-driven QoS (3GPP PCF policy control, intent-based networking) exist in
+general. CARS-SF's specific angle is \emph{socio-temporal} context (school hours, harvest, disaster alerts) selecting
+\emph{service} priorities on a rural bottleneck.
+\honest{A systematic search for context-aware rural slicing has not been completed. Avoid claiming ``first''.}
+\end{qa}
+
+\begin{qa}{63}{Which existing approaches already do fault detection and recovery?}
+Fast reroute and link protection (MPLS FRR, BFD-triggered failover\textsuperscript{†}, RFC 5880), OAM (ITU-T Y.1731),
+SON self-healing (3GPP SON\textsuperscript{†}) and ETSI ZSM closed-loop automation\textsuperscript{†}. CARS-SF's healing
+is conceptually standard protection switching. What is specific is coupling it to slice allocation (backup capacity
+ceilings, graceful degradation) and congestion-aware predictive switchover.
+\end{qa}
+
+\begin{qa}{64}{Which approaches combine traffic classification with network orchestration?}
+ML-based application identification feeding QoS or slicing decisions is common in the literature, and [1] maps
+predictions to slices conceptually. CARS-SF closes the loop: a live prediction installs a per-flow HTB rule, and the
+SLA outcome is measured (\code{classification/online.py}).
+\end{qa}
+
+\begin{qa}{65}{How does CARS-SF differ from a conventional SDN controller with predefined rules?}
+An SDN controller is a \emph{mechanism} (it installs match-action rules). CARS-SF is a \emph{policy loop}: it computes
+allocations from context and measured demand, enforces them with queueing disciplines (a controller alone does
+not shape or schedule), and heals. It could run \emph{on} an SDN controller; the OVS backend uses OpenFlow
+\code{set_queue} rules.
+\end{qa}
+
+\begin{qa}{66}{How does it differ from static QoS enforcement with Linux tc?}
+Static tc is the \texttt{static\_equal} baseline: fixed shares, no context, no demand, no healing. CARS-SF changes HTB
+rates at run time (re-planning every 5\,s or on events), adds floors, borrowing ceilings and failure-driven
+constraints.
+\end{qa}
+
+\begin{qa}{67}{How does it differ from ordinary priority-based scheduling?}
+Strict priority starves lower classes and wastes reserved capacity. CARS-SF allocates \emph{weighted} shares capped at
+measured demand, redistributes the surplus, and keeps floors. HTB prio only orders borrowing.
+The \texttt{proportional} baseline is weighted but demand-blind (Fig.~\ref{fig:alloc}).
+\end{qa}
+
+\begin{qa}{68}{How does it differ from existing ML traffic classification?}
+\begin{itemize}
+\item Labels are \emph{service} classes, not protocols or applications.
+\item Features are traffic shape only; QoS outcomes, ports and DSCP are excluded to avoid circularity and shortcuts.
+\item Evaluation holds out whole run$\times$UE groups.
+\item Predictions are used in the loop.
+\end{itemize}
+\honest{The traffic is generated by our models, so the F1 is an emulation result (Q334).}
+\end{qa}
+
+\begin{qa}{69}{How does it differ from a conventional network-slicing orchestration system?}
+Slice orchestrators (lifecycle of slice instances, NFV placement, as in [2] and [3]) create and isolate slices. CARS-SF
+assumes the slices exist and decides their \emph{share of a scarce shared link} over time, plus recovery.
+These are complementary layers.
+\end{qa}
+
+\begin{qa}{70}{Which parts of CARS-SF are established techniques rather than novel?}
+HTB, fq\_codel, netem, Mininet, OVS, water-filling allocation, Holt forecasting, random forests, 1D-CNNs, PPO, CEM,
+protection switching, Wilcoxon tests. All of them are established.
+\end{qa}
+
+\begin{qa}{71}{What exactly is novel about the integration, if the components exist?}
+The coupling and the evaluation:
+\begin{itemize}
+\item healing exposes \emph{constraints} (backup-capacity ceilings, degraded mode) that the allocator honours;
+\item the predictor discriminates local congestion from backhaul degradation using the allocator's own queues;
+\item the loop is loop-free by construction (quarantine before backup, backup down before primary);
+\item outcomes are measured with packet-matched one-way delay on the same platform.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{72}{Is the novelty algorithmic, architectural, data-centric, methodological or empirical?}
+Architectural and empirical first, methodological second (the packet-matched evaluation harness and transfer study).
+It is \emph{not} algorithmic: the allocator is a variant of weighted water-filling.
+\end{qa}
+
+\begin{qa}{73}{What is the strongest defensible novelty claim?}
+``An evaluated closed-loop framework that couples context-driven service slicing with loop-free self-healing on a
+shared rural bottleneck. In emulation (L3, including real OVS), it shows that service slicing raises critical-service
+SLA compliance (+\NSlaDeltaNoSlicing, $p=\NSlaPNoSlicing$) and that healing cuts backhaul-failure outages to
+sub-second, while the choice among reasonable allocation policies and RL adds no significant benefit.''
+\end{qa}
+
+\begin{qa}{74}{State that claim without ``intelligent'', ``adaptive'', ``autonomous'' or ``AI-driven''.}
+``We built and measured a controller that assigns shares of a rural uplink to four public-service classes according
+to time-of-day and emergency events, and that switches to a standby backhaul when the primary fails. Classifying by
+service raises clinic traffic's on-time delivery; the switching cuts outages from about 15\,s to under a second in
+emulation.''
+\end{qa}
+
+\begin{qa}{75}{What is the closest counterexample to your novelty claim?}
+A standard deployment that combines operator-configured QoS classes, DiffServ marking and BFD-triggered backup
+switchover already gets most of our measured benefit, with no context engine and no ML. Our own results are
+consistent with that: slicing presence and fast failover drive the gains. The answer: the contribution is the
+integrated, measured evidence for that in the rural setting, plus the coupling (constraints, congestion-aware
+prediction), not a superior allocator.
+\end{qa}
+
+\begin{qa}{76}{What search methodology did you use for the literature review?}
+\honest{Targeted, not systematic: forward and backward snowballing from three anchor papers [1--3].}
+Planned protocol to complete before the defense:
+\begin{itemize}
+\item databases: IEEE Xplore, ACM DL, Scopus;
+\item queries: (``network slicing'' OR ``QoS'') AND (rural OR ``developing regions'') AND (context OR ``self-healing'' OR
+``traffic classification'');
+\item years 2015--2026;
+\item PRISMA-style counts of records screened, excluded and included.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{77}{Which databases, keywords, years and inclusion criteria?}
+As in Q76. Inclusion: peer-reviewed, evaluates allocation, healing or classification with measurements or simulation.
+Exclusion: vendor white papers, position papers without evaluation (these may be cited as background only).
+\end{qa}
+
+\begin{qa}{78}{How do you distinguish peer-reviewed evidence from vendor claims or informal articles?}
+Cite only venue-published work for empirical claims, standards (3GPP, IETF RFCs, ITU-T) for definitions, and project
+documentation (Open5GS, UERANSIM, Mininet) for tool behaviour, marked as such.
+\end{qa}
+
+\begin{qa}{79}{What research gap remains after the closest related work?}
+[1] classifies without a network and with technology classes; [2] isolates slices without deciding shares or healing;
+[3] has no evaluation. None measures \emph{service}-level outcomes under context changes and backhaul failures on a
+shared bottleneck with packet-level evidence.
+\end{qa}
+
+\begin{qa}{80}{How would an independent researcher reproduce your comparison?}
+\code{make setup data models}, then \code{experiments/run_matrix.py} (\code{configs/experiments/thesis.yaml}), then
+\code{aggregate.py} and \code{report.py}. Every run records params, seed and git hash (\code{run_meta.json}).
+A sudo-free path (user namespaces) and a Docker image for real OVS exist. Comparing against [1] would need their
+dataset; we did not reproduce [1].
+\end{qa}
+
+\section{Research contribution and attribution}
+
+\begin{qa}{81}{List your contributions in order of importance.}
+\begin{enumerate}[leftmargin=1.3em]
+\item The closed-loop framework coupling context-driven service slicing and loop-free self-healing (with event-driven
+failover and congestion-aware prediction).
+\item The evaluation methodology: endpoint packet matching, a 340-run matrix, group-held-out ML evaluation.
+\item The empirical findings: slicing presence matters, allocation-policy choice and RL do not, healing works,
+synthetic data does not transfer.
+\item SliceNet on measured traffic and its in-loop use.
+\item A 5G-core (Open5GS) enforcement demonstration.
+\end{enumerate}
+\end{qa}
+
+\begin{qa}{82}{Which contribution can be evaluated independently?}
+The measurement methodology (validated by exact propagation floors \NFloorEdge/\NFloorCore\,ms and unit tests on
+synthetic pcaps), SliceNet (offline F1), and the transfer study.
+\end{qa}
+
+\begin{qa}{83}{Which contribution depends on another being correct?}
+All network-outcome claims depend on the measurement pipeline. In-loop SliceNet depends on SliceNet and the QoS
+enforcer. RL results depend on simulator calibration.
+\end{qa}
+
+\begin{qa}{84}{What does RSNSD contribute beyond a collection of synthetic records?}
+A service-semantic schema (89 columns, provenance-tagged), scenario-aware generation (19 scenarios, 32 applications)
+and a reproducible generator.
+\honest{Its value as \emph{training data for measured traffic} is refuted by our own transfer study (zero-shot F1
+\NTrZero). Its defensible role is as a schema and bootstrap; the measured dataset supersedes it.}
+\end{qa}
+
+\begin{qa}{85}{What does SliceNet contribute beyond training a classifier on RSNSD?}
+It is trained on \emph{measured} windows (\NSnRows{} from \NSnRunsCount{} runs), uses only shape features at a single
+vantage point, is evaluated on held-out run$\times$UE groups (RF \NSnRfFone, CNN \NSnCnnFone), and is deployed in the
+loop for a mixed-service UE.
+\end{qa}
+
+\begin{qa}{86}{What does the allocator contribute beyond a predefined priority order?}
+Demand-awareness (measured offered load, elastic probe-up, Holt forecast), floors, surplus redistribution, and
+healing constraints.
+\honest{The main study does not show a significant utility gain over simpler policies; the gain appears only when
+HTB borrowing is disabled (ablation) or at $\ge$1$\times$ load.}
+\end{qa}
+
+\begin{qa}{87}{What does self-healing contribute beyond executing a recovery action?}
+\begin{itemize}
+\item detection in milliseconds through an event-driven link watcher;
+\item diagnosis (link vs core switch, by elimination);
+\item loop-free ordering;
+\item hold-down plus OAM-gated fail-back;
+\item suppression of its own link events;
+\item prediction from RTT trends, with congestion discrimination;
+\item allocation constraints during the failure.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{88}{What does the closed loop contribute beyond chaining modules?}
+Shared state and feedback. The allocator sees healing state; the predictor sees allocator queues; the demand estimator
+sees enforcement saturation (probe-up); re-planning is event-triggered. Two real bugs were found \emph{only} at the
+seams: bufferbloat on the backup link, and false failover under AQM-less queues.
+\end{qa}
+
+\begin{qa}{89}{Which contribution has the strongest experimental evidence?}
+Self-healing (deterministic, large effect: outage \NOutCutFullMean{} vs \NOutCutNoneMean\,s, replicated on real OVS),
+and slicing vs no slicing for healthcare SLA (Bonferroni-significant).
+\end{qa}
+
+\begin{qa}{90}{Which contribution currently has the weakest evidence?}
+Context awareness (no measurable ablation effect), RL (null result), and anything about real rural
+deployment (no L4 evidence).
+\end{qa}
+
+\begin{qa}{91}{Which parts did you personally design, implement, evaluate or validate?}
+\textit{Answer truthfully for your own case.} The repository history attributes the framework, registries, traffic
+models, measurement pipeline, controller, healing engine, SliceNet pipeline, experiment tooling and 5G deployment to
+this project. Be ready to state which were AI-assisted and how you verified them.
+\end{qa}
+
+\begin{qa}{92}{Which parts were adapted from existing tools or libraries?}
+Mininet, Open vSwitch, Linux tc (HTB, fq\_codel, netem), tcpdump and dpkt, scikit-learn, PyTorch, stable-baselines3 and
+Gymnasium, Open5GS and UERANSIM (Docker images by Gradiant), pandas and SciPy.
+\end{qa}
+
+\begin{qa}{93}{What would remain as a contribution if the ML component were removed?}
+Almost everything that is significant: service slicing with healing, the measurement methodology, and the
+empirical findings. ML contributes the transfer result and the mixed-UE capability only.
+\end{qa}
+
+\begin{qa}{94}{What would remain if the recovery mechanism were replaced by a static policy?}
+A static ``always use the backup when the primary is down'' rule \emph{is} our reactive core. What remains specific is
+event-driven speed, safe fail-back, fault localisation, predictive switchover (outage \NOutDegFullMean{} vs
+\NOutDegReactiveMean\,s reactive-only) and the allocation coupling.
+\end{qa}
+
+\begin{qa}{95}{What would remain if RSNSD were replaced with a different dataset?}
+Everything except the transfer study. The in-loop classifier already uses the measured dataset, not RSNSD.
+\end{qa}
+
+\begin{qa}{96}{What would persuade a skeptical reviewer that this is more than software integration?}
+Falsifiable pre-registered hypotheses with reported negative results; packet-level measurement validated against
+ground truth (exact delay floors); statistics (CIs, paired tests, Bonferroni); integration bugs found and fixed
+(busy-wait timing distortion, partial-window bias, uplink-only utilisation, false failover) with all runs redone.
+That is research method, not plumbing.
+\end{qa}

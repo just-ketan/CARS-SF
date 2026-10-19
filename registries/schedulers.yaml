@@ -1,0 +1,25 @@
+# Scheduler compositions (architecture.md Principle 4: modular evolution).
+# A scheduler is a combination of independently replaceable components:
+#   allocator   slicing/allocators.py      demand_aware | proportional | static_equal | tgpp | none
+#   policy      Priority Engine policy     none (rule-based) | cem | ppo | cem_online (learns from live transitions)
+#   class_mode  QoS classes                service | tgpp | none
+#   adaptive    re-plan every control interval and on context/healing changes
+#   healing     apply self-healing allocation constraints
+#   context_aware  use the operating context's priority matrix (default true); false keeps
+#                  the "normal" matrix throughout: service-aware but context-unaware slicing
+
+schedulers:
+  proposed:      {allocator: demand_aware, policy: none, class_mode: service, adaptive: true,  healing: true}
+  rl_cem:        {allocator: demand_aware, policy: cem,  class_mode: service, adaptive: true,  healing: true}
+  rl_ppo:        {allocator: demand_aware, policy: ppo,  class_mode: service, adaptive: true,  healing: true}
+  rl_online:     {allocator: demand_aware, policy: cem_online, class_mode: service, adaptive: true, healing: true}
+  context_unaware: {allocator: demand_aware, policy: none, class_mode: service, adaptive: true, healing: true, context_aware: false}
+  no_surplus:    {allocator: demand_aware_no_surplus, policy: none, class_mode: service, adaptive: true, healing: true}
+  proportional:  {allocator: proportional, policy: none, class_mode: service, adaptive: true,  healing: false}
+  static_equal:  {allocator: static_equal, policy: none, class_mode: service, adaptive: false, healing: false}
+  tgpp:          {allocator: tgpp,         policy: none, class_mode: tgpp,    adaptive: false, healing: false}
+  no_slicing:    {allocator: none,         policy: none, class_mode: none,    adaptive: false, healing: false}
+
+aliases:
+  rule: proposed
+  rl: rl_cem

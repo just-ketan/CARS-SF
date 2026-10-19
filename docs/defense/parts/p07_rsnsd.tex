@@ -1,0 +1,335 @@
+\part{RSNSD: dataset design, generation and validation}
+
+\begin{keybox}{Two datasets: keep them apart in every answer}
+\textbf{RSNSD v1} (\code{RSNSD/}): \NRsnsdRows{} \emph{synthetic} flow records, \NRsnsdCols{} columns, \NRsnsdApps{}
+applications, \NRsnsdScenarios{} scenarios. Generated from parametric traffic and QoS models with no network in the
+loop; frozen.\\
+\textbf{Measured dataset} (\code{results/runs/*/dataset.csv}): flow windows matched packet by packet from emulated
+runs. SliceNet's training set is \NSnRows{} windows from \NSnRunsCount{} collection runs.\\
+Most of the hard questions below are answered more strongly for the measured dataset. RSNSD's honest role is a schema
+and bootstrap: it does \emph{not} transfer to measured traffic (zero-shot macro-F1 \NTrZero).
+\end{keybox}
+
+\section{Dataset motivation and schema}
+
+\begin{qa}{303}{What does RSNSD stand for?}
+Rural Service-aware Network Slice Dataset.
+\end{qa}
+
+\begin{qa}{304}{What precise problem does the dataset solve?}
+It provides labelled examples answering ``which \emph{service} is this traffic serving (and hence which slice should
+it get)?'' rather than ``which protocol produced it?'', for rural service classes under varying contexts, where no
+public labelled data exists.
+\end{qa}
+
+\begin{qa}{305}{Why was a dedicated rural, service-aware dataset necessary?}
+Public traffic datasets label applications or protocols (often encrypted-traffic benchmarks) or technology slices (the
+KPI table used by [1]). None labels rural \emph{public-service} classes or carries context.
+\honest{Necessity justifies a dataset; it does not justify a \emph{synthetic} one being representative.}
+\end{qa}
+
+\begin{qa}{306}{Which existing datasets did you evaluate before creating RSNSD?}
+The KPI-based slice dataset used by [1] (device and slice-type labels, about 63k rows).
+\honest{A broader survey of public traffic-classification datasets was not documented. List the ones considered and
+why each was rejected (wrong label space, no context, no QoS) before the defense.}
+\end{qa}
+
+\begin{qa}{307}{What are the dataset's observation unit, label space and intended tasks?}
+RSNSD: one synthetic \emph{flow}. Measured: one application flow of one UE over a 5\,s window.
+Labels: \code{service_class} (4), plus \code{application_id}, \code{slice_type_label}, \code{priority_level},
+\code{sla_satisfied}. Tasks: service classification (primary), SLA-satisfaction prediction, policy learning.
+\end{qa}
+
+\begin{qa}{308}{Is one record a packet, a flow, a time window, an application session or an aggregate?}
+RSNSD: a flow. Measured: a (flow, UE, window) triple; a long-lived flow yields several records.
+\end{qa}
+
+\begin{qa}{309}{Service label vs application identity vs QoS class vs slice assignment?}
+\begin{itemize}
+\item Service: social purpose (healthcare).
+\item Application: concrete app (\code{healthcare.ecg_streaming}).
+\item QoS class: requirement bundle (latency, loss).
+\item Slice assignment: the resource partition chosen (\code{1:10} or URLLC).
+\end{itemize}
+CARS-SF maps service $\to$ slice one-to-one; 3GPP maps application $\to$ slice type.
+\end{qa}
+
+\begin{qa}{310}{Which fields are raw observations, derived features, metadata or target labels?}
+Recorded in \code{registries/features.yaml} provenance:
+\begin{itemize}
+\item \code{PCAP} / \code{PCAP_MATCHED}: measured.
+\item \code{TC}, \code{OVS}, \code{PSUTIL}: telemetry.
+\item \code{CONTEXT_INJECTED}: radio and context fields.
+\item Labels: service, application, slice type, priority, SLA.
+\end{itemize}
+RSNSD labels the same columns, but its QoS fields come from models, not measurement.
+\end{qa}
+
+\begin{qa}{311}{How are Layer 2--4 fields represented?}
+As numeric columns per flow (counts, sizes, flags, ports, TTL, DSCP). L2 fields are constant in emulation. See
+Q287 for which ones are used in ML.
+\end{qa}
+
+\begin{qa}{312}{How are timestamps and temporal features encoded?}
+Absolute epoch start and end times (excluded from ML as shortcuts); durations, IAT statistics and active/idle times in
+ms; a window index. RSNSD also carries a categorical \code{time_of_day} (excluded).
+\end{qa}
+
+\begin{qa}{313}{What is the schema versioning strategy?}
+RSNSD: v1.0, frozen (\code{CHANGELOG.md}, \code{CITATION.cff}, \code{schema.json}). Measured dataset: an
+89-column core plus measured extras and \code{shape_*} columns, versioned by git commit per run.
+\honest{The measured schema has no explicit version string.}
+\end{qa}
+
+\begin{qa}{314}{How do you maintain backward compatibility when adding features?}
+New columns are appended, never renamed. Consumers select columns by name, and the classifier stores its own list.
+\end{qa}
+
+\begin{qa}{315}{How are missing, invalid, duplicate and malformed records handled?}
+\begin{itemize}
+\item Windows with fewer than 2 packets are not emitted.
+\item \texttt{NaN} delay is explicit and counted by the validator.
+\item The physical-consistency check catches goodput above throughput, loss outside [0,100] and negative delays.
+\item Truncated pcap tails are tolerated by the parser.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{316}{What constitutes a valid record?}
+A known service label; at least 2 packets; non-negative delays; loss in [0,100]; goodput $\le$ throughput; required
+schema columns present.
+\end{qa}
+
+\begin{qa}{317}{How do you identify duplicate flows or duplicated generated samples?}
+Measured: flows are keyed by (UE IP, server IP, protocol, application port) and window. Unique packet fingerprints
+make duplicate matches impossible.
+\honest{RSNSD was not de-duplicated for near-identical synthetic flows.}
+\end{qa}
+
+\begin{qa}{318}{How are provenance and generation parameters recorded?}
+Per run: \code{run_meta.json} (parameters, seed, git hash), \code{summary.json} (spawn metadata, allocations) and the
+generator logs. Per column: the provenance map. RSNSD: generator code plus metadata reports.
+\end{qa}
+
+\begin{qa}{319}{How do you distinguish the release dataset from intermediate datasets?}
+RSNSD release: \code{RSNSD/dataset/raw/rsnsd_v1.0.csv}, regenerated by \code{make data}. Measured release:
+\code{generated/datasets/mininet_full_dataset.\{csv,npz\}} merged from runs prefixed \code{collect__}. Matrix runs are
+evaluation data, not training data.
+\end{qa}
+
+\begin{qa}{320}{What guarantees that the dataset can be regenerated?}
+Deterministic generators (RSNSD seeds; traffic seeds), a pinned topology and code version, and
+\code{configs/experiments/dataset.yaml}.
+\honest{Measured windows are not bit-identical across reruns, because OS timing varies. Distributions are.}
+\end{qa}
+
+\section{Dataset generation and label quality}
+
+\begin{qa}{321}{How are RSNSD records generated?}
+For each scenario and application profile, \code{RSNSD/traffic_generator} samples flow characteristics from
+distributions, \code{RSNSD/context} adds context fields, and \code{RSNSD/qos} models compute latency, jitter, loss,
+throughput and SLA. The exporter writes CSV and Parquet.
+\end{qa}
+
+\begin{qa}{322}{What is the exact pipeline from scenario configuration to final CSV?}
+\begin{itemize}
+\item RSNSD: \code{generate_release.py}: balanced profile weights $\rightarrow$ dataset builder (flow + context + QoS
+generators) $\rightarrow$ feature extractor $\rightarrow$ CSV exporter $\rightarrow$ validation reports.
+\item Measured: matrix config $\rightarrow$ run (topology, traffic, captures) $\rightarrow$ packet matching
+$\rightarrow$ windows $\rightarrow$ schema mapping $\rightarrow$ \code{dataset.csv} + \code{sequences.npz}
+$\rightarrow$ merge.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{323}{How do the context engine and traffic generators influence the dataset distribution?}
+Context sets the demand scaling (rates) and, for timelines, switches traffic mid-run. Across contexts, the same
+application appears at different rates, which is exactly the variation a service classifier must be robust to.
+Collection covered 6 contexts $\times$ 3 seeds.
+\end{qa}
+
+\begin{qa}{324}{How are ground-truth service labels assigned?}
+From the generator identity. Each flow is matched to the spawn record that created it, by (UE IP, server IP,
+protocol, application port).
+\end{qa}
+
+\begin{qa}{325}{From generator identity, observed behaviour, ports, payload, or another mechanism?}
+Generator identity (configuration). The port is used only to \emph{match} a flow to its generator, never as a
+feature.
+\end{qa}
+
+\begin{qa}{326}{If labels come from the generator configuration, what shows the traffic realistically represents the named service?}
+Nothing establishes realism beyond the plausibility of the model parameters (codec framing, frame rates, IoT
+periods).
+\honest{Labels are correct by construction; their \emph{representativeness} is unvalidated. This is the main threat to
+the external validity of SliceNet results.}
+\end{qa}
+
+\begin{qa}{327}{Can two different services produce statistically similar traffic?}
+Yes. Education web (exam, LMS) and general web are both request/response TCP; agricultural drone video and
+telemedicine video are both VBR uplink. The confusion matrix shows exactly these confusions (education and general F1
+\NSnRfEducation{} and \NSnRfGeneral{} vs healthcare \NSnRfHealthcare).
+\end{qa}
+
+\begin{qa}{328}{Can one service produce several different traffic patterns?}
+Yes. Each service mixes 3--4 models (healthcare: video, periodic, VoIP, on/off). A per-window classifier must recognise
+all of them as one class.
+\end{qa}
+
+\begin{qa}{329}{How are those cases represented in the dataset?}
+As records with the same service label but different application ids. Per-class F1 exposes the difficulty, and the
+\code{application_id} column allows per-app analysis.
+\end{qa}
+
+\begin{qa}{330}{What are the class counts and imbalance ratios?}
+RSNSD: healthcare 33\%, general 31\%, agriculture 19\%, education 16\% (about 2:1 maximum ratio). Measured:
+roughly balanced per run (validator class scores are full marks), but low-rate IoT produces fewer windows. Training uses
+balanced class weights; reports give macro-F1.
+\end{qa}
+
+\begin{qa}{331}{Why are the chosen service classes mutually distinguishable?}
+Because the applications we assigned to them differ in direction, size and timing. That is a property of our
+application mixes, not a law of nature (Q327).
+\end{qa}
+
+\begin{qa}{332}{What happens when a record belongs to a previously unseen service?}
+The classifier still outputs one of the four classes (closed set).
+\honest{There is no open-set rejection. Proposed: confidence threshold plus default class (Q396).}
+\end{qa}
+
+\begin{qa}{333}{How do you prevent the dataset from encoding scenario identity as a shortcut for service identity?}
+Scenario-injected columns (network load, radio fields, time of day) are excluded from ML. Collection spans 6 contexts,
+so each service appears under several. Group hold-out is by run, so test runs have unseen seeds.
+\end{qa}
+
+\begin{qa}{334}{Could a classifier learn generator-specific artefacts instead of meaningful behaviour?}
+Yes. For example, exact packet sizes chosen in our models (1200\,B video chunks, 172\,B voice) are generator choices.
+Excluding ports and DSCP removes the crudest shortcuts but not these.
+\honest{The F1 is an upper bound for real traffic. The transfer gap from RSNSD (\NTrZero) shows how strongly
+generator choices shape what a model learns.}
+\end{qa}
+
+\begin{qa}{335}{How do you test for such shortcuts?}
+Done: excluding obvious shortcut columns; group hold-out; inspecting importances; the cross-generator transfer test
+(RSNSD $\rightarrow$ measured). To do: leave-one-application-out, perturbing size distributions at test time, and
+evaluating on real traces.
+\end{qa}
+
+\begin{qa}{336}{What is the difference between realistic traffic and statistically diverse traffic?}
+Diverse means the generator explores a wide space. Realistic means its distribution matches real users. Seeds and
+contexts give diversity; only real data gives realism.
+\end{qa}
+
+\begin{qa}{337}{How do you establish external validity for a synthetic dataset?}
+By comparison against real traces of the same services (distributional tests on size, IAT and rates) and by testing a
+model trained on synthetic data on real data. We ran the second test synthetic-to-\emph{emulated}, and it failed.
+\end{qa}
+
+\begin{qa}{338}{What evidence would be needed before claiming RSNSD represents actual rural traffic?}
+Labelled real captures from rural clinics, schools and farms; distribution-matching statistics; a classifier trained on
+RSNSD reaching acceptable F1 on them. None exists, so we make no such claim.
+\end{qa}
+
+\begin{qa}{339}{How would you incorporate real traces without compromising privacy?}
+Header-only capture, IP anonymisation (prefix-preserving, Crypto-PAn style), dropping payload, aggregation to flow
+windows on site, consent and ethics approval, and releasing only features, not packets.
+\end{qa}
+
+\begin{qa}{340}{What licence, attribution, documentation and reproducibility requirements apply to a public release?}
+An open data licence (e.g.\ CC-BY 4.0) with \code{CITATION.cff}; a datasheet (motivation, composition, collection,
+synthetic provenance, known limitations including the transfer result); generator code under MIT; a schema with
+provenance; and checksums.
+\end{qa}
+
+\section{Data validation and leakage}
+
+\begin{qa}{341}{What validation checks are performed before a dataset is accepted?}
+\code{DatasetValidator}, scored out of 100 with a pass mark of 80:
+\begin{itemize}
+\item schema completeness (20);
+\item class coverage and balance (15);
+\item physical consistency (20);
+\item measured-delay coverage (15);
+\item load--delay relationship (15);
+\item feature quality: constant columns and outliers (15).
+\end{itemize}
+Median across runs: \NValidationMedian.
+\end{qa}
+
+\begin{qa}{342}{How do you verify data types, ranges, required fields and label consistency?}
+Required columns come from \code{features.yaml}; range checks on loss, delay and goodput; labels must be in the four
+classes (others are dropped before training).
+\honest{dtype checks are implicit (pandas coercion), not declared.}
+\end{qa}
+
+\begin{qa}{343}{How do you test expected feature distributions?}
+Generator unit tests check the long-run rates. Constant-column detection runs in the validator.
+\honest{There are no per-feature distribution baselines or drift tests between datasets.}
+\end{qa}
+
+\begin{qa}{344}{How do you identify outliers, and decide whether they are errors or meaningful rare events?}
+3$\times$IQR fences per numeric feature contribute to the score but are never removed. Physical impossibilities are
+errors; heavy-tailed bursts are real. Pareto on/off and web traffic legitimately produce outliers.
+\end{qa}
+
+\begin{qa}{345}{How do you detect impossible correlations or inconsistent QoS values?}
+Consistency rules (goodput $\le$ throughput, non-negative delays, loss bounds), and a sign check that queueing delay
+rises with utilisation (Spearman).
+\end{qa}
+
+\begin{qa}{346}{How do you validate that the exported CSV matches the underlying generated records?}
+The extractor's unit tests on synthetic pcaps check record values exactly (counts, delay, jitter, loss). Every run
+also writes \code{sequences.npz} aligned row by row with \code{dataset.csv}, and a length mismatch is rejected at merge.
+\end{qa}
+
+\begin{qa}{347}{How are train, validation and test sets constructed?}
+Measured: \code{GroupShuffleSplit} on run$\times$UE groups (25\% of groups held out). No separate validation set;
+hyper-parameters were fixed a priori (Q379).
+RSNSD: no run or UE keys exist, so the split is a \textbf{random row split}.
+\honest{The RSNSD baseline F1 (\NSnBaseFone) is therefore optimistic. The label was corrected in the code
+(\code{split_description}).}
+\end{qa}
+
+\begin{qa}{348}{Why can a random row split produce misleadingly high performance?}
+Windows from the same flow, UE and run share near-identical statistics. A random split puts siblings on both sides, so
+the model is graded on near-copies of training data.
+\end{qa}
+
+\begin{qa}{349}{How would you split by flow, scenario, time, topology or seed?}
+Flow: group by (run, UE, app). Scenario: leave-one-context-out. Time: train on early windows, test on later ones.
+Topology: train at 2 UEs or 100\,Mb/s, test at 4 UEs or 50\,Mb/s. Seed: by run. We used run$\times$UE.
+\end{qa}
+
+\begin{qa}{350}{How do you prevent near-duplicate flows from crossing the train/test boundary?}
+Group hold-out by run$\times$UE guarantees that windows of one flow never cross the boundary.
+\end{qa}
+
+\begin{qa}{351}{How do you detect target leakage?}
+An a-priori audit of every column's provenance; exclusion of labels, identifiers, injected context, ports, DSCP and
+timestamps; and checking that held-out performance is not suspiciously perfect (healthcare is 0.99, so we looked: its
+traffic is genuinely distinctive, being uplink-dominant with small periodic flows).
+\end{qa}
+
+\begin{qa}{352}{Could slice identifiers, generator identifiers or scenario IDs reveal the label?}
+Yes, which is why \code{network_slice_id}, \code{application_id}, \code{slice_type_label}, \code{priority_level},
+\code{ue_host}, \code{run_id}, \code{scenario_id} and the injected fields are all in \code{EXCLUDED_FROM_ML}
+(a unit test asserts it).
+\end{qa}
+
+\begin{qa}{353}{Are any features computed from information only available after classification?}
+QoS outcomes (delay, loss, throughput) depend on the slice the flow was \emph{put in}, so they are excluded from
+SliceNet features. Shape features are pre-classification observables.
+\end{qa}
+
+\begin{qa}{354}{How do you ensure the same preprocessing is applied in training and inference?}
+Shared feature functions; the RF uses raw values (no fitted scaler); the CNN stores its sign-log plus z-score
+parameters with the model; the column order is stored and enforced by re-indexing.
+\end{qa}
+
+\begin{qa}{355}{How do you compare RSNSD against a simple baseline or public benchmark?}
+Internally: the RSNSD-trained RF scored on measured data (transfer curve, Fig.~\ref{fig:transfer}).
+\honest{There is no public-benchmark comparison (e.g.\ reproducing [1] on its dataset).}
+\end{qa}
+
+\begin{qa}{356}{What are the dataset's limitations in representativeness, class coverage and external validation?}
+Synthetic (RSNSD) or emulated (measured) traffic from our own models; four classes; no unknown class; no real rural
+traces; no radio measurements; contexts limited to the registry; transfer from RSNSD fails.
+\end{qa}

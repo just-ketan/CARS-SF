@@ -1,9 +1,17 @@
 # Application Registry
 # Single source of truth for Mininet-spawnable rural service applications.
 # Sourced from RSNSD v1 profiles (frozen reference).
+#
+# host        service UE base name; with N UEs per service every UE runs the app
+# direction   up = UE sends (generator on the UE), down = server sends
+# model       traffic/models.py (packet models) or a TCP model in traffic/generator.py
+# bitrate_mbps nominal mean rate, used to scale each service to the scenario demand
+# dscp        marking applied by the application socket (EF=46, AF41=34, AF31=26,
+#             AF21=18, AF11=10, BE=0)
+# sla         per-application targets checked by monitoring and labelling
 
 applications:
-  # Healthcare
+  # Healthcare (edge cloud)
   - application_id: healthcare.telemedicine
     name: Telemedicine Consultation
     service_class: healthcare
@@ -14,9 +22,13 @@ applications:
     server_ip: 10.0.2.10
     port: 5001
     protocol: udp
-    tool: iperf3
-    bitrate_mbps: 5.0
+    direction: up
+    model: vbr_video
+    params: {rate_mbps: 4.0, fps: 25, gop: 25}
+    bitrate_mbps: 4.0
+    dscp: 46
     latency_requirement_ms: 50
+    sla: {latency_ms: 50, jitter_ms: 10, loss_pct: 1.0}
 
   - application_id: healthcare.ecg_streaming
     name: ECG Streaming
@@ -28,26 +40,34 @@ applications:
     server_ip: 10.0.2.10
     port: 5003
     protocol: udp
-    tool: iperf3
-    bitrate_mbps: 2.0
+    direction: up
+    model: iot_periodic
+    params: {period_s: 0.02, size: 200, jitter: 0.02}
+    bitrate_mbps: 0.08
+    dscp: 46
     latency_requirement_ms: 20
+    sla: {latency_ms: 20, jitter_ms: 5, loss_pct: 0.1}
 
-  - application_id: healthcare.health_monitoring
-    name: Health Monitoring
+  - application_id: healthcare.emergency_voice
+    name: Emergency Voice
     service_class: healthcare
-    slice_type: mMTC
+    slice_type: URLLC
     priority: 1
     host: h_health
     server: srv_edge
     server_ip: 10.0.2.10
     port: 5004
-    protocol: icmp
-    tool: ping
-    packet_size: 64
-    interval_s: 1
+    protocol: udp
+    direction: up
+    model: voip
+    params: {mean_on_s: 1.0, mean_off_s: 1.35, pps: 50, size: 172}
+    bitrate_mbps: 0.03
+    dscp: 46
+    latency_requirement_ms: 30
+    sla: {latency_ms: 30, jitter_ms: 10, loss_pct: 1.0}
 
   - application_id: healthcare.ambulance
-    name: Ambulance Telemetry
+    name: Connected Ambulance Telemetry
     service_class: healthcare
     slice_type: URLLC
     priority: 1
@@ -56,13 +76,17 @@ applications:
     server_ip: 10.0.2.10
     port: 5005
     protocol: udp
-    tool: iperf3
-    bitrate_mbps: 1.0
+    direction: up
+    model: onoff
+    params: {rate_mbps: 1.5, mean_on_s: 0.5, mean_off_s: 0.5}
+    bitrate_mbps: 1.5
+    dscp: 46
     latency_requirement_ms: 10
+    sla: {latency_ms: 20, jitter_ms: 10, loss_pct: 1.0}
 
-  # Education
+  # Education (core cloud)
   - application_id: education.live_classroom
-    name: Live Classroom
+    name: Live Virtual Classroom
     service_class: education
     slice_type: eMBB
     priority: 2
@@ -70,13 +94,17 @@ applications:
     server: srv_core
     server_ip: 10.0.3.10
     port: 5001
-    protocol: tcp
-    tool: iperf3
+    protocol: udp
+    direction: down
+    model: vbr_video
+    params: {rate_mbps: 20.0, fps: 30, gop: 30}
     bitrate_mbps: 20.0
+    dscp: 34
     latency_requirement_ms: 100
+    sla: {latency_ms: 150, jitter_ms: 30, loss_pct: 2.0}
 
   - application_id: education.digital_library
-    name: Digital Library
+    name: Digital Library Downloads
     service_class: education
     slice_type: eMBB
     priority: 2
@@ -85,9 +113,13 @@ applications:
     server_ip: 10.0.3.10
     port: 5003
     protocol: tcp
-    tool: iperf3
-    bitrate_mbps: 50.0
+    direction: down
+    model: bulk_tcp
+    params: {rate_mbps: 40.0}
+    bitrate_mbps: 40.0
+    dscp: 18
     latency_requirement_ms: 200
+    sla: {latency_ms: 300, jitter_ms: 100, loss_pct: 5.0}
 
   - application_id: education.online_exam
     name: Online Examination
@@ -99,9 +131,13 @@ applications:
     server_ip: 10.0.3.10
     port: 5004
     protocol: tcp
-    tool: iperf3
-    bitrate_mbps: 5.0
+    direction: down
+    model: web_tcp
+    params: {rate_mbps: 3.0, mean_response_kb: 60, request_bytes: 800}
+    bitrate_mbps: 3.0
+    dscp: 34
     latency_requirement_ms: 150
+    sla: {latency_ms: 150, jitter_ms: 50, loss_pct: 2.0}
 
   - application_id: education.learning_management
     name: Learning Management System
@@ -113,13 +149,17 @@ applications:
     server_ip: 10.0.3.10
     port: 5005
     protocol: tcp
-    tool: iperf3
-    bitrate_mbps: 10.0
+    direction: down
+    model: web_tcp
+    params: {rate_mbps: 8.0, mean_response_kb: 400, request_bytes: 400}
+    bitrate_mbps: 8.0
+    dscp: 18
     latency_requirement_ms: 200
+    sla: {latency_ms: 300, jitter_ms: 100, loss_pct: 5.0}
 
-  # Agriculture
+  # Agriculture (edge cloud)
   - application_id: agriculture.soil_monitoring
-    name: Soil Monitoring
+    name: Soil Moisture Sensors
     service_class: agriculture
     slice_type: mMTC
     priority: 3
@@ -127,10 +167,14 @@ applications:
     server: srv_edge
     server_ip: 10.0.2.10
     port: 5002
-    protocol: icmp
-    tool: ping
-    packet_size: 64
-    interval_s: 5
+    protocol: udp
+    direction: up
+    model: iot_periodic
+    params: {period_s: 2.0, size: 200, jitter: 0.2}
+    bitrate_mbps: 0.0008
+    dscp: 10
+    latency_requirement_ms: 1000
+    sla: {latency_ms: 1000, jitter_ms: 500, loss_pct: 5.0}
 
   - application_id: agriculture.weather_station
     name: Weather Station
@@ -141,13 +185,17 @@ applications:
     server: srv_edge
     server_ip: 10.0.2.10
     port: 5006
-    protocol: icmp
-    tool: ping
-    packet_size: 128
-    interval_s: 10
+    protocol: udp
+    direction: up
+    model: iot_periodic
+    params: {period_s: 5.0, size: 500, jitter: 0.1}
+    bitrate_mbps: 0.0008
+    dscp: 10
+    latency_requirement_ms: 1000
+    sla: {latency_ms: 1000, jitter_ms: 500, loss_pct: 5.0}
 
   - application_id: agriculture.crop_surveillance
-    name: Crop Surveillance
+    name: Drone Crop Surveillance
     service_class: agriculture
     slice_type: eMBB
     priority: 3
@@ -156,12 +204,16 @@ applications:
     server_ip: 10.0.2.10
     port: 5007
     protocol: udp
-    tool: iperf3
+    direction: up
+    model: vbr_video
+    params: {rate_mbps: 8.0, fps: 25, gop: 50}
     bitrate_mbps: 8.0
+    dscp: 26
     latency_requirement_ms: 200
+    sla: {latency_ms: 250, jitter_ms: 50, loss_pct: 2.0}
 
   - application_id: agriculture.smart_irrigation
-    name: Smart Irrigation
+    name: Smart Irrigation Control
     service_class: agriculture
     slice_type: mMTC
     priority: 3
@@ -169,12 +221,16 @@ applications:
     server: srv_edge
     server_ip: 10.0.2.10
     port: 5008
-    protocol: icmp
-    tool: ping
-    packet_size: 32
-    interval_s: 30
+    protocol: udp
+    direction: up
+    model: onoff
+    params: {rate_mbps: 0.2, mean_on_s: 0.3, mean_off_s: 3.0, size: 300}
+    bitrate_mbps: 0.2
+    dscp: 10
+    latency_requirement_ms: 500
+    sla: {latency_ms: 500, jitter_ms: 200, loss_pct: 5.0}
 
-  # General
+  # General internet (core cloud)
   - application_id: general.web_browsing
     name: Web Browsing
     service_class: general
@@ -185,12 +241,16 @@ applications:
     server_ip: 10.0.3.10
     port: 5002
     protocol: tcp
-    tool: iperf3
-    bitrate_mbps: 5.0
+    direction: down
+    model: web_tcp
+    params: {rate_mbps: 4.0, mean_response_kb: 800, request_bytes: 500}
+    bitrate_mbps: 4.0
+    dscp: 0
     latency_requirement_ms: 500
+    sla: {latency_ms: 500, jitter_ms: 200, loss_pct: 5.0}
 
   - application_id: general.video_streaming
-    name: Video Streaming
+    name: Video Streaming (DASH)
     service_class: general
     slice_type: eMBB
     priority: 4
@@ -199,9 +259,13 @@ applications:
     server_ip: 10.0.3.10
     port: 5006
     protocol: tcp
-    tool: iperf3
+    direction: down
+    model: chunked_tcp
+    params: {rate_mbps: 15.0, chunk_s: 2.0}
     bitrate_mbps: 15.0
+    dscp: 0
     latency_requirement_ms: 300
+    sla: {latency_ms: 400, jitter_ms: 150, loss_pct: 5.0}
 
   - application_id: general.social_media
     name: Social Media
@@ -213,9 +277,13 @@ applications:
     server_ip: 10.0.3.10
     port: 5007
     protocol: tcp
-    tool: iperf3
+    direction: down
+    model: web_tcp
+    params: {rate_mbps: 3.0, mean_response_kb: 300, request_bytes: 600}
     bitrate_mbps: 3.0
+    dscp: 0
     latency_requirement_ms: 500
+    sla: {latency_ms: 500, jitter_ms: 200, loss_pct: 5.0}
 
   - application_id: general.mobile_banking
     name: Mobile Banking
@@ -227,6 +295,10 @@ applications:
     server_ip: 10.0.3.10
     port: 5008
     protocol: tcp
-    tool: iperf3
-    bitrate_mbps: 1.0
+    direction: down
+    model: web_tcp
+    params: {rate_mbps: 0.5, mean_response_kb: 30, request_bytes: 1200}
+    bitrate_mbps: 0.5
+    dscp: 0
     latency_requirement_ms: 200
+    sla: {latency_ms: 300, jitter_ms: 100, loss_pct: 2.0}

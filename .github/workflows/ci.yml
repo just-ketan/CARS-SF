@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mininet openvswitch-switch iperf3 tcpdump iproute2 bridge-utils
+      - name: Python environment
+        run: |
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: Unit tests
+        run: make test
+      - name: Dataset and models
+        run: make data models
+      - name: Integration (emulated network, user namespaces)
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          make integration
+      - name: Real Open vSwitch run
+        run: |
+          sudo systemctl start openvswitch-switch
+          sudo .venv/bin/python run_experiment.py --scenario fiber_cut --duration 20 --apply-qos

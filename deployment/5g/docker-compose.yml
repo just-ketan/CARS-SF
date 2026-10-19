@@ -1,0 +1,80 @@
+# CARS-SF on a real 5G core: Open5GS 5GC + UERANSIM gNB/UEs, one UE per
+# service slice (S-NSSAI + DNN), CARS-SF traffic sidecars sharing each UE's
+# network namespace, and a data-network host behind the UPF (N6).
+#
+#   docker compose -f deployment/5g/docker-compose.yml up -d
+#   python deployment/5g/run_5g.py --scenario disaster --duration 40
+
+name: cars-sf-5g
+
+x-ue: &ue
+  image: gradiant/ueransim:3.2.6
+  cap_add: [NET_ADMIN]
+  devices: ["/dev/net/tun"]
+  depends_on: [gnb]
+  volumes: ["./ueransim:/config:ro"]
+
+x-tools: &tools
+  image: cars-sf-tools:latest
+  build: {context: ., dockerfile: Dockerfile.tools}
+  cap_add: [NET_ADMIN, NET_RAW]
+  volumes: ["../..:/cars-sf"]
+  command: ["sleep", "infinity"]
+
+services:
+  mongo:
+    image: mongo:6.0
+    networks: {core: {ipv4_address: 10.80.0.5}}
+    volumes: ["./subscribers.js:/docker-entrypoint-initdb.d/subscribers.js:ro"]
+
+  core:
+    image: gradiant/open5gs:2.7.2
+    entrypoint: ["/config/start-core.sh"]
+    user: root   # the UPF creates the ogstun TUN device
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls: {net.ipv4.ip_forward: 1}
+    depends_on: [mongo]
+    volumes: ["./open5gs:/config:ro"]
+    networks:
+      core: {ipv4_address: 10.80.0.10}
+      n6: {ipv4_address: 10.81.0.10}
+
+  gnb:
+    image: gradiant/ueransim:3.2.6
+    entrypoint: ["sh", "-c", "sleep 30 && exec nr-gnb -c /config/gnb.yaml"]
+    depends_on: [core]
+    volumes: ["./ueransim:/config:ro"]
+    networks: {core: {ipv4_address: 10.80.0.20}}
+
+  ue_healthcare:
+    <<: *ue
+    entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_healthcare.yaml"]
+    networks: {core: {ipv4_address: 10.80.0.31}}
+  ue_education:
+    <<: *ue
+    entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_education.yaml"]
+    networks: {core: {ipv4_address: 10.80.0.32}}
+  ue_agriculture:
+    <<: *ue
+    entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_agriculture.yaml"]
+    networks: {core: {ipv4_address: 10.80.0.33}}
+  ue_general:
+    <<: *ue
+    entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_general.yaml"]
+    networks: {core: {ipv4_address: 10.80.0.34}}
+
+  tg_healthcare: {<<: *tools, network_mode: "service:ue_healthcare", depends_on: [ue_healthcare]}
+  tg_education: {<<: *tools, network_mode: "service:ue_education", depends_on: [ue_education]}
+  tg_agriculture: {<<: *tools, network_mode: "service:ue_agriculture", depends_on: [ue_agriculture]}
+  tg_general: {<<: *tools, network_mode: "service:ue_general", depends_on: [ue_general]}
+
+  dn:
+    <<: *tools
+    networks: {n6: {ipv4_address: 10.81.0.100}}
+
+networks:
+  core:
+    ipam: {config: [{subnet: 10.80.0.0/24}]}
+  n6:
+    ipam: {config: [{subnet: 10.81.0.0/24}]}

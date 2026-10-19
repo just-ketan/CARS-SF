@@ -1,0 +1,110 @@
+% CARS-SF design-defense handbook — preamble
+\usepackage[a4paper,margin=1.7cm,top=1.9cm,bottom=2.0cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[scaled=0.88]{beramono}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc,shapes.geometric,shapes.misc,decorations.pathreplacing,automata}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage[most]{tcolorbox}
+\usepackage{enumitem}
+\usepackage{booktabs,tabularx,array,multirow}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{url}
+\usepackage[hidelinks,bookmarksnumbered]{hyperref}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,skip=3pt}
+
+% ---------------------------------------------------------------- palette
+\definecolor{ink}{HTML}{0B0B0B}
+\definecolor{ink2}{HTML}{52514E}
+\definecolor{rule}{HTML}{D9D8D3}
+\definecolor{qbg}{HTML}{EEF3FA}
+\definecolor{cA}{HTML}{2A78D6}  % blue
+\definecolor{cB}{HTML}{EB6834}  % orange
+\definecolor{cC}{HTML}{1BAF7A}  % aqua
+\definecolor{cD}{HTML}{EDA100}  % yellow
+\definecolor{cE}{HTML}{E87BA4}  % magenta
+\definecolor{cF}{HTML}{008300}  % green
+\definecolor{cG}{HTML}{6250D6}  % violet
+\definecolor{cH}{HTML}{E34948}  % red
+\definecolor{lvlone}{HTML}{8A8984}
+\definecolor{lvltwo}{HTML}{2A78D6}
+\definecolor{lvlthree}{HTML}{008300}
+\definecolor{lvlfour}{HTML}{6250D6}
+\definecolor{lvlno}{HTML}{E34948}
+
+% ---------------------------------------------------------------- layout
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2.5pt}
+\titleformat{\part}[display]{\normalfont\bfseries\Large\color{cA}}{Part \thepart}{2pt}{\LARGE}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\color{ink2}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\titlespacing*{\subsection}{0pt}{8pt}{3pt}
+\setlist{nosep,leftmargin=1.2em}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{ink2}CARS-SF Design-Defense Handbook}
+\fancyhead[R]{\small\color{ink2}\leftmark}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---------------------------------------------------------------- code paths
+\DeclareUrlCommand\code{\urlstyle{tt}}
+\newcommand{\capcode}[1]{\texttt{\detokenize{#1}}} % caption-safe
+
+% ---------------------------------------------------------------- evidence levels
+% L1 implemented · L2 unit-tested · L3 integrated & validated (emulation) · L4 real network
+\newcommand{\lvlbadge}[2]{\tikz[baseline=(b.base)]\node[fill=#1,text=white,font=\scriptsize\bfseries,
+  rounded corners=1.5pt,inner sep=1.6pt](b){#2};}
+\newcommand{\Lone}{\lvlbadge{lvlone}{L1 implemented}}
+\newcommand{\Ltwo}{\lvlbadge{lvltwo}{L2 unit-tested}}
+\newcommand{\Lthree}{\lvlbadge{lvlthree}{L3 validated (emulation)}}
+\newcommand{\Lthreeovs}{\lvlbadge{lvlthree}{L3 validated (real OVS, emulated net)}}
+\newcommand{\Lthreefg}{\lvlbadge{lvlthree}{L3 validated (Open5GS core, simulated RAN)}}
+\newcommand{\Lfour}{\lvlbadge{lvlfour}{L4 real network}}
+\newcommand{\Lno}{\lvlbadge{lvlno}{not implemented}}
+\newcommand{\Lpart}{\lvlbadge{lvlone}{partial}}
+
+% ---------------------------------------------------------------- Q&A
+\newcounter{qcount}
+\newenvironment{qa}[2]{%
+  \par\addvspace{3pt}\noindent
+  \colorbox{qbg}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small\textbf{Q#1.}\enspace #2}}%
+  \par\nopagebreak\vspace{1pt}
+  \begin{list}{}{\leftmargin=0.9em\rightmargin=0pt\topsep=1pt\itemsep=0pt\parsep=2pt}\item[]\small}%
+  {\end{list}}
+
+% five-part design answers
+\newcommand{\why}[1]{\par\textcolor{cA}{\textbf{Why.}}~#1\par}
+\newcommand{\choice}[1]{\par\textcolor{cA}{\textbf{Choice.}}~#1\par}
+\newcommand{\alt}[1]{\par\textcolor{cA}{\textbf{Alternative.}}~#1\par}
+\newcommand{\trade}[1]{\par\textcolor{cA}{\textbf{Trade-off.}}~#1\par}
+\newcommand{\ev}[2]{\par\textcolor{cA}{\textbf{Evidence.}}~#1~#2\par}
+\newcommand{\honest}[1]{\par\textcolor{cH}{\textbf{Honest limit.}}~#1\par}
+\newcommand{\ifasked}[1]{\par\textcolor{ink2}{\textbf{If pressed.}}~\textit{#1}\par}
+
+% callout boxes
+\newtcolorbox{keybox}[1]{enhanced,breakable,colback=white,colframe=cA,boxrule=0.6pt,arc=1.5pt,
+  left=4pt,right=4pt,top=2pt,bottom=2pt,fonttitle=\small\bfseries,title=#1,fontupper=\small}
+\newtcolorbox{warnbox}[1]{enhanced,breakable,colback=white,colframe=cH,boxrule=0.6pt,arc=1.5pt,
+  left=4pt,right=4pt,top=2pt,bottom=2pt,fonttitle=\small\bfseries,title=#1,fontupper=\small}
+
+% tikz styles
+\tikzset{
+  mod/.style={draw=ink2,rounded corners=2pt,fill=white,font=\scriptsize,align=center,inner sep=2.5pt,minimum height=5.5mm},
+  live/.style={mod,fill=cA!8,draw=cA},
+  off/.style={mod,fill=cD!12,draw=cD!80!black},
+  net/.style={mod,fill=cC!12,draw=cC!70!black},
+  heal/.style={mod,fill=cH!8,draw=cH},
+  arr/.style={-{Stealth[length=1.6mm]},thin,ink2},
+  darr/.style={arr,dashed},
+  lbl/.style={font=\tiny,text=ink2},
+}

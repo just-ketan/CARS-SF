@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import yaml
-from .models import Service
+from .service import Service
 
 class ConfigLoader:
     @staticmethod

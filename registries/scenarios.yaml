@@ -97,4 +97,39 @@ scenarios:
       general: 30
     network_load_pct: 90
     backhaul_degraded: true
+    failure: {type: fiber_cut, at: 0.33, repair_at: 0.66}
+    duration_ticks: 45
+
+  - id: backhaul_degradation
+    name: Backhaul Degradation
+    description: Fiber backhaul degrades (rising delay and loss) before failing outright.
+    priority_weights:
+      healthcare: 10
+      education: 2
+      agriculture: 2
+      general: 1
+    demand_mbps:
+      healthcare: 40
+      education: 15
+      agriculture: 15
+      general: 30
+    network_load_pct: 90
+    failure: {type: backhaul_degradation, at: 0.2, cut_at: 0.7, delay_step_ms: 15, loss_step_pct: 0.3}
+    duration_ticks: 45
+
+  - id: core_switch_failure
+    name: Core Switch Failure
+    description: The core aggregation switch fails; core-hosted services are unreachable.
+    priority_weights:
+      healthcare: 10
+      education: 2
+      agriculture: 3
+      general: 1
+    demand_mbps:
+      healthcare: 40
+      education: 15
+      agriculture: 25
+      general: 30
+    network_load_pct: 85
+    failure: {type: core_switch_failure, at: 0.33, repair_at: 0.66}
     duration_ticks: 45

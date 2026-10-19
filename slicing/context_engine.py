@@ -43,10 +43,22 @@ class ContextEngine:
 		},
 	}
 
+	def __init__(self):
+		# Scenario registry is the source of truth; CONTEXTS is the fallback.
+		self.contexts = {**self.CONTEXTS, **_registry_priorities()}
+
 	def get_context(self, context):
-		if context not in self.CONTEXTS:
-			raise ValueError(f"uknown context: {context}")
-		return self.CONTEXTS[context]
+		if context not in self.contexts:
+			raise ValueError(f"unknown context: {context}")
+		return dict(self.contexts[context])
+
+
+def _registry_priorities():
+	try:
+		from core.config import load_scenarios
+		return {s["id"]: s["priority_weights"] for s in load_scenarios() if "priority_weights" in s}
+	except Exception:
+		return {}
 
 if __name__ == "__main__":
 	ce = ContextEngine()

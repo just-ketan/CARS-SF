@@ -1,0 +1,400 @@
+\part{Mininet, SDN, Open vSwitch and networking foundations}
+
+\section{Why Mininet and Open vSwitch?}
+
+\begin{qa}{206}{Why Mininet instead of NS-3, OMNeT++, a hardware testbed or a physical 5G network?}
+\why{The claims concern real queueing disciplines (HTB, fq\_codel), real TCP congestion control and real control
+commands. These are kernel behaviours a discrete-event simulator re-implements.}
+\choice{Mininet: real Linux network stack, real \code{tc}, real applications, cheap to repeat 340 times, and the same
+commands run on real OVS.}
+\alt{ns-3 (exact virtual time, scales, but models TCP and AQM rather than running them); a hardware testbed (realistic,
+costly, slow to repeat); a 5G testbed (radio realism; not available).}
+\trade{Real software behaviour and fast iteration, at the cost of timing fidelity under CPU contention and no radio.}
+\ev{340 runs; real-OVS replication; propagation floors exact to $<$0.01\,ms.}{\Lthree}
+\end{qa}
+
+\begin{qa}{207}{What does Mininet emulate, and what does it not?}
+\textbf{Emulates:}
+\begin{itemize}
+\item hosts as processes in network namespaces;
+\item links as veth pairs with tc shaping and delay;
+\item switches (OVS or Linux bridge).
+\end{itemize}
+\textbf{Does not emulate:}
+\begin{itemize}
+\item CPU isolation (all nodes share the host CPUs);
+\item NIC hardware and line-rate timing;
+\item radio;
+\item wide-area loss processes beyond netem.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{208}{How does Mininet use Linux network namespaces?}
+Each host is a shell started with \code{mnexec -n} in its own network namespace: its own interfaces, routes, ARP table
+and sockets, but a shared kernel, filesystem and clock. Switches stay in the root namespace. The sudo-free harness
+wraps the whole emulation in one user+net+mount namespace.
+\end{qa}
+
+\begin{qa}{209}{What is the role of virtual Ethernet pairs?}
+A veth pair is a virtual cable: frames written to one end appear at the other. One end sits in the host's namespace,
+the other is attached to a switch port. Qdiscs on either end shape that direction.
+\end{qa}
+
+\begin{qa}{210}{How are hosts, switches, links and controllers represented?}
+\begin{itemize}
+\item Hosts: \code{Host} (namespaced shells).
+\item Switches: \code{OVSBridge} (OVS bridge in standalone fail-mode) or \code{LinuxBridge}.
+\item Links: \code{TCLink} (veth + tc).
+\item Controller: none, because OVSBridge forwards with the NORMAL action (MAC learning) and needs no OpenFlow
+controller. This fixed a crash, since the reference controller binary is not installed.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{211}{What is Open vSwitch, and why is it appropriate?}
+A production-grade programmable software switch: a kernel datapath with a userspace slow path, configured through
+OVSDB, programmed by OpenFlow, with QoS queues (\code{linux-htb}). It is the data plane of many SDN and NFV
+deployments, so OVS-validated behaviour transfers to real virtual switching.
+\end{qa}
+
+\begin{qa}{212}{What is the difference between a Linux bridge and Open vSwitch?}
+A Linux bridge is a simple L2 learning switch with no flow tables. OVS has OpenFlow match-action tables, a flow cache,
+OVSDB configuration and QoS integration. Relevant behavioural differences we \emph{measured}:
+\begin{itemize}
+\item carrier-loss propagation to the peer is slower on OVS (recovery 1.04\,s before the event-driven fix, about
+0.09\,s after);
+\item MAC relearning makes the OVS outage 0.3--0.5\,s vs 0.05\,s on Linux bridges.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{213}{What is the difference between the SDN control plane and the data plane?}
+The control plane decides how traffic should be treated (rules, routes, allocations); the data plane forwards and
+queues packets. In CARS-SF the controller is our Python loop and the data plane is the kernel or OVS datapath with
+its qdiscs.
+\end{qa}
+
+\begin{qa}{214}{How does an OpenFlow rule affect packet forwarding?}
+A rule = match fields + priority + actions. A packet is matched against the table, the highest-priority match wins,
+and its actions run (output, set\_queue, modify, drop). In the OVS QoS backend:
+\code{priority=20,ip,nw_src=<UE>,actions=set_queue:q,normal} places the packet in queue $q$ and then forwards it
+normally.
+\end{qa}
+
+\begin{qa}{215}{How are flow-table entries matched and prioritised?}
+By priority, then (with equal priority) undefined order, so overlaps should be avoided. In our design, app rules
+(priority 30) beat host rules (priority 20), and the default NORMAL flow catches the rest. The tc u32 filters follow
+the same idea: flow (prio 1) $>$ app (10) $>$ host (20).
+\end{qa}
+
+\begin{qa}{216}{How are packets handled when no rule matches?}
+In OpenFlow, the table-miss entry decides (send to the controller, or drop). In our standalone OVSBridge the default
+rule is NORMAL. In tc, unmatched packets go to the HTB \code{default} class: general (1:40), or eMBB in 3GPP mode.
+\end{qa}
+
+\begin{qa}{217}{How do you verify that the intended forwarding rule is actually installed?}
+\code{ovs-ofctl dump-flows} (collected in telemetry on OVS) and \code{tc -s class show} / \code{tc filter show}.
+Unit tests assert the exact commands (\code{test_qos.py}).
+\honest{The controller does not read back and compare after each change (Q139).}
+\end{qa}
+
+\begin{qa}{218}{How do you distinguish a control-plane decision from actual data-plane behaviour?}
+By measuring the data plane independently: endpoint captures give per-packet delivery and delay, and HTB counters give
+per-class bytes and drops. A decision counts only if those outcomes change (e.g.\ the ablation shows ceiling changes
+moving p95 from \NAblSchoolFullHc{} to \NAblSchoolFullStrictHc\,ms).
+\end{qa}
+
+\begin{qa}{219}{What are the limitations of a virtual testbed on one machine?}
+Shared CPUs (contention distorts timers), no hardware queues, a limited aggregate rate, all clocks identical (good for
+one-way delay, unrealistic for synchronisation issues), and no radio.
+\end{qa}
+
+\begin{qa}{220}{How can host CPU scheduling distort latency and throughput measurements?}
+Starved processes send late (burstier); starved kernel timers release netem and HTB packets late (inflated delay);
+softirq backlog adds jitter.
+\ev{Observed: a busy-waiting generator pushed load to 40--56 on 20 cores. All 111 affected runs were archived; the
+generator now sleeps (\NGenCpuBefore\%$\rightarrow$\NGenCpuAfter\% CPU per 40\,Mb/s flow), with 4 parallel workers
+keeping load below the core count.}{\Lthree}
+\end{qa}
+
+\begin{qa}{221}{How do virtual link parameters translate into tc configuration?}
+\code{TCLink(bw, delay)} installs HTB (rate) with a netem child (delay) at the root of each veth end. Our QoS enforcer
+\emph{replaces} the root qdisc on both bottleneck ends, which would silently discard any netem delay there. That is
+why propagation delay is emulated on the destination-facing ports instead (§\ref{sec:delayplace}).
+\end{qa}
+
+\begin{qa}{222}{Which aspects of radio propagation, scheduling, handover and interference are absent?}
+All of them: no PHY or MAC, no PRB scheduling, no HARQ, no fading, no mobility. The 5G deployment adds the
+\emph{core} (NAS, PDU sessions, slices) but UERANSIM simulates the RAN without radio impairments.
+\end{qa}
+
+\begin{qa}{223}{What conclusions can you legitimately draw from Mininet experiments?}
+Relative comparisons of allocation, AQM and healing policies at a shared IP bottleneck with real kernel queueing and
+real TCP; the correctness and timing of the control loop; measurement-method validity.
+\textbf{Not:} absolute field latencies, radio-limited behaviour, scalability to large networks.
+\end{qa}
+
+\begin{qa}{224}{Which conclusions need a radio-aware simulator or a real 5G testbed?}
+Radio scheduling interaction (PRB allocation per slice), coverage and handover effects, wireless loss, RAN-slice
+isolation (as in the isolation paper [2]), and end-to-end latency budgets including the air interface.
+\end{qa}
+
+\section{Topology and resource modelling}
+\label{sec:delayplace}
+
+\FigTopo
+
+\begin{qa}{225}{Why this rural topology?}
+It is the smallest topology containing all three phenomena under study:
+\begin{itemize}
+\item one shared rural uplink (contention);
+\item two service tiers (edge MEC vs core cloud), so that failures affect services unequally;
+\item a primary and a weaker standby backhaul (healing).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{226}{What do the switches, hosts, links and backup paths represent?}
+\begin{itemize}
+\item \code{s_rural}: village aggregation (cell site / gNB aggregation).
+\item \code{s_edge}: edge cloud (MEC, clinic and agri servers).
+\item \code{s_core}: core cloud (education and internet services).
+\item UEs: 2 per service institution.
+\item The primary backhaul is fiber; the backup is microwave or satellite-class (50\,Mb/s, 40\,ms).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{227}{Which links are bottlenecks?}
+Only the rural uplink (100\,Mb/s, both directions). Access links are deliberately unshaped. On backup, the 50\,Mb/s
+backup link bounds core-bound traffic, and CARS-SF caps core slices to 95\% of it.
+\end{qa}
+
+\begin{qa}{228}{How are link capacities, delays, loss rates and queue limits configured?}
+\begin{itemize}
+\item Capacity: HTB root 100\,Mb/s (swept 50--150).
+\item Delay: netem on destination-facing ports (8\,ms edge path, 28\,ms core path, backup +40\,ms).
+\item Loss: zero by default; injected by the degradation scenario (+0.3\% per tick).
+\item Queues: fq\_codel defaults (target 5\,ms, interval 100\,ms, limit 10240 packets); the no-slicing baseline uses
+pfifo 1000.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{229}{Are the topology parameters measured, from the literature, or hypothetical?}
+Hypothetical but plausible (fiber vs microwave delays, a 100\,Mb/s rural uplink), and swept for sensitivity.
+\honest{Not calibrated against a specific deployment.}
+\end{qa}
+
+\begin{qa}{230}{How do you verify the topology after initialisation?}
+A connectivity ping (healthcare UE $\rightarrow$ edge) on start; the first-tick RTT probes for every service; and,
+post-run, the measured propagation floors equal configuration exactly (\NFloorEdge{} and \NFloorCore\,ms).
+\end{qa}
+
+\begin{qa}{231}{How do you identify a failed link and distinguish it from a slow link?}
+\begin{itemize}
+\item Failed: carrier loss (operstate) on \code{s_edge-bh}, seen by the 50\,ms link watcher.
+\item Slow: rising RTT trend for core-bound probes with flat edge probes and \emph{no} local congestion evidence
+(predictor).
+\item Congested: drops, backlog or saturation at the local bottleneck.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{232}{What happens if a switch fails instead of a link?}
+Core-switch failure scenario: all \code{s_core} ports go down. Carrier loss is seen as a cut, so the engine switches
+to backup; the backup also ends on \code{s_core}, so the core stays unreachable. After 2 ticks the diagnosis is
+``core switch failure'' (\textsf{DEGRADED}): core slices are held at their floors and edge slices get the capacity.
+Diagnosed in \NCoreDiagnosedShare{} of runs.
+\end{qa}
+
+\begin{qa}{233}{What if the primary and backup routes share a physical failure domain?}
+Then the backup does not help, which is exactly our core-switch case (both paths terminate on \code{s_core}). The
+system localises the fault and degrades gracefully, but cannot restore core services.
+Lesson: logical redundancy $\ne$ physical diversity.
+\end{qa}
+
+\begin{qa}{234}{How do you prevent an alternate route from creating a Layer-2 loop?}
+By construction, with no STP:
+\begin{enumerate}
+\item the backup is admin-down on the \code{s_edge} side while the primary is up;
+\item on failure, the primary is \emph{quarantined} (admin-down) \emph{before} the backup comes up;
+\item on fail-back, the backup goes down \emph{before} the primary comes up;
+\item only \code{s_edge}-side ports are driven;
+\item the healer ignores link events caused by its own actions.
+\end{enumerate}
+\ev{Unit test asserting the exact ordering; no broadcast storms in 27 resilience runs plus the real-OVS runs.}{\Lthree}
+\end{qa}
+
+\begin{qa}{235}{How do MAC learning, ARP and forwarding state affect failover?}
+After a path change, switches still map MACs to the dead port until they relearn. ARP caches are unaffected (same
+IP/MAC pairs). Mitigation: flush the FDB on all three switches (\code{ovs-appctl fdb/flush},
+\code{bridge fdb flush}). The residual OVS outage (0.3--0.5\,s) is mostly relearning.
+\end{qa}
+
+\begin{qa}{236}{How do you handle stale forwarding entries after a path change?}
+An explicit FDB flush on activation and fail-back. Linux bridges also flush entries on a port that loses carrier.
+\end{qa}
+
+\begin{qa}{237}{How do you prove the backup route works before switching traffic to it?}
+\honest{We do not pre-verify the backup. Switching happens, then reachability is checked: if the core is still
+unreachable after 2 ticks, the engine escalates to \textsf{DEGRADED}.}
+Better: continuous OAM on the standby (periodic probes over an isolated VLAN, or BFD on the standby link), so a dead
+backup is known before it is needed.
+\end{qa}
+
+\begin{qa}{238}{Logical redundancy vs physically independent redundancy?}
+Logical: two paths in the topology graph. Physical: independent conduits, power and end equipment. Our backup is
+logically redundant but shares the \code{s_core} failure domain (Q233).
+\end{qa}
+
+\begin{qa}{239}{How would you model a power failure affecting multiple devices?}
+Take a set of nodes down at once (all ports of the affected switches), as in our core-switch injection, possibly with
+correlated recovery times. Not implemented as a scenario.
+\end{qa}
+
+\begin{qa}{240}{How would you model partial connectivity rather than complete failure?}
+Backhaul degradation: netem delay +15\,ms and loss +0.3\% per tick, then a cut. \code{inject_latency} also exists.
+Further options: rate reduction, intermittent flapping, asymmetric loss.
+\end{qa}
+
+\begin{qa}{241}{How do you prevent a topology change from invalidating previously collected telemetry?}
+Counters are read per interface name and converted to deltas with negative values clamped to 0, so a reset or
+recreated interface yields one zero sample, not garbage. Datasets carry \code{run_id} and are never mixed across
+topologies without that key.
+\end{qa}
+
+\begin{qa}{242}{How would the topology scale to more villages, gateways, services and bottlenecks?}
+The builder is parametric in UEs per service (tested at 1, 2 and 4) and in capacity. Multiple villages need multiple
+\code{s_rural} instances, per-uplink QoS and a regional controller (Q130).
+\honest{Single-machine emulation will run out of CPU at around tens of nodes with this traffic.}
+\end{qa}
+
+\section{TCP/IP, transport behaviour and traffic control}
+
+\begin{qa}{243}{Why is TCP behaviour relevant to your results?}
+Elastic TCP flows (library, web, DASH) adapt to whatever share they get, so their demand is not directly observable,
+and they fill queues (bufferbloat) unless AQM intervenes. The demand estimator's elastic probe-up and the fq\_codel
+choice both exist because of TCP.
+\end{qa}
+
+\begin{qa}{244}{How would TCP congestion control respond to loss or increased delay?}
+Linux default CUBIC: multiplicative decrease of cwnd on loss, cubic regrowth, largely insensitive to delay until
+loss. fq\_codel turns standing queues into early drops (or ECN marks), so TCP backs off before delay builds.
+\end{qa}
+
+\begin{qa}{245}{Why might throughput fall even when nominal capacity is unchanged?}
+\begin{itemize}
+\item rising RTT (backhaul degradation) slows cwnd growth;
+\item random loss (degradation) triggers backoff;
+\item receiver window limits;
+\item HTB ceilings;
+\item competition from unresponsive UDP in a FIFO queue.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{246}{How does UDP differ from TCP under congestion?}
+UDP does not back off. In a FIFO queue it can starve TCP and inflate delay for everyone. HTB per-slice classes and
+fq\_codel per-flow queues isolate it.
+\end{qa}
+
+\begin{qa}{247}{How can retransmissions distort application-level latency measurements?}
+A retransmitted segment's delivery time includes timeout or fast-retransmit delay that a per-packet one-way delay
+does not show. We match each transmission separately (flagging retransmissions), so our one-way delay is network
+delay, not application latency.
+\honest{Application-level latency for TCP (request to response) is not measured.}
+\end{qa}
+
+\begin{qa}{248}{What is the difference between RTT and one-way latency?}
+RTT is the sum of both directions plus host turnaround. One-way delay is a single direction and needs synchronised
+clocks. Our endpoints share one kernel clock, so the packet-matched one-way delay is exact (validated by the floors).
+Online probes measure RTT, and monitoring uses RTT/2.
+\end{qa}
+
+\begin{qa}{249}{What is jitter, and how does its definition affect the result?}
+We report the mean absolute difference of consecutive one-way delays per window (RFC 3550-style, without the
+1/16 smoothing). Other definitions (standard deviation of delay, p95$-$p50) give different magnitudes; we report one
+definition consistently.
+\end{qa}
+
+\begin{qa}{250}{Packet loss vs queue drops vs application-level delivery failure?}
+\begin{itemize}
+\item Packet loss: a packet transmitted but never received (endpoint matching).
+\item Queue drops: HTB or fq\_codel drop counters (a subset of loss).
+\item Application failure: data not delivered in time. For TCP, loss becomes delay through retransmission; for
+real-time UDP, loss means missing data.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{251}{What is a Linux qdisc?}
+A queueing discipline attached to an interface's egress that decides how packets are queued and dequeued.
+Classless qdiscs (pfifo, fq\_codel, netem) and classful ones (HTB) form trees with filters that pick the class.
+\end{qa}
+
+\begin{qa}{252}{How does HTB enforce rate ceilings and borrowing?}
+Each class has a guaranteed \code{rate} and a maximum \code{ceil}. A class under its rate sends freely; between rate
+and ceil it \emph{borrows} its parent's spare tokens, in \code{prio} order and quantum-weighted; above ceil it waits.
+We use rate = allocation and ceil = link capacity (work-conserving) or ceil = rate (strict).
+\end{qa}
+
+\begin{qa}{253}{How do queue limits affect delay and drops?}
+A larger limit means fewer drops but more standing delay (bufferbloat): 1000 packets at 100\,Mb/s is about 120\,ms.
+fq\_codel bounds sojourn time instead of length (target 5\,ms).
+\ev{Without AQM, the school no-AQM ablation, the OVS queues and the 5G no-slicing mode all show large p95; the 5G
+no-slicing healthcare p95 was \NFgDisasterNoneHcP\,ms.}{\Lthree}
+\end{qa}
+
+\begin{qa}{254}{What is the purpose of netem?}
+It emulates delay, jitter, loss, duplication and reordering on an interface. We use it for propagation delay and
+backhaul degradation.
+\end{qa}
+
+\begin{qa}{255}{What are the limits of using traffic shaping to represent network conditions?}
+Shaping is deterministic and memoryless unless configured otherwise. It does not reproduce wireless loss bursts or
+link-layer retransmission. Timer granularity and CPU contention add artefacts. Delay placement interacts with other
+qdiscs (Q221).
+\end{qa}
+
+\begin{qa}{256}{How does FQ-CoDel differ from a simple FIFO queue?}
+FQ: per-flow hashing into sub-queues with deficit round robin, so sparse flows (ECG, voice) are served ahead of bulk
+flows. CoDel: drops when sojourn time stays above 5\,ms for an interval, which keeps standing queues short.
+FIFO: one queue, tail drop, no isolation.
+\end{qa}
+
+\begin{qa}{257}{Why can strict priority scheduling cause starvation?}
+A higher class with continuous backlog always wins, so lower classes never transmit. CARS-SF avoids pure strict
+priority: each class has a guaranteed rate (floor or allocation), and \code{prio} only orders borrowing of spare
+capacity.
+\end{qa}
+
+\begin{qa}{258}{How does weighted fair queuing compare with strict priority?}
+WFQ shares capacity in proportion to weights (no starvation, bounded delay per weight). Strict priority minimises
+high-class delay at the risk of starvation. HTB with rates is closer to WFQ with guarantees; HTB prio adds mild
+priority for spare capacity.
+\end{qa}
+
+\begin{qa}{259}{What is the difference between rate limiting, shaping and policing?}
+Shaping delays excess packets (queue, smooth output). Policing drops or marks excess immediately (no queue). Rate
+limiting is the generic term. HTB shapes; we do not police.
+\end{qa}
+
+\begin{qa}{260}{How do you determine whether the QoS policy actually influences the intended class?}
+Per-class HTB counters (bytes, drops, backlog) per direction each tick; packet-matched per-slice delay and loss;
+ablations that change one QoS parameter and observe the effect; and the classification tests (u32 filter strings).
+\end{qa}
+
+\begin{qa}{261}{How do you distinguish a configured ceiling from the throughput a flow actually receives?}
+The configured value is in \code{controller_history}; delivered throughput per window comes from captures. They
+differ by demand (a flow may use less), by borrowing (it may use more, up to ceil), and by TCP dynamics.
+\end{qa}
+
+\begin{qa}{262}{How do you inspect and debug interfaces, routes, sockets, qdiscs and OVS rules?}
+\code{ip -s link}, \code{ip route}, \code{ss -tinp}, \code{tc -s qdisc/class/filter show dev X},
+\code{ovs-vsctl show}, \code{ovs-ofctl dump-flows/dump-ports}, \code{ovs-appctl fdb/show} and
+\code{ofproto/trace}, \code{tcpdump -i X}, \code{bridge fdb show}. Inside Mininet: \code{mnexec -a <pid>}.
+\end{qa}
+
+\begin{qa}{263}{The controller claims a route changed, but packets still use the old path. How do you debug it?}
+\begin{enumerate}
+\item Check the port states (\code{ip link}) on both ends.
+\item Check the counters on both links (\code{ip -s link}) to see which one carries the bytes.
+\item Inspect the FDB (\code{ovs-appctl fdb/show s_edge}): stale MAC entries pointing to the old port are the usual cause.
+\item Use \code{ofproto/trace} for one packet.
+\item Run tcpdump on both candidate links.
+\end{enumerate}
+Fix: flush the FDB, or check that the quarantine actually took effect.
+\end{qa}

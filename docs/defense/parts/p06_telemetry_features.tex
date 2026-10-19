@@ -1,0 +1,255 @@
+\part{Telemetry, monitoring and feature engineering}
+
+\section{Telemetry collection}
+
+\begin{qa}{264}{What network metrics does CARS-SF observe at runtime?}
+Per 1\,s tick (\code{telemetry/collector.py}):
+\begin{itemize}
+\item per-service offered uplink and delivered downlink (access-port counters);
+\item uplink, downlink and max utilisation of the bottleneck;
+\item backhaul and backup throughput;
+\item HTB class sent bytes and packets, drops and backlog, per direction;
+\item per-service RTT (ICMP probes);
+\item link carrier state and timestamped transitions (50\,ms watcher);
+\item OVS flow bytes and counts (OVS only);
+\item host CPU and memory.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{265}{Which metrics come from OVS counters, tc, active probes or application-level measurement?}
+OVS: flow bytes and counts. tc: per-class bytes, drops, backlog. Probes: RTT and reachability. Kernel interface
+counters: rates and link state. Application-level (per-flow one-way delay, loss, throughput): only post-run from
+captures, plus live captures for the in-loop classifier.
+\end{qa}
+
+\begin{qa}{266}{Why is a single telemetry source insufficient?}
+Counters give rates but no delay. Probes give delay but no per-class volume. HTB stats show drops but not their
+cause upstream. Link state shows cuts but not degradation. The predictor needs RTT trends \emph{and} local queue
+evidence to tell congestion from backhaul degradation; that confusion caused a false failover on OVS until both
+signals were combined.
+\end{qa}
+
+\begin{qa}{267}{How often is telemetry collected, and why that interval?}
+\begin{itemize}
+\item 1\,s ticks: enough to see 5\,s control decisions, cheap, and well above timer noise.
+\item 50\,ms link polling: carrier loss must be acted on in under 1\,s.
+\item Probes once per second per service, in a background thread so a lost probe (1\,s timeout) never blocks a tick.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{268}{Trade-off between sampling frequency, detection speed, CPU overhead and noise?}
+Faster sampling detects sooner but costs CPU (a \code{tc} fork per read) and measures noisier rates over shorter
+intervals. We put fast sampling only where speed matters (link state, as an event) and keep aggregate rates at 1\,s.
+\end{qa}
+
+\begin{qa}{269}{Are counters cumulative or instantaneous?}
+Kernel interface and HTB counters are cumulative. Backlog is instantaneous. Telemetry converts cumulative counters to
+per-tick deltas and rates.
+\end{qa}
+
+\begin{qa}{270}{How do you calculate a per-interval byte rate from cumulative counters?}
+$r=8\,\max(B_t-B_{t-1},0)/\Delta t/10^6$\,Mb/s, with $\Delta t$ the measured wall-clock interval between reads (not the
+nominal 1\,s).
+\end{qa}
+
+\begin{qa}{271}{How do you handle counter resets, recreated interfaces, wraparound or a switch restart?}
+Negative deltas are clamped to 0 (one zero sample). Sysfs counters are 64-bit, so wraparound is irrelevant. A
+missing interface is skipped, its key absent, so the rate reads 0.
+\honest{A restart therefore shows as a short zero, not as an explicit ``telemetry gap''.}
+\end{qa}
+
+\begin{qa}{272}{What happens when a counter decreases unexpectedly?}
+The delta is clamped to zero for that interval and the next interval uses the new baseline. It is not logged as an
+anomaly.
+\end{qa}
+
+\begin{qa}{273}{How do you calculate utilisation when capacity is known?}
+$\max(r_{up},r_{down})/C$: the rural uplink is full-duplex, so it is saturated if either direction is.
+\honest{Until the real-OVS validation, utilisation counted only the uplink, which made downlink-heavy contexts (school)
+look about 17\% utilised. It was fixed and the whole matrix re-run.}
+\end{qa}
+
+\begin{qa}{274}{How do you distinguish offered, forwarded, queued and dropped traffic?}
+Offered: access-port rx (uplink) or HTB sent+dropped (downlink). Forwarded: HTB sent. Queued: HTB backlog.
+Dropped: HTB drops (queue) and, post-run, matched-packet loss (end to end).
+\end{qa}
+
+\begin{qa}{275}{How are per-flow, per-class, per-link and per-slice measurements aggregated?}
+Per class = per slice (one HTB class per slice per direction). Per link: interface counters. Per flow: only from
+captures, in 5\,s windows. Slice KPIs aggregate flow windows (p95 of per-window p95, mean loss, summed delivered
+rate).
+\end{qa}
+
+\begin{qa}{276}{Can aggregate utilisation conceal severe congestion on one link?}
+Yes, and it did. Uplink-only utilisation hid downlink saturation (Q273). Likewise, a link at 60\% average can still
+have one saturated class. That is why decisions use per-class drops and backlog, not just utilisation.
+\end{qa}
+
+\begin{qa}{277}{How do you synchronise measurements from different interfaces?}
+All readers run in one process within milliseconds on one host clock, and each snapshot carries a timestamp.
+Probe results are asynchronous: the snapshot holds the \emph{latest completed} probe (at most about 1\,s old).
+\end{qa}
+
+\begin{qa}{278}{How do you handle delayed, missing, duplicated or out-of-order samples?}
+Ticks are wall-clock aligned and deltas use measured intervals, so late ticks are handled correctly. A missing probe
+becomes \texttt{None}. Duplicates and reordering cannot occur within one process.
+\honest{There is no explicit staleness bound on probe results.}
+\end{qa}
+
+\begin{qa}{279}{How do you distinguish zero traffic from unavailable telemetry?}
+For probes: \texttt{None} means unavailable, distinct from a measured RTT.
+\honest{Interface and HTB readers return 0 or empty on error, which is indistinguishable from zero traffic. The fix is
+to return \texttt{None} and carry a per-source health flag.}
+\end{qa}
+
+\begin{qa}{280}{How do you detect stale telemetry?}
+\honest{Not implemented. If the probe thread died, the snapshot would keep reporting its last RTT.}
+Fix: timestamp each probe result and treat results older than 2 intervals as missing; add thread liveness checks.
+\end{qa}
+
+\begin{qa}{281}{What happens if the monitoring process fails?}
+Monitoring runs inside the orchestrator process, so a crash ends the run. The kernel keeps the last QoS configuration
+(enforcement survives) and Mininet is torn down by \code{finally}.
+\honest{There is no supervisor or restart.}
+\end{qa}
+
+\begin{qa}{282}{How do you validate telemetry against independent measurements?}
+\begin{itemize}
+\item Probe RTT/2 matches the packet-matched one-way delay floor (16\,ms RTT $\leftrightarrow$ 8\,ms one-way).
+\item Per-service counter rates match the dataset's delivered throughput (same order per tick).
+\item Delay floors match configuration exactly.
+\item Unit tests feed synthetic captures with known delays and losses.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{283}{How do you avoid treating a measurement artefact as a real fault?}
+\begin{itemize}
+\item Faults are confirmed by physically meaningful signals (carrier loss, sustained trends over a 6-sample window,
+congestion evidence).
+\item The healer ignores self-inflicted link events within 1\,s of its own actions.
+\item Methodological artefacts found during validation were fixed and all runs re-done: busy-wait CPU starvation,
+the partial final window, uplink-only utilisation, and false failover from AQM-less queues.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{284}{Which measurements are unavailable because there is no physical RAN?}
+CQI, SINR, RSRP and RSRQ, PRB utilisation, HARQ and BLER, handover events, radio link failures. In the dataset these
+columns are scenario-injected placeholders, excluded from ML.
+\end{qa}
+
+\section{Feature extraction}
+
+\FigMeasure
+
+\begin{qa}{285}{Why do you need a feature-extraction stage?}
+Classifiers and analysis need fixed-size per-flow descriptors over a time window. Raw packets are variable-length,
+huge (about 100\,MB of captures per run) and directional. Extraction also produces the QoS ground truth (one-way
+delay, loss).
+\end{qa}
+
+\begin{qa}{286}{What are the raw inputs and outputs of the feature extractor?}
+In: endpoint pcaps (Ethernet or raw IP), UE addresses, spawn metadata (labels), telemetry snapshots.
+Out: one record per (application flow, UE, 5\,s window) mapped to the 89-column schema plus measured extras, 31
+\code{shape_*} features, and a $3\times32$ packet-sequence tensor (\code{features/extractor.py}).
+\end{qa}
+
+\begin{qa}{287}{Which features are computed at Layers 2, 3 and 4?}
+\begin{itemize}
+\item L2: ether type, VLAN and broadcast flags. These are constant in emulation and kept only for schema compatibility.
+\item L3: IP lengths (size statistics), TTL, DSCP.
+\item L4: ports, TCP flags (SYN, ACK, FIN, RST), window size, retransmissions, UDP counts.
+\end{itemize}
+ML uses size, timing, direction and flag counts, but \emph{not} ports, DSCP or TTL (shortcuts).
+\end{qa}
+
+\begin{qa}{288}{Which features are flow-level, statistical, temporal or derived?}
+\begin{itemize}
+\item Flow-level: packet and byte counts per direction, duration.
+\item Statistical: size and IAT mean, std, min, max, skewness, kurtosis.
+\item Temporal: active and idle time, bursts and burst length, per-direction IAT.
+\item Derived: rates, byte share, small-packet share, coefficient of variation.
+\item QoS: one-way delay, p95, jitter, loss, queueing delay (labels and analysis only).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{289}{Why are duration, sizes, rates and inter-arrival statistics useful?}
+Services differ in them: ECG and IoT are small, periodic and regular; video is large, bursty and frame-periodic;
+VoIP has fixed small packets with talkspurts; bulk TCP is MTU-sized with ACK flows; web is request/response. The top RF
+features are forward mean size, forward byte share, backward packet count and burst count.
+\end{qa}
+
+\begin{qa}{290}{Which features are available before a flow completes?}
+All of them. Records are \emph{windowed} (5\,s), so they exist from the first window onward, and online inference uses
+the flow's history so far (at least 5 packets).
+\end{qa}
+
+\begin{qa}{291}{Which features require observing the flow over a time window?}
+Rates, IAT statistics, burst structure, idle and active time, byte share. The 32-packet sequence needs only the first
+32 packets.
+\end{qa}
+
+\begin{qa}{292}{How does window length influence accuracy and decision latency?}
+Longer windows give more stable statistics but decide later and blur context changes; shorter windows decide earlier
+with noisier features.
+\honest{Only 5\,s was evaluated. A sweep (1, 2, 5, 10\,s) of F1 against time-to-decision is a clear gap.}
+\end{qa}
+
+\begin{qa}{293}{How do you handle short flows with insufficient observations?}
+Offline: windows with fewer than 2 packets are dropped. Online: a flow is classified only once it has at least 5
+packets; until then it stays in the default (general) class, which is safe but not optimal.
+\end{qa}
+
+\begin{qa}{294}{How do you handle missing or invalid feature values?}
+Delay is \texttt{NaN} when nothing was delivered in a window (counted by the validator's measurement-coverage score).
+Classifiers fill \texttt{NaN} with 0; the CNN applies a sign-log transform and z-scores fitted on training data.
+\end{qa}
+
+\begin{qa}{295}{How do you prevent feature definitions diverging between dataset generation and runtime inference?}
+One implementation (\code{features/shape.py}) serves both. The model pickle stores its column list and the CNN stores
+its normalisation and column order. The ML-feature list lives in \code{registries/features.yaml} and is mirrored in
+\code{schema_mapper.py}.
+\end{qa}
+
+\begin{qa}{296}{How do you detect unit inconsistencies (bytes vs bits, s vs ms)?}
+Units are in every name, and conversions are explicit at one place each (\code{*8/1e6}, \code{*1000}). Unit tests
+assert known values (8\,ms one-way delay, 10\% loss, 2\,ms jitter on synthetic captures). The exact propagation floors
+are an end-to-end unit check.
+\end{qa}
+
+\begin{qa}{297}{How do you handle highly correlated features?}
+They are not removed: random forests and CNNs tolerate collinearity, and interpretability claims are limited to
+importance rankings.
+\honest{The importance of correlated features is split among them, so do not over-interpret individual importances.}
+\end{qa}
+
+\begin{qa}{298}{How do you decide whether a feature is informative or a dataset artefact?}
+\begin{itemize}
+\item Exclude known shortcuts a priori (ports, DSCP, TTL, timestamps, scenario fields, QoS outcomes).
+\item Evaluate on held-out run$\times$UE groups.
+\item Check that top features are physically meaningful (sizes, direction share, bursts).
+\end{itemize}
+The strongest available artefact test was the transfer study: synthetic features did not carry over (F1 \NTrZero).
+\end{qa}
+
+\begin{qa}{299}{What is the cost of extracting each feature at runtime?}
+Shape features are $O(n)$ numpy operations over a flow's packets, well under a millisecond per flow. The cost driver
+online is re-parsing the growing UE capture every interval ($O(\text{total packets})$).
+\honest{Incremental parsing is needed for long runs.}
+\end{qa}
+
+\begin{qa}{300}{Which features risk exposing payload content or sensitive information?}
+Features themselves are metadata (sizes, timing), but traffic analysis can still reveal activities.
+\honest{The 128\,B capture includes about 60\,B of payload, used only to fingerprint our own generator packets for
+delay matching. A real deployment must capture headers only and hash fingerprints.}
+\end{qa}
+
+\begin{qa}{301}{How would you run a feature ablation to see which features actually matter?}
+Group-wise drop-column importance under group hold-out: remove each family (size, IAT, direction, burst, flags),
+retrain, and record $\Delta$F1 with seed variance. Permutation importance gives a quicker check.
+\honest{Only RF impurity importances exist today.}
+\end{qa}
+
+\begin{qa}{302}{What happens when a feature becomes unavailable after a topology or instrumentation change?}
+\honest{Inference re-indexes columns and fills missing ones with 0, which degrades silently.}
+Fix: fail loudly when expected features are missing, version the feature set with the model, and retrain.
+\end{qa}

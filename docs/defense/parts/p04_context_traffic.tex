@@ -1,0 +1,303 @@
+\part{Context modelling and application traffic generation}
+
+\section{Context engine}
+
+\begin{qa}{165}{What does context mean in CARS-SF's mathematical and operational model?}
+A discrete variable $c_t\in\mathcal{C}$ = \{normal, school, harvest, disaster, medical\_emergency, fiber\_cut,
+backhaul\_degradation, core\_switch\_failure\}, inferred each tick by
+\[
+c_t=f(\text{clock}_t,\ \text{calendar},\ A_t,\ o_t),
+\]
+where $A_t$ is the set of active alerts and $o_t$ the admin override.
+Operationally, $c_t$ selects the priority weights $w(c_t)$ and the design demand $d(c_t)$ from
+\code{scenarios.yaml}.
+\end{qa}
+
+\begin{qa}{166}{What context variables are represented?}
+\begin{itemize}
+\item time of day and weekday;
+\item month (harvest months 3, 4, 10, 11);
+\item school days and hours (Mon--Fri, 08--15);
+\item harvest daylight hours (06--18);
+\item alerts (flood, fire, earthquake, disaster, medical\_emergency, fiber\_cut);
+\item an admin override.
+\end{itemize}
+Source: \code{registries/timelines.yaml}, \code{context/engine.py}.
+\end{qa}
+
+\begin{qa}{167}{Which are static, slowly varying, event-driven or continuously changing?}
+\begin{itemize}
+\item Static: the calendar configuration.
+\item Slowly varying: season (month).
+\item Continuously changing: time of day.
+\item Event-driven: alerts and the admin override.
+\end{itemize}
+Network condition is \emph{not} context; it is handled by detection and healing.
+\end{qa}
+
+\begin{qa}{168}{How are emergencies, congestion, link failures, holidays and power failures represented?}
+\begin{itemize}
+\item Emergencies: alerts mapped to contexts (flood, fire and earthquake $\to$ disaster).
+\item Link failures: scenarios with a \code{failure} spec driving the injector.
+\item Congestion: emerges from offered load; it is not a context.
+\end{itemize}
+\honest{Holidays and power failures exist only in the RSNSD generator's 19 scenarios, not in the live CARS-SF context
+registry.}
+\end{qa}
+
+\begin{qa}{169}{Why is a scenario registry better than hard-coded conditions spread through the code?}
+\why{One definition of priorities and demand per context for the allocator, the traffic, the RL environment and the
+analysis.}
+\choice{\code{scenarios.yaml}, read everywhere.}
+\alt{\code{if context == ...} branches (the original \code{DemandGenerator} did this, and it diverged:
+\code{medical_emergency} silently fell back to the defaults).}
+\trade{Consistency and a new context added by editing data; the cost is no schema validation of the YAML (Q126).}
+\ev{The bug that motivated this was found in the verification audit.}{\Lthree}
+\end{qa}
+
+\begin{qa}{170}{What are the context engine's inputs and outputs?}
+In: tick, timeline events (alerts, clear, admin), clock start and minutes per tick.
+Out: \code{\{tick, clock, context, reason, alerts, changed\}} per tick, plus history.
+\end{qa}
+
+\begin{qa}{171}{Does context describe the environment, the application's urgency, the network's condition, or all three?}
+The environment and the \emph{societal} urgency it implies (school is in session, a flood is happening). Application
+urgency is in the per-app SLAs; network condition is in telemetry. Keeping them separate prevents a congested link
+from being read as ``an emergency''.
+\end{qa}
+
+\begin{qa}{172}{How do you distinguish a change in demand from a change in capacity?}
+Demand is measured where traffic is still unshaped: access-port rx counters, and HTB sent+dropped. Capacity changes
+are healing states (backup at 50\,Mb/s, core down) that enter as constraints. The predictor adds a discriminator:
+rising RTT \emph{with} local queue growth or drops is congestion (demand); rising RTT \emph{without} it is the
+backhaul (capacity or quality).
+\end{qa}
+
+\begin{qa}{173}{How does the system prevent two context sources from issuing conflicting priorities?}
+A strict precedence produces exactly one context: admin override $>$ alerts (medical $>$ disaster $>$ fiber cut) $>$
+fixed scenario $>$ school hours $>$ harvest $>$ normal (\code{ContextInferenceEngine.infer}; unit-tested).
+\end{qa}
+
+\begin{qa}{174}{How are simultaneous events combined?}
+They are not blended. Precedence picks one context.
+\honest{Flood plus school hours yields disaster weights, with no ``school during a flood'' mix. Blending (e.g.\ a max or
+weighted combination of weight vectors) is possible future work.}
+\end{qa}
+
+\begin{qa}{175}{What happens if an emergency begins while the network is already congested?}
+The context switch triggers an immediate re-plan with emergency weights and the emergency's design demand as the
+prior, because the estimator restarts with warm-up. The floors still hold. Congestion boosts from the healer multiply
+on top. In the timeline runs, disaster begins mid-run under load.
+\end{qa}
+
+\begin{qa}{176}{What happens if an emergency ends while the system is still recovering from a link failure?}
+Context and healing are independent state machines. The controller re-plans for the new context, and the healing
+constraints (backup ceiling) still apply until fail-back.
+\honest{This exact overlap is not in the test matrix: the timelines do not inject faults.}
+\end{qa}
+
+\begin{qa}{177}{How do you model event duration and transitions?}
+Timeline events carry a raise tick and a clear tick (flood from tick 12 to tick 24). The calendar produces
+deterministic transitions. The RL environment uses Markov switching ($p_{stay}=0.92$).
+\end{qa}
+
+\begin{qa}{178}{How do you avoid abrupt policy oscillations when context changes rapidly?}
+\begin{itemize}
+\item Contexts change only on events or calendar boundaries.
+\item The controller applies a change only if a slice moves by at least 1\,Mb/s.
+\item Healing boosts have a cooldown.
+\end{itemize}
+\honest{There is no dwell-time hysteresis on context itself. A flapping alert feed would flap priorities; a minimum
+context dwell time is a one-line extension.}
+\end{qa}
+
+\begin{qa}{179}{Is context categorical, numerical, probabilistic, or a combination?}
+Categorical: one id, one-hot in the RL observation. The calendar inputs are numerical, but inference is rule-based and
+deterministic, with no probabilities.
+\end{qa}
+
+\begin{qa}{180}{How are unknown or unsupported context values handled?}
+An unknown \emph{alert} maps to disaster (the conservative default). An unknown context id raises in
+\code{get_context}, and the orchestrator's demand lookup falls back to normal. An unknown timeline raises before the
+run.
+\end{qa}
+
+\begin{qa}{181}{How would noisy or incorrect context affect the allocation decision?}
+Wrong weights shift shares between slices, but demand-capping limits the waste: a slice given a high weight but low
+demand gets only its demand, and the surplus is redistributed. The floors bound starvation. The \code{no_context}
+ablation (always ``normal'' weights) changed school utility from \NAblSchoolFullUtil{} to \NAblSchoolNoContextUtil{}, i.e.\ no
+measurable damage. In this setting even fully wrong context is harmless; equally, correct context is not what drives
+outcomes.
+\end{qa}
+
+\begin{qa}{182}{How do you validate that a simulated context produces the intended downstream behaviour?}
+The integration test \code{test_timeline_switches_context_and_traffic} asserts that school and disaster occur and that
+the controller re-planned with reason ``context''. The timeline study's \code{feedback.csv} shows per-tick context,
+allocation and throughput (Fig.~\code{timeline_throughput}).
+\end{qa}
+
+\begin{qa}{183}{How would real context enter the system?}
+\begin{itemize}
+\item Operator UI (admin override).
+\item Alert feeds such as the Common Alerting Protocol from civil protection.
+\item School timetables and agricultural calendars from local institutions.
+\item Application metadata (a telemedicine session start) as an alert-like event.
+\end{itemize}
+The engine already exposes \code{raise_alert}, \code{clear_alert} and \code{set_admin_override}.
+\end{qa}
+
+\begin{qa}{184}{What are the security and trust implications of externally supplied context?}
+A spoofed ``disaster'' alert could deprioritise everything except healthcare. Mitigations:
+\begin{itemize}
+\item authenticated or signed feeds;
+\item allow-listed sources;
+\item rate limits and minimum dwell time;
+\item audit logs (the history is kept);
+\item a bounded blast radius, because the floors still hold.
+\end{itemize}
+\honest{None of the authentication is implemented.}
+\end{qa}
+
+\section{Traffic and workload modelling}
+
+\begin{qa}{185}{Why generate application-specific traffic instead of one generic source?}
+\why{Slicing and classification are only meaningful if services differ in burstiness, direction, rate and transport
+the way real applications do.}
+\choice{Seven models (VBR video, VoIP, IoT periodic, Pareto on/off, paced bulk TCP, web request/response, DASH) across
+16 applications (\code{traffic/models.py}, \code{traffic/generator.py}).}
+\alt{iperf3 CBR (the original code), or trace replay.}
+\trade{Realistic mixes and ground-truth labels; the cost is that the parameters are assumed (Q188).}
+\ev{Unit tests check rate conformance and I-frame bursts.}{\Ltwo}
+\end{qa}
+
+\begin{qa}{186}{Which generators are used per domain?}
+\begin{itemize}
+\item \textbf{Healthcare}: telemedicine VBR video (up, 4\,Mb/s), ECG periodic (50\,pkt/s, 200\,B), emergency voice
+(VoIP talkspurts), ambulance on/off (1.5\,Mb/s).
+\item \textbf{Education}: live classroom VBR video (down, 20), library bulk TCP (down, 40), exam web (3), LMS web (8).
+\item \textbf{Agriculture}: soil (every 2\,s), weather (every 5\,s), drone video (up, 8), irrigation on/off (0.2).
+\item \textbf{General}: web (4), DASH streaming (15), social (3), banking (0.5).
+\end{itemize}
+All rates are nominal and are scaled to each context's demand.
+\end{qa}
+
+\begin{qa}{187}{How are packet sizes, inter-arrivals, durations, protocols and offered loads determined?}
+Per-model parameters in \code{applications.yaml}:
+\begin{itemize}
+\item video: fps, GOP, I/P ratio 4, lognormal coefficient of variation 0.25;
+\item VoIP: 172\,B at 50\,pkt/s, talkspurt exponential means 1.0/1.35\,s;
+\item IoT: period and size with $\pm$jitter;
+\item on/off: Pareto shape 1.5;
+\item web: Pareto response sizes, shape 1.3.
+\end{itemize}
+Offered load: each service's nominal rates are scaled so they sum to the context demand, then split across UEs.
+Durations last for the run.
+\end{qa}
+
+\begin{qa}{188}{Which parameters are from published evidence, which are measured, and which are assumptions?}
+\begin{itemize}
+\item Standard-derived: G.711-style voice framing (50\,pkt/s, 160\,B payload); typical video frame rates and GOP structure.
+\item Classic models from the literature: Pareto on/off for self-similar traffic\textsuperscript{†}; heavy-tailed web sizes.
+\item Measured: nothing from real rural networks.
+\item Assumptions: all rates and the per-context demands.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{189}{How do you model bursty traffic?}
+Pareto on/off (heavy-tailed bursts at an elevated rate so the mean is preserved), VBR video I-frames sent as 1\,ms
+bursts, and web responses with Pareto sizes.
+\end{qa}
+
+\begin{qa}{190}{How do you model periodic telemetry?}
+\code{iot_periodic}: fixed size every \code{period}$\times(1\pm\text{jitter})$. Demand scaling adds
+\emph{devices} (instances), not rate.
+\end{qa}
+
+\begin{qa}{191}{How do you model sustained video or classroom traffic?}
+GOP-structured VBR. The I-frame is 4$\times$ a P-frame, frame sizes are lognormal, and each frame is split into
+$\le$1200\,B packets in a 1\,ms burst at 25--30\,fps. DASH streaming is TCP chunk downloads every 2\,s.
+\end{qa}
+
+\begin{qa}{192}{How do you model emergency voice or medical streams?}
+Voice: 50\,pkt/s during exponential talkspurts. ECG: periodic 200\,B every 20\,ms. Telemedicine: VBR video uplink.
+\end{qa}
+
+\begin{qa}{193}{How do you represent a sudden increase in demand?}
+A context switch re-spawns generators with the new demand scaling (timelines), and the load sweep (0.5--1.5$\times$).
+Within a context, bursts come from the models themselves.
+\end{qa}
+
+\begin{qa}{194}{How do you model correlated bursts across several services?}
+Only through context switches, where all services change together.
+\honest{There is no explicit cross-service burst correlation (a copula or shared modulating process). Independent
+seeds make bursts independent, which probably flatters statistical multiplexing.}
+\end{qa}
+
+\begin{qa}{195}{How do you ensure generated workloads are reproducible?}
+Every generator gets a deterministic seed (\code{seed·100003 + app·101 + ue}), the schedules are pure functions of
+it, and a test confirms identical schedules for identical seeds. Realised packet timing still varies with OS
+scheduling.
+\end{qa}
+
+\begin{qa}{196}{How are random seeds managed across multiple generators?}
+The run seed comes from the matrix. Per-application, per-UE seeds are derived from it; instances add $7919\cdot i$.
+A context switch increments the run seed so new traffic is not a replay.
+\end{qa}
+
+\begin{qa}{197}{How do you validate that a generator produces the distribution it claims?}
+\code{tests/test_traffic_models.py} checks the long-run rate against the nominal over 120\,s (CBR 2\%, video 8\%,
+IoT 5\%, on/off and VoIP 35\% because of heavy tails), I-frame bursts above 3$\times$ the median frame, ordering and
+bounds. At run time, the dataset shows delivered rates per application.
+\end{qa}
+
+\begin{qa}{198}{How do you avoid unrealistic traffic that makes classification artificially easy?}
+\begin{itemize}
+\item Ports, DSCP, TTL and timestamps are excluded from features.
+\item Evaluation holds out runs and UEs.
+\item Traffic is multi-model within each service.
+\end{itemize}
+\honest{The four services' model mixes are still ours. The F1 of \NSnRfFone{} measures separability of
+\emph{our} generators, not of real services. Real-trace validation is needed.}
+\end{qa}
+
+\begin{qa}{199}{How do you distinguish offered load from delivered throughput?}
+Offered: the generator schedule, the access-port rx and HTB sent+dropped. Delivered: bytes received at the
+destination endpoint (matched packets). The gap is loss.
+\end{qa}
+
+\begin{qa}{200}{How do you tell whether the bottleneck is the sender, receiver, virtual link, queue or path?}
+\begin{itemize}
+\item Delay floors equal configured propagation exactly (\NFloorEdge/\NFloorCore\,ms), so excess delay is queueing.
+\item HTB class backlog and drops locate the queue.
+\item Generator CPU (\NGenCpuAfter\% per 40\,Mb/s) rules out the sender.
+\item In the 5G case, comparing UPF-shaped and unshaped modes exposed UERANSIM's user-space GTP as a bottleneck
+(Q598f).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{201}{Why not replay real packet traces?}
+No rural service traces with service labels exist that we can access. Replay also cannot react to slicing (TCP
+replays do not back off), and labels and privacy are hard. Synthetic, closed-loop generators react to the network.
+\end{qa}
+
+\begin{qa}{202}{Benefits and drawbacks of synthetic workloads vs real traces?}
+Benefits: control, ground-truth labels, reproducibility, scaling to any context, closed-loop TCP behaviour.
+Drawbacks: realism is unproven, unknown unknowns are missing, and classification may be optimistic.
+\end{qa}
+
+\begin{qa}{203}{How do you avoid training and evaluating on effectively identical generated flows?}
+By group hold-out: test windows come from runs and UEs never seen in training (\NSnGroups{} groups). Seeds differ
+across runs.
+\honest{The same \emph{generator family} appears in train and test. Generalisation to new applications is untested.}
+\end{qa}
+
+\begin{qa}{204}{How would you test generalisation to a previously unseen application?}
+Leave-one-application-out: train without, e.g., \code{general.social_media}, test on it, and measure whether it
+maps to the right service. Expect degradation. Add an ``unknown'' rejection threshold (Q396).
+\end{qa}
+
+\begin{qa}{205}{What happens if a traffic generator fails midway?}
+Its log (\code{generated/logs/<run>/app@host.log}) records the error, and the flow disappears from later windows.
+The validator's class-coverage score drops if a whole service vanishes. Nothing restarts it.
+\honest{An integration assertion on per-app record counts would catch this; it is only implicit today.}
+\end{qa}

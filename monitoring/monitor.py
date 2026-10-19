@@ -88,3 +88,81 @@ class Monitor:
             vtype = v.get("type", "unknown")
             counts[vtype] = counts.get(vtype, 0) + 1
         return counts
+
+
+class SliceMonitor:
+    """Online per-slice SLA monitoring against ``registries/slices.yaml``.
+
+    Per tick and slice: one-way latency (probe RTT / 2), loss (HTB drops per
+    packet offered to the slice's classes, both directions) and demand
+    satisfaction (delivered / offered-by-design throughput).
+    """
+
+    def __init__(self):
+        from core.config import load_yaml
+
+        self.slices = load_yaml("slices.yaml")["service_slices"]
+        self.records: list[dict[str, Any]] = []
+        self._prev_class: dict[str, tuple[int, int]] = {}
+
+    def _loss_pct(self, snapshot: dict[str, Any], service: str) -> float | None:
+        sent = drops = 0
+        found = False
+        for key in ("tc_class_stats", "tc_downlink_class_stats"):
+            stats = (snapshot.get(key) or {}).get(service)
+            if stats:
+                found = True
+                sent += stats["sent_packets"]
+                drops += stats["dropped"]
+        if not found:
+            return None
+        prev_sent, prev_drops = self._prev_class.get(service, (sent, drops))
+        self._prev_class[service] = (sent, drops)
+        d_sent, d_drops = sent - prev_sent, drops - prev_drops
+        attempted = d_sent + d_drops
+        return round(d_drops / attempted * 100, 3) if attempted > 0 else 0.0
+
+    def check(self, snapshot: dict[str, Any], demands: dict[str, float]) -> list[dict[str, Any]]:
+        rtts = snapshot.get("service_rtt_ms") or {}
+        up = snapshot.get("service_throughput_mbps") or {}
+        down = snapshot.get("service_downlink_mbps") or {}
+        violations = []
+        for service, cfg in self.slices.items():
+            sla = cfg["sla"]
+            rtt = rtts.get(service)
+            latency = rtt / 2 if rtt is not None else None
+            loss = self._loss_pct(snapshot, service)
+            delivered = up.get(service, 0.0) + down.get(service, 0.0)
+            demand = demands.get(service, 0.0)
+            satisfaction = min(1.0, delivered / demand) if demand > 0 else 1.0
+            record = {
+                "tick": snapshot.get("tick", 0),
+                "service_class": service,
+                "latency_ms": latency,
+                "loss_pct": loss,
+                "satisfaction": round(satisfaction, 4),
+                "latency_ok": latency is not None and latency <= sla["latency_ms"],
+                "loss_ok": loss is None or loss <= sla["loss_pct"],
+                "satisfaction_ok": satisfaction >= sla["min_satisfaction"],
+            }
+            record["sla_ok"] = record["latency_ok"] and record["loss_ok"] and record["satisfaction_ok"]
+            self.records.append(record)
+            if not record["sla_ok"]:
+                violations.append(record)
+        return violations
+
+    def summary(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for service in self.slices:
+            rows = [r for r in self.records if r["service_class"] == service]
+            if not rows:
+                continue
+            lat = [r["latency_ms"] for r in rows if r["latency_ms"] is not None]
+            out[service] = {
+                "sla_compliance": round(sum(r["sla_ok"] for r in rows) / len(rows), 4),
+                "latency_compliance": round(sum(r["latency_ok"] for r in rows) / len(rows), 4),
+                "loss_compliance": round(sum(r["loss_ok"] for r in rows) / len(rows), 4),
+                "mean_satisfaction": round(sum(r["satisfaction"] for r in rows) / len(rows), 4),
+                "mean_probe_latency_ms": round(sum(lat) / len(lat), 2) if lat else None,
+            }
+        return out

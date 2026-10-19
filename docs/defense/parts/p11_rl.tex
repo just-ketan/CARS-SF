@@ -1,0 +1,217 @@
+\part{Reinforcement learning and intelligent scheduling}
+
+\begin{warnbox}{The RL result in one sentence}
+Learned priority policies (CEM and PPO) were trained, integrated into the live loop, and evaluated against the
+rule-based demand-aware policy. \textbf{On the network they give no significant gain}: in emulation, PPO vs proposed
+$\Delta U=\NPpoDelta$ ($p=\NPpoP$). In the calibrated simulator, reward per step is \NSeqRuleReward{} (rule) vs
+\NSeqCemReward{} (CEM) vs \NSeqPpoReward{} (PPO). That gain is statistically significant on paired test seeds but
+tiny (+0.5\,\% and +0.3\,\%), and comes with slightly more SLA violations per episode
+(\NSeqRuleViol{} vs \NSeqCemViol{} vs \NSeqPpoViol). Every live decision is logged as an RL transition, and an online-CEM
+variant learns from verified live transitions, but it shows no measurable trend over 10 runs. Present RL as an
+evaluated alternative with a negative live result, not as a contribution.
+\end{warnbox}
+
+\section{Does the RL component solve a real problem?}
+
+\begin{qa}{541}{What specific decision is the RL scheduler meant to learn?}
+Per-context (CEM) or per-state (PPO) multipliers $m_s\in[0.1,10]$ on the four slices' priority weights. The allocator
+then computes rates. RL never sets rates directly.
+\end{qa}
+
+\begin{qa}{542}{Why is reinforcement learning appropriate for this decision?}
+The allocator maximises weighted max-min fairness, not the evaluation objective $U$, and allocations have delayed
+effects (backlog, TCP adaptation, outages). RL can in principle optimise $U$ end to end over those dynamics.
+Whether it \emph{helps} is an empirical question, and our answer is no.
+\end{qa}
+
+\begin{qa}{543}{Why not a deterministic optimiser or a well-designed heuristic?}
+That is the baseline we use, and it wins (ties). For a single link with known demands, a convex program for $U$ would
+be the principled alternative to RL. Its gain would likely be equally small, because HTB borrowing redistributes
+unused capacity in the data plane anyway.
+\end{qa}
+
+\begin{qa}{544}{What does the RL agent observe?}
+PPO (21 dimensions): context one-hot (8), demand/$C$ (4), normalised backlog (4), current allocation/$C$ (4), and an
+on-backup flag. Live, the same vector is built from the controller state and HTB backlog (\code{observation_from_live}).
+CEM observes only the context.
+\end{qa}
+
+\begin{qa}{545}{What actions can it take?}
+A continuous $a\in[-1,1]^4$, mapped to multipliers $10^{a_s}$.
+\end{qa}
+
+\begin{qa}{546}{What is the reward function?}
+Per step: $r=100\sum_s \tilde w_s\,\text{sat}_s-10\cdot\#\{s:\text{delay}_s>\text{SLA}_s\}-0.5\cdot\overline{\text{loss}\%}$,
+where $\tilde w$ are the \emph{context's} normalised weights (not the agent-scaled ones, which would let it inflate its
+own reward), and sat $=\min(1,\text{served}/\text{demand})$.
+\end{qa}
+
+\begin{qa}{547}{How does the reward balance SLA compliance, throughput, fairness and reconfiguration cost?}
+Throughput through satisfaction; SLA through the violation penalty; loss through a penalty.
+\honest{There is no fairness term and no reconfiguration cost. Fairness is evaluated (Jain) but not rewarded.}
+\end{qa}
+
+\begin{qa}{548}{How do you prevent the agent maximising one metric while harming critical services?}
+With a safety layer outside the policy:
+\begin{itemize}
+\item multipliers are clipped;
+\item floors are allocated before the policy's shares;
+\item healing constraints apply after;
+\item reward weights are the context's, not the agent's.
+\end{itemize}
+The policy can reshuffle surplus but cannot remove guarantees.
+\end{qa}
+
+\begin{qa}{549}{What is the environment the agent interacts with?}
+\code{scheduler/env_seq.py}, a Gymnasium environment:
+\begin{itemize}
+\item a 5\,s step and 120-step episodes;
+\item Markov context switches ($p_{stay}=0.92$);
+\item AR(1) demand noise ($\phi=0.7$, $\sigma=0.15$);
+\item random backhaul outages ($p=0.02$, 10 steps, core capacity halved);
+\item work-conserving service with priority borrowing, backlog carry-over and fq\_codel-like 0.1\,s buffering;
+\item the live allocator and constraint logic.
+\end{itemize}
+It is calibrated from 19 emulated runs (propagation floors 8/28\,ms, efficiency 1.0).
+\end{qa}
+
+\begin{qa}{550}{How is a state transition generated?}
+\begin{enumerate}
+\item Allocate (policy $\rightarrow$ priorities $\rightarrow$ allocator $\rightarrow$ constraints).
+\item Serve: arrivals are demand times $\Delta t$ plus backlog; serve up to the allocation, lend the spare by priority.
+\item Update backlog and overflow loss.
+\item Advance context, demand noise and outage state.
+\end{enumerate}
+\end{qa}
+
+\begin{qa}{551}{How are delayed rewards handled?}
+Backlog carries consequences across steps; PPO uses $\gamma=0.95$ (about 20 steps, roughly 100\,s, of horizon) and
+GAE advantages.
+\end{qa}
+
+\begin{qa}{552}{How do you handle a non-stationary environment?}
+Non-stationarity (context switches, outages) is \emph{inside} the training distribution, and the observation exposes
+context and backup state, so the policy can condition on it.
+\honest{There is no online adaptation. A distribution shift beyond training (new contexts) is unhandled.}
+\end{qa}
+
+\begin{qa}{553}{Which baselines are needed to show that RL adds value?}
+The rule-based demand-aware policy (identical pipeline, multipliers of 1) is the decisive one. Static, proportional and
+3GPP baselines are also in the main study.
+\end{qa}
+
+\begin{qa}{554}{How do you evaluate an RL policy on scenarios it did not see in training?}
+Simulator evaluation uses held-out seeds (\code{evaluate_policy}, seed 1000+). The live evaluation is in emulation,
+which the simulator only approximates: a sim-to-emulation transfer test.
+\honest{All contexts were seen in training. No unseen-context test.}
+\end{qa}
+
+\begin{qa}{555}{How do you prevent the agent exploiting simulator artefacts?}
+Base-weight reward, the safety layer, calibration from emulation, and, decisively, evaluation in emulation (Mininet),
+not just the simulator. The emulation shows no gain, consistent with no exploited artefact carrying over.
+\end{qa}
+
+\section{Training, safety and integration}
+
+\begin{qa}{556}{Which algorithm: Q-learning, PPO, DQN, contextual bandits or something else?}
+Two:
+\begin{itemize}
+\item the Cross-Entropy Method as a \emph{contextual bandit} (the original environment's actions do not affect
+transitions, so this framing is exact);
+\item PPO (stable-baselines3) on the sequential environment.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{557}{Why are those algorithms appropriate for the state and action spaces?}
+Continuous low-dimensional actions with stochastic dynamics. PPO is a robust default for continuous control; CEM is a
+strong derivative-free optimiser when the problem is a bandit. DQN would need a discretised action space.
+\end{qa}
+
+\begin{qa}{558}{Is the action space discrete or continuous?}
+Continuous, 4-dimensional and bounded.
+\end{qa}
+
+\begin{qa}{559}{How is exploration controlled?}
+PPO: a Gaussian policy with entropy bonus 0.005. CEM: the sampling distribution's standard deviation, refitted to the
+elite 20\% each iteration (with a floor of 0.05).
+\end{qa}
+
+\begin{qa}{560}{What is the training sample complexity?}
+PPO: 500k environment steps (8 parallel environments), minutes on CPU. CEM: 50 iterations $\times$ 32 samples per
+context.
+\end{qa}
+
+\begin{qa}{561}{How do you know training has converged?}
+\honest{Only through final-policy evaluation. Learning curves were not logged (SB3 verbose off). Add
+TensorBoard or CSV logging and show the reward plateau over timesteps.}
+\end{qa}
+
+\begin{qa}{562}{How is the reward computed and logged?}
+Environment: per step, reported per episode by \code{evaluate_policy} (mean, std, violations, satisfaction) in
+\code{results/rl_training.json}. Live runs: per tick in \code{feedback.csv} (same reward definition, measured inputs).
+\end{qa}
+
+\begin{qa}{563}{Is the agent actually learning from reward, or fitting outcomes of random actions?}
+\textbf{Today it learns from reward}: CEM keeps the elite by reward; PPO maximises advantage-weighted likelihood.
+\textbf{The original implementation did not.} It fitted a regressor to \emph{uniformly random} actions and ignored
+reward entirely, which is behaviour cloning of noise. This was found in the verification audit and replaced. Say this
+openly: it shows the audit worked.
+\end{qa}
+
+\begin{qa}{564}{How do you distinguish a learned policy from a predictive model or regression heuristic?}
+A learned policy improves its \emph{return} through interaction (CEM's elite reward rises over iterations; PPO's
+episode reward against random and against rule). A regression heuristic predicts something without optimising
+return. The old code was the second kind.
+\end{qa}
+
+\begin{qa}{565}{Is the trained agent wired into the live allocation or recovery loop?}
+Allocation: yes. \code{rl_cem} and \code{rl_ppo} schedulers plug policies into the Priority Engine; they ran 25 main-study
+runs each in emulation (L3). Recovery: no.
+\end{qa}
+
+\begin{qa}{566}{If it were not wired in, what would the RL implementation contribute?}
+It is wired in. Its contribution is a negative empirical result plus a safe integration pattern (policy $\rightarrow$
+priority multipliers $\rightarrow$ allocator with floors and constraints), and a calibrated environment for future
+policies.
+\end{qa}
+
+\begin{qa}{567}{How would you integrate it without letting unverified actions modify the network?}
+That is the current pattern: the policy can only rescale weights; floors and constraints still apply; outputs are
+clipped; a missing model falls back to the rule (recorded). For more autonomy: shadow mode first, then an action
+budget.
+\end{qa}
+
+\begin{qa}{568}{Offline training, online learning, or both?}
+Offline in the calibrated simulator, with calibration from emulation feedback. Online learning in a critical network
+would need safe exploration and is not done.
+\end{qa}
+
+\begin{qa}{569}{How do you constrain the action space to preserve minimum QoS guarantees?}
+Bounded multipliers; the floors and constraints sit \emph{outside} the policy, so no action can violate them.
+\end{qa}
+
+\begin{qa}{570}{How would you compare RL with static priority, greedy allocation and the recovery planner?}
+Done for allocation in the main study (7 schedulers, 25 paired runs each, Wilcoxon). Not done for recovery (RL does
+not act on recovery).
+\end{qa}
+
+\begin{qa}{571}{How do you handle the absence of GPU infrastructure without unsupported claims about training requirements?}
+Everything was trained on CPU: PPO (500k steps) in minutes, SliceNet-CNN (\NCnnParams{} parameters) in under a minute.
+We claim nothing that needs a GPU.
+\end{qa}
+
+\begin{qa}{572}{Which experiments can run on CPU, and which genuinely need acceleration?}
+All of ours run on CPU. Accelerators would matter for much larger models (Transformers over raw packet sequences),
+large-scale hyper-parameter search, or simulators with thousands of parallel environments.
+\end{qa}
+
+\begin{qa}{573}{What is the safest way to introduce a learned policy into a live network?}
+Shadow mode (log the would-be actions); a constrained action space and safety layer (already present); a canary site;
+automatic rollback on SLA regression; a human-in-the-loop approval for policy updates.
+\end{qa}
+
+\begin{qa}{574}{What evidence would justify keeping RL in the final architecture rather than as future work?}
+A significant, replicated improvement in emulation (paired across seeds and contexts, CI excluding zero) on the
+critical-service metrics, without a fairness regression. We do not have it, so RL is future work, and the
+environment plus integration pattern are the reusable artefacts.
+\end{qa}

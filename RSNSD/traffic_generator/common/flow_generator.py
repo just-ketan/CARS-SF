@@ -4,7 +4,7 @@ Flow Generator
 Generates synthetic flow records from application profiles.
 """
 
-from uuid import uuid4
+from uuid import UUID
 
 from RSNSD.domain.flow import FlowRecord
 
@@ -37,7 +37,8 @@ class FlowGenerator:
 
         return FlowRecord(
 
-            flow_id=str(uuid4()),
+            # drawn from the seeded sampler so a seed reproduces the dataset exactly
+            flow_id=str(UUID(int=self.sampler.random.getrandbits(128), version=4)),
 
             application_id=profile.application_id,
 

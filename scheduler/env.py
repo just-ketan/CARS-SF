@@ -17,8 +17,11 @@ class SlicingEnv:
     """
     RL environment wrapping network state for resource allocation.
 
-    Observation: [context_one_hot(4), demands(4), allocations(4), qos_metrics(4)]
+    Observation: [context_one_hot(len(contexts)), demands(4), allocations(4), qos_metrics(4)]
     Action: priority weight adjustments (4 continuous values)
+
+    Context transitions do not depend on the action, so this is a contextual
+    bandit: the optimal policy is the best action per context.
     """
 
     def __init__(
@@ -33,7 +36,7 @@ class SlicingEnv:
         self.step_count = 0
         self.max_steps = 100
 
-        self.observation_dim = 4 + 4 + 4 + 4  # 16
+        self.observation_dim = len(self.contexts) + 4 + 4 + 4
         self.action_dim = 4
 
     @property
@@ -64,7 +67,9 @@ class SlicingEnv:
         )
 
         measured_qos = self._simulate_qos(allocation, demands)
-        reward = self.baseline.compute_reward(allocation, measured_qos, adjusted)
+        reward = self.baseline.compute_reward(
+            allocation, measured_qos, base_priorities, demands
+        )
 
         self.step_count += 1
         self.current_context_idx += 1
@@ -85,8 +90,8 @@ class SlicingEnv:
         demands: dict[str, float] | None = None,
         qos: dict[str, dict] | None = None,
     ) -> np.ndarray:
-        context_one_hot = np.zeros(4)
-        context_one_hot[self.current_context_idx % 4] = 1.0
+        context_one_hot = np.zeros(len(self.contexts))
+        context_one_hot[self.current_context_idx % len(self.contexts)] = 1.0
 
         demand_vec = np.array([
             (demands or {}).get(s, 20.0) for s in SERVICE_CLASSES
@@ -101,6 +106,18 @@ class SlicingEnv:
         ]) / 100.0
 
         return np.concatenate([context_one_hot, demand_vec, alloc_vec, qos_vec])
+
+    def evaluate(self, context_id: str, action: np.ndarray) -> float:
+        """Reward of a single action in a given context (no state change)."""
+        demands = self.baseline.demand_generator.get_demands(context_id)
+        base_priorities = self.baseline.context_engine.get_context(context_id)
+        action = np.clip(action, 0.1, 10.0)
+        adjusted = {s: float(base_priorities[s] * action[i]) for i, s in enumerate(SERVICE_CLASSES)}
+        allocation = self.baseline.allocation_engine.allocate(
+            self.total_bandwidth, adjusted, demands
+        )
+        qos = self._simulate_qos(allocation, demands)
+        return self.baseline.compute_reward(allocation, qos, base_priorities, demands)
 
     def _simulate_qos(
         self, allocation: dict[str, float], demands: dict[str, float]

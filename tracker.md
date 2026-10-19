@@ -1,100 +1,51 @@
 # Project Progress Tracker
 
-Last updated: 2026-08-07
+Status as of October 2026. Evidence for each item: [docs/thesis/results.md](docs/thesis/results.md).
 
----
+## Phase 0 — Literature review
+- [x] SliceNet paper
+- [x] Rural slicing papers
+- [ ] AI slicing papers (survey in `Literature/survey/`)
+- [ ] Self-healing literature
 
-# Phase 0 — Architectural Consolidation
+## Phase 1 — Prototype
+- [x] Python environment, Mininet, Open vSwitch, rural topology
+- [x] Context, priority, demand, allocation (surplus redistribution), QoS enforcement
+- [x] Visualisation (`experiments/plots/plot_thesis.py`)
+- [x] Evaluation metrics (`analysis/metrics.py`)
 
-- [x] Fix broken imports (demo.py, run_all_contexts.py)
-- [x] Create unified ARCHITECTURE.md, DATASET_DESIGN.md, RL_DESIGN.md
-- [x] Extract shared registries (applications.yaml, scenarios.yaml, features.yaml)
-- [x] Create core/ module with interfaces and orchestrator
-- [x] Document RSNSD v1 freeze policy in README
-- [x] Reconcile tracker with actual progress
+## Phase 2 — Network enforcement
+- [x] Single-bottleneck topology (100 Mbps rural uplink)
+- [x] Per-slice HTB + fq_codel queues on both directions (tc); OVS linux-htb backend
+- [x] Bandwidth limiting, work-conserving and strict
+- [x] Model-driven traffic generation (replaces iperf3 automation)
+- [x] Traffic capture at every endpoint; packet-matched one-way delay and loss
 
-Status: **Complete**
+## Phase 3 — Context automation
+- [x] Time-based context (clock, school hours)
+- [x] Seasonal context (harvest calendar)
+- [x] Event context (alerts, admin override, timelines)
 
----
+## Phase 4 — Self-healing
+- [x] Failure injection (fiber cut, backhaul degradation, core switch failure)
+- [x] Failure detection (link watcher, congestion, latency, reachability)
+- [x] Alternate path (standby backup backhaul, loop-free failover)
+- [x] Automatic recovery and fail-back (hold-down, OAM check)
+- [x] Predictive switchover (RTT trend forecasting)
+- [ ] Load balancing across primary and backup (needs multipath/STP; future work)
 
-# Phase 1 — Mininet Telemetry Pipeline
+## Phase 5 — AI enhancement
+- [x] SliceNet traffic classification (RF + 1D-CNN, held-out evaluation, in-loop)
+- [x] Demand prediction (Holt forecasting; ML forecasting is future work)
+- [x] Failure prediction (predictive backhaul degradation)
+- [x] RL scheduler (CEM bandit; PPO on a calibrated sequential environment)
 
-- [x] Canonical topology (topology/rural_topology.py)
-- [x] Profile-driven traffic (traffic/orchestrator.py)
-- [x] Real telemetry (telemetry/collector.py — OVS, tc, PCAP, psutil)
-- [x] PCAP feature extraction (features/extractor.py)
-- [x] Dataset builder (dataset/builder.py)
-- [x] Validation framework (validation/validator.py)
-- [x] Unified orchestrator (core/orchestrator.py)
-- [x] Entry point (run_experiment.py)
+## Phase 6 — Real 5G core
+- [x] Open5GS + UERANSIM, one slice (S-NSSAI/DNN) per service, UPF enforcement
 
-Status: **Complete**
-
----
-
-# Phase 2 — Network Enforcement (Closed Loop)
-
-- [x] HTB queue creation per service class
-- [x] Real tc bandwidth enforcement (slicing/qos_enforcer.py)
-- [x] IP-based flow classification filters
-- [x] Orchestrator QoS integration (--apply-qos flag)
-- [x] Bottleneck link on rural→edge
-
-Status: **Complete**
-
----
-
-# Phase 3 — SliceNet Classifier
-
-- [x] SliceNet architecture (classification/slicenet.py)
-- [x] Training script (classification/train.py)
-- [x] Label leakage columns excluded from ML features
-- [x] Bootstrap training on RSNSD v1 supported
-- [x] Mininet dataset retraining supported (--mininet flag)
-
-Status: **Complete**
-
----
-
-# Phase 4 — RL Scheduler
-
-- [x] Gym-compatible environment (scheduler/env.py)
-- [x] Rule-based baseline (scheduler/baseline.py)
-- [x] RL agent with policy training (scheduler/agent.py)
-- [x] Training script (scheduler/train.py)
-
-Status: **Complete**
-
----
-
-# Phase 5 — Monitoring and Self-Healing
-
-- [x] Continuous monitoring (monitoring/monitor.py)
-- [x] Failure detection (self_healing/detector.py)
-- [x] Recovery planner (self_healing/recovery.py)
-- [x] Fault injection (self_healing/injector.py)
-
-Status: **Complete**
-
----
-
-# Phase 6 — Deployment and Thesis
-
-- [x] Edge server deployment config (deployment/edge_config.yaml)
-- [x] Reproducible experiment runner (experiments/run_reproducible.py)
-- [x] Open5GS/UERANSIM documented as optional extensions
-- [ ] LaTeX report update with new experimental results
-- [ ] Full Mininet end-to-end validation run
-
-Status: **90%**
-
----
-
-# Legacy Components
-
-| Component | Status |
-|-----------|--------|
-| RSNSD/ (v1 synthetic) | Frozen — bootstrap only |
-| MininetSims/ | Deprecated — merged into core pipeline |
-| RSNSDv2/ | Deprecated — merged into core/orchestrator.py |
-| slicing/ (allocation prototype) | Preserved and integrated |
+## Thesis
+- [x] Research design (`docs/thesis/research_design.md`)
+- [x] Experimental results (`docs/thesis/results.md`, generated)
+- [ ] Methodology chapter prose
+- [ ] Paper draft
+- [ ] Real Open vSwitch confirmation run (`sudo`, see README)

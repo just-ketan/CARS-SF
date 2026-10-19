@@ -1,0 +1,546 @@
+\part{Requirements, architecture and end-to-end data flow}
+
+\section{Requirements engineering}
+
+\begin{qa}{97}{What are the functional requirements of CARS-SF?}
+\begin{enumerate}[label=F\arabic*,leftmargin=2em]
+\item Infer the operating context from clock, calendar, alerts and admin input.
+\item Map traffic to a service slice (by address, application or prediction).
+\item Estimate per-slice demand from measurements.
+\item Compute a feasible allocation with floors.
+\item Enforce it in both directions of the bottleneck.
+\item Monitor per-slice SLAs.
+\item Detect, diagnose and recover from backhaul and core faults.
+\item Fail back safely.
+\item Log every decision with its inputs.
+\item Produce measured datasets for learning.
+\end{enumerate}
+\end{qa}
+
+\begin{qa}{98}{What are its non-functional requirements?}
+\begin{enumerate}[label=N\arabic*,leftmargin=2em]
+\item Detection in under 1\,s; critical outage under 1\,s.
+\item Re-plan within one control interval (5\,s).
+\item Never form an L2 loop.
+\item Learned components cannot bypass floors.
+\item Negligible control-plane overhead.
+\item Reproducible runs (seeded, versioned).
+\item Swappable stages.
+\item Sudo-free evaluability.
+\end{enumerate}
+\end{qa}
+
+\begin{qa}{99}{Which requirements are measurable, and which are qualitative?}
+Measurable: N1 (MTTD/MTTR, outage), N2 (controller timestamps), N3 (by construction plus tests), N5 (probe and tc
+command rates), N6 (re-running a seed gives the same traffic schedule; unit test). Qualitative: N7 (demonstrated by
+three QoS backends and seven schedulers), F2--F10 (demonstrated, not scored).
+\end{qa}
+
+\begin{qa}{100}{How did you prioritise requirements?}
+By harm. Safety first (no loops, floors respected, no fail-back onto a bad link), then critical SLA, then efficiency
+(surplus), then extensibility (ML, 5G).
+\end{qa}
+
+\begin{qa}{101}{Which requirements are safety-critical?}
+N3 (a loop would cause a broadcast storm and take down the village network), N4, the floors, and safe fail-back
+(OAM-gated). All are enforced by construction and covered by unit tests (\code{tests/test_self_healing_engine.py}).
+\end{qa}
+
+\begin{qa}{102}{System requirement vs implementation detail?}
+``Critical outage under 1\,s after a backhaul cut'' is a requirement. ``50\,ms link-watcher polling with an event that
+wakes the loop'' is one implementation meeting it.
+\end{qa}
+
+\begin{qa}{103}{What is the expected monitoring interval?}
+Telemetry and SLA monitoring every 1\,s; RTT probes once per second per service, in a background thread; link state
+every 50\,ms; re-planning every 5\,s.
+\end{qa}
+
+\begin{qa}{104}{What maximum detection and recovery time is acceptable for critical services?}
+Target: detection under 1\,s and service outage under 1\,s, roughly the tolerance of interactive voice and video
+(beyond that, calls drop or freeze). Achieved: MTTD about 0\,s with the link watcher; outage \NOutCutFullMean\,s
+(Linux bridges) and \NOvsOutageAfter\,s on real OVS.
+\honest{The 1\,s budget is a design choice, not derived from a clinical standard.}
+\end{qa}
+
+\begin{qa}{105}{What availability target would you set, and how would you measure it?}
+For critical slices, 99.9\% of 1-minute intervals SLA-compliant, measured by \code{SliceMonitor} over long runs.
+\honest{Not measured: runs are 40--45\,s, so we report outage per failure event instead.}
+\end{qa}
+
+\begin{qa}{106}{How much control-plane overhead is acceptable?}
+Below 1\% of bottleneck capacity and a few percent of one CPU core. Measured costs:
+\begin{itemize}
+\item four ICMP probes per second (negligible bandwidth);
+\item 8 \code{tc class change} commands per re-plan;
+\item a controller step of about \NCtrlStepUs\,$\mu$s; a PPO re-plan of about \NPpoReplanMs\,ms.
+\end{itemize}
+Endpoint captures are \emph{evaluation} overhead, not a control-plane requirement.
+\end{qa}
+
+\begin{qa}{107}{How should the system behave when requirements conflict?}
+By a fixed precedence:
+\begin{enumerate}
+\item safety (loop-freedom, floors);
+\item healing constraints (no core slice above backup capacity);
+\item context priorities;
+\item demand and efficiency.
+\end{enumerate}
+For context, admin override beats alerts, which beat the calendar.
+\end{qa}
+
+\begin{qa}{108}{Which requirements are satisfied, partially satisfied, or unverified?}
+\begin{itemize}
+\item \textbf{Satisfied (L3):} F1--F10 except as below; N1--N4; N6; N8.
+\item \textbf{Partial:} F7 (no generic post-action verify-and-rollback); F9 (no correlation IDs across artefacts);
+N5 (not stress-tested).
+\item \textbf{Unverified:} availability over time; behaviour at scale (hundreds of nodes); behaviour under real radio.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{109}{How are requirements mapped to modules and test cases?}
+\begin{center}\scriptsize
+\begin{tabular}{@{}lll@{}}\toprule
+Req. & Module & Evidence \\\midrule
+F1 & \code{context/engine.py} & \code{test_context.py}, timeline study \\
+F3 & \code{slicing/demand_estimator.py} & \code{test_slicing.py} (probe-up, Holt) \\
+F4 & \code{slicing/allocators.py} & \code{test_slicing.py} (floors, capacity) \\
+F5 & \code{slicing/qos_enforcer.py} & \code{test_qos.py} (exact tc commands); all runs \\
+F7, F8, N3 & \code{self_healing/engine.py} & \code{test_self_healing_engine.py}; resilience study; real OVS \\
+F10 & \code{features/} & \code{test_features.py} (OWD, loss on synthetic pcaps) \\
+N1 & engine + fast path & \code{test_link_event_fast_path...}; OVS MTTR \NOvsMttrAfter\,s \\
+\bottomrule\end{tabular}\end{center}
+\end{qa}
+
+\begin{qa}{110}{What would be the acceptance criteria for declaring CARS-SF complete?}
+\begin{itemize}
+\item All unit and integration tests green.
+\item The full matrix reproducible from a clean checkout.
+\item Every hypothesis evaluated, positive or negative.
+\item Each claim in the thesis carrying a maturity level.
+\item One sudo run on real OVS for each failure type.
+\item For a deployment claim: an L4 field trial.
+\end{itemize}
+\end{qa}
+
+\section{High-level architecture}
+
+\FigArch
+
+\begin{qa}{111}{Draw the complete architecture from traffic generation to recovery verification.}
+Fig.~\ref{fig:arch}. The tick order is in Fig.~\ref{fig:tick}, and ``recovery verification'' is the state machine's
+escalation and fail-back guards (Fig.~\ref{fig:heal}).
+\end{qa}
+
+\FigTick
+
+\begin{qa}{112}{Why did you choose a modular architecture?}
+\why{Research needs to swap one mechanism at a time (allocator, policy, QoS backend) and compare.}
+\choice{Protocol-typed stages (\code{core/interfaces.py}) composed by name from \code{schedulers.yaml}.}
+\alt{A monolithic controller (faster to write, impossible to ablate cleanly), or microservices (operational overhead).}
+\trade{Ablations and baselines are config changes; the price is indirection and interfaces that are only checked by
+duck-typing.}
+\ev{Seven schedulers and three QoS backends (tc, OVS, UPF) run on the same controller.}{\Lthree}
+\end{qa}
+
+\begin{qa}{113}{Responsibilities of each module.}
+\begin{itemize}
+\item \textbf{Context}: infers the context id.
+\item \textbf{Traffic generator}: model-driven, seeded flows (apparatus).
+\item \textbf{Topology}: builds the network and owns the path primitives.
+\item \textbf{Telemetry}: per-tick deltas, class stats, probes, link events.
+\item \textbf{Features}: packet matching and windows (post-run; shape features also live).
+\item \textbf{Dataset}: builds and validates the dataset.
+\item \textbf{Classifier}: SliceNet, offline and in-loop.
+\item \textbf{Allocation}: rates.
+\item \textbf{QoS}: tc / OVS / UPF commands.
+\item \textbf{Monitor}: per-slice SLA records.
+\item \textbf{Detector}: failure and prediction events.
+\item \textbf{Planner / healer}: path actions and constraints.
+\item \textbf{Verifier}: escalation, hold-down and OAM guards inside the healer (no separate module).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{114}{Which modules are on the live decision path?}
+Context, demand estimator, priority engine (plus an optional CEM or PPO policy), allocator, QoS enforcer, telemetry,
+SLA monitor, detector, predictor and healer. The in-loop classifier is on the path only when
+\code{classification=slicenet}.
+\end{qa}
+
+\begin{qa}{115}{Which modules operate offline?}
+Packet matching, feature extraction and dataset building (after each run), the validator, SliceNet training, RL
+training and calibration, aggregation and reporting, and the RSNSD generator.
+\end{qa}
+
+\begin{qa}{116}{Which modules are experimental alternatives rather than the active production flow?}
+CEM and PPO policies, the no-surplus, proportional, static, 3GPP and no-slicing allocators, the OVS QoS backend, the
+oracle demand mode, the legacy \code{RecoveryPlanner}, and the legacy \code{MininetSims/} and \code{RSNSDv2/}
+(excluded from tests). The default (production) composition is the \texttt{proposed} scheduler with the tc backend
+and host classification.
+\end{qa}
+
+\begin{qa}{117}{What is the canonical source of truth for the architecture?}
+The code plus the registries. Prose: \code{ARCHITECTURE.md}, whose §12 maps every original architecture module to
+code with its status. \code{architecture.md} is the original vision, kept with a status banner.
+\end{qa}
+
+\begin{qa}{118}{How do you prevent the architecture document from describing capabilities that aren't integrated?}
+\begin{itemize}
+\item The status table states maturity (load balancing is marked \emph{not implemented}).
+\item Every claim in the results is generated from data (\code{report.py}, \code{defense_numbers.py}).
+\item Integration tests assert the integrated behaviours (context switching, predictive failover, fault localisation,
+in-loop classification).
+\end{itemize}
+\honest{The original document did over-claim (``QoS Enforcer: prototype''). The verification pass that started
+this work found the Mininet path had never run.}
+\end{qa}
+
+\begin{qa}{119}{Which module owns the current state of the network?}
+No single owner. Telemetry owns the observed state (snapshot per tick). The controller owns the intended allocation
+(\code{controller.allocation}). The healer owns the path state (\textsf{NORMAL} / \textsf{ON\_BACKUP} /
+\textsf{DEGRADED}). The kernel owns the actual state.
+\honest{Intended and actual state are not reconciled by reading back tc (Q139).}
+\end{qa}
+
+\begin{qa}{120}{Which module owns the service requirements and SLA definitions?}
+\code{registries/slices.yaml} (slice SLAs, floors, class ids) and \code{registries/applications.yaml} (per-application
+SLAs and models). They are read by the monitor, the extractor (SLA labels), the allocator (floors) and QoS (classes).
+\end{qa}
+
+\begin{qa}{121}{How are modules coupled?}
+\begin{itemize}
+\item Direct in-process calls inside the orchestrator loop.
+\item YAML configuration.
+\item Two threads (probe worker, link watcher) with locks, plus a \code{threading.Event} that wakes the loop.
+\item Subprocesses (generators, sinks, tcpdump).
+\item Shell commands to the network (\code{tc}, \code{ip}, \code{ovs-*}).
+\item Files for post-run artefacts.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{122}{Why is that communication mechanism appropriate?}
+One host, one experiment, millisecond control timescales: in-process calls are the simplest and fastest, and keep
+runs deterministic and debuggable. A broker would add latency and failure modes without a distribution need.
+\end{qa}
+
+\begin{qa}{123}{What happens when one module is slow, unavailable, or returns invalid data?}
+\begin{itemize}
+\item Probes run in a background thread, so a lost probe never blocks the loop; it reports \texttt{None}.
+\item Telemetry readers catch errors and return empty or zero values.
+\item Ticks are wall-clock aligned, so a late tick does not shift later ones.
+\item A missing RL model falls back to rule-based, and this is recorded (\code{policy_fallback_to_rule}).
+\item A missing SliceNet model disables in-loop classification.
+\end{itemize}
+\honest{tc command failures are not detected (exit codes are not checked), and missing telemetry can look like zero
+traffic (Q279).}
+\end{qa}
+
+\begin{qa}{124}{Which interfaces have explicit input and output schemas?}
+The stage protocols in \code{core/interfaces.py} (types only). The dataset schema (\code{SCHEMA_COLUMNS} and
+\code{registries/features.yaml}, validated by \code{DatasetValidator}). The scheduler registry is validated by name.
+\honest{The telemetry snapshot is a convention-based dict and the YAML registries have no JSON-schema validation.}
+\end{qa}
+
+\begin{qa}{125}{How are units, timestamps, identifiers and missing values represented?}
+\begin{itemize}
+\item Units are in the names (\code{_mbps}, \code{_ms}, \code{_pct}, \code{_bytes}).
+\item Timestamps are Unix epoch seconds (float) from one host clock.
+\item Identifiers: \code{run_id}, \code{application_id}, \code{ue_host}, \code{flow_id}, \code{window_index}.
+\item Missing values: \texttt{None} in telemetry (a lost probe), \texttt{NaN} in datasets (no delivered packets).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{126}{How are configurations validated before execution?}
+Scheduler names are checked against the registry; CLI options are restricted by argparse \code{choices}; scenario
+and timeline ids raise on unknown values; the allocator and QoS raise on unknown classes.
+\honest{Value ranges in YAML (negative demand, floors above capacity) are not validated up front.}
+\end{qa}
+
+\begin{qa}{127}{How do you prevent inconsistent definitions of service priority across modules?}
+One source: \code{scenarios.yaml} priority weights, read by \code{slicing/context_engine.py}, which overlays the
+registry on its legacy table. HTB prio and class ids come from \code{slices.yaml}.
+\honest{\code{SERVICE_CLASS_IDS} is duplicated in the QoS enforcer and the telemetry collector, with the same values;
+it should be read from \code{slices.yaml}.}
+\end{qa}
+
+\begin{qa}{128}{How are configuration versions recorded with experiment results?}
+\code{run_meta.json} stores all parameters plus the git commit, and \code{summary.json} stores the scheduler spec and
+all options.
+\honest{Uncommitted registry edits are not captured by the hash. The matrix was always run from committed code.}
+\end{qa}
+
+\begin{qa}{129}{What are the major architectural failure points?}
+\begin{itemize}
+\item The single orchestrator process (no high availability).
+\item Host CPU contention distorting timing (observed and fixed).
+\item Silent tc failures.
+\item Telemetry stalls that look like zero traffic.
+\item The link watcher depending on carrier propagation (which differs between OVS and Linux bridges).
+\item Disk for captures (about 100\,MB per run).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{130}{What would you redesign first to support hundreds of nodes?}
+\begin{itemize}
+\item Split into per-site agents (local enforcement plus fail-safe defaults) and a regional controller.
+\item Replace the polling of \code{/sys} and \code{tc} with streaming telemetry (sFlow, IPFIX, gNMI).
+\item Keep state in a store with leases.
+\item Use OpenFlow or P4 path control instead of admin-state toggling.
+\item Make allocation a per-link optimisation.
+\end{itemize}
+\end{qa}
+
+\section{End-to-end execution}
+
+\begin{qa}{131}{Walk one application flow from creation to final QoS enforcement.}
+\begin{enumerate}
+\item The \code{TrafficOrchestrator} plans the telemedicine app on \code{h_health} with demand-scaled parameters and a
+fixed seed.
+\item Before traffic starts, the QoS setup installs HTB classes and a host filter \code{src 10.0.1.10 → 1:10} on
+\code{s_rural-up} (and \code{dst} on \code{s_edge-down}).
+\item The generator sends VBR UDP; the packets hit the u32 filter and the fq\_codel leaf of class 1:10 at the current
+rate and ceiling.
+\item Telemetry counts bytes; the controller re-plans every 5\,s and issues \code{tc class change}.
+\item After the run, captures on \code{h_health} and \code{srv_edge} are matched, giving one-way delay and loss per
+5\,s window, labelled \code{healthcare.telemedicine}.
+\end{enumerate}
+\end{qa}
+
+\begin{qa}{132}{Walk through a medical-emergency scenario from context change to verified recovery.}
+Timeline \code{medical_night}: tick 6 raises \code{medical_emergency}.
+\begin{enumerate}
+\item The context engine returns the new context with \code{changed=True}.
+\item The traffic orchestrator re-spawns generators with the emergency demand (healthcare 95\,Mb/s).
+\item The controller re-plans immediately (reason: context change) with weights 15/1/1/1 from the prior demand,
+because the estimator restarts with a warm-up.
+\item The QoS classes change.
+\item The SLA monitor records the healthcare slice every tick; latency spikes trigger $\times$2 boosts for 6 ticks.
+\end{enumerate}
+\honest{``Verified recovery'' here means the SLA monitor shows compliance afterwards. There is no explicit ``SLA
+restored'' event that ends the episode.}
+\end{qa}
+
+\begin{qa}{133}{Which component first observes the emergency?}
+The context engine, through an alert event in the timeline (in production: an alert feed or operator). The network
+does not ``observe'' an emergency; it observes its consequences (demand, RTT).
+\end{qa}
+
+\begin{qa}{134}{How does the emergency change service priorities?}
+The priority matrix switches to the context's weights (healthcare 15 vs 1), and the allocator gives healthcare its
+weighted share up to demand. The floors stay unchanged.
+\end{qa}
+
+\begin{qa}{135}{How is traffic associated with a service class?}
+\begin{itemize}
+\item \textbf{host} (default): UE address $\to$ service.
+\item \textbf{app}: registry server and port (oracle; also used for 3GPP slice types).
+\item \textbf{slicenet}: per-flow prediction for unknown or mixed UEs.
+\end{itemize}
+The dataset labels come from spawn metadata (ground truth).
+\end{qa}
+
+\begin{qa}{136}{How does that classification reach the allocation engine?}
+It doesn't need to. Classification decides \emph{which HTB class} packets enter; the allocator decides \emph{each
+class's rate}. They meet in the kernel. Demand per class is measured per class.
+\end{qa}
+
+\begin{qa}{137}{How does the allocation engine's decision become network configuration?}
+\code{SliceController.step} $\rightarrow$ \code{QoSEnforcer.apply_allocation}, which issues
+\code{tc class change … rate X ceil Y} on \code{s_rural-up} and \code{s_edge-down} (ceiling = capacity, or the
+allocation for core slices while on backup). On OVS: \code{ovs-vsctl set queue …}. On the 5G UPF: the same tc commands
+via \code{docker exec}.
+\end{qa}
+
+\begin{qa}{138}{How does monitoring determine whether the configuration worked?}
+Indirectly, through outcomes: per-class throughput (counters), drops (HTB stats), probe RTT, and SLA compliance per
+slice per tick. Post-run, packet-matched KPIs per window.
+\end{qa}
+
+\begin{qa}{139}{What if the allocation decision is correct but the network configuration fails?}
+\honest{Today it goes undetected at configuration time. The controller assumes success, and only the SLA monitor would
+show the violation later.}
+Fix (small): after \code{apply_allocation}, read back \code{tc -s class show} (\code{get_queue_stats} exists),
+compare rate and ceiling, retry once, and raise a \code{config_failure} event to the healer or operator.
+\end{qa}
+
+\begin{qa}{140}{What if the configuration succeeds but the SLA remains violated?}
+The detector raises \code{latency_spike} (RTT above 200\,ms) or \code{congestion} (more than 50 drops per tick). The
+healer boosts the affected slice's priority $\times$2 for 6 ticks (with a cooldown), and the controller re-plans.
+The predictor may also flag a backhaul trend.
+\honest{There is no escalation if repeated boosts fail (Q508).}
+\end{qa}
+
+\begin{qa}{141}{How do you prevent a module from reporting success when a downstream module has failed?}
+\begin{itemize}
+\item Runs are judged on measured data-plane outcomes, never on module return codes.
+\item Integration tests assert data-plane facts (a PCAP dataset exists, the outage was measured, actions were taken).
+\item A run whose dataset falls back to telemetry is marked \code{degraded} by the matrix runner (none of the 340).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{142}{What evidence shows the complete path works, not just each component?}
+\begin{itemize}
+\item The 7 integration tests (timeline, failover, prediction, core localisation, baselines, in-loop SliceNet).
+\item 340 matrix runs, every one producing packet-matched data.
+\item Real-OVS runs in a privileged container.
+\item The 5G-core runs.
+\end{itemize}
+All are L3 in the named environment.
+\end{qa}
+
+\begin{qa}{143}{Which exact command or entry point starts the experiment?}
+\begin{itemize}
+\item Real OVS: \code{sudo .venv/bin/python run_experiment.py --scenario fiber_cut --duration 45 --apply-qos}.
+\item Sudo-free: \code{python -m tests.integration.harness fiber_cut 45 apply_qos=true}.
+\item Studies: \code{experiments/run_matrix.py}.
+\item 5G: \code{deployment/5g/run_5g.py}.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{144}{Which processes, threads, namespaces, interfaces and background services are involved?}
+\begin{itemize}
+\item The orchestrator process with a probe thread and a link-watcher thread.
+\item A Mininet shell per node.
+\item 12 network namespaces (8 UEs and 4 servers) plus the root namespace for switches.
+\item About 24 veth pairs; about 40 generator and sink processes; 12 tcpdump processes.
+\item On OVS: \code{ovsdb-server} and \code{ovs-vswitchd}.
+\end{itemize}
+The harness wraps all of this in one user+net+mount namespace.
+\end{qa}
+
+\begin{qa}{145}{What artefacts are generated after a run?}
+\code{results/runs/<run_id>/}: \code{summary.json}, \code{dataset.csv}, \code{sequences.npz}, \code{feedback.csv},
+\code{slice_monitor.csv}, \code{validation_report.txt}, \code{run_meta.json}. Also captures in
+\code{generated/pcap/<run_id>/} and generator logs in \code{generated/logs/<run_id>/}.
+\end{qa}
+
+\begin{qa}{146}{How do you trace one decision across logs, telemetry, configuration and metrics?}
+By tick and timestamp: \code{controller_history} (tick, reason, demand estimate, priorities, allocation, applied)
+$\rightarrow$ \code{feedback.csv} (per tick: allocation, throughput, RTT) $\rightarrow$ dataset windows
+(\code{window_index}, flow times) $\rightarrow$ healing actions (timestamps, trigger).
+\honest{There is no shared decision ID; correlation is by time.}
+\end{qa}
+
+\begin{qa}{147}{Data pipeline that produces a dataset vs runtime pipeline that controls a network?}
+The runtime loop acts every second on aggregate telemetry. The data pipeline reconstructs per-flow, per-window facts
+after the run from packet captures (ground-truth labels, one-way delay). The first is causal and online; the second is
+retrospective and exact.
+\end{qa}
+
+\begin{qa}{148}{Which modules are shared by both pipelines?}
+Topology, traffic models, telemetry, the registries, and \code{features/shape.py} (shape features and sequences, used
+both for training and for the in-loop classifier).
+\end{qa}
+
+\begin{qa}{149}{Where can their behaviour diverge?}
+\begin{itemize}
+\item The in-loop classifier sees one vantage point (the UE capture) and the cumulative flow history; training used
+5\,s windows from the sender side of matched packets.
+\item Rate features are normalised by the observed span (at least one window) to reduce the mismatch.
+\item Live telemetry is aggregate; dataset QoS is per flow.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{150}{How do you ensure the runtime uses the same feature definitions and taxonomy as offline training?}
+The same functions (\code{shape_features}, \code{packet_sequence}); the trained model stores its feature column order
+and normalisation; the four-class taxonomy comes from one registry. The in-loop classifier picks whichever model scored
+higher on held-out data.
+\honest{There is no automatic train/serve skew check.}
+\end{qa}
+
+\section{Architectural alternatives and trade-offs}
+
+\begin{qa}{151}{Why not implement everything in one Python process?}
+It nearly is: one orchestrator process with threads. Generators and tcpdump are separate processes because they must
+run \emph{inside} host namespaces and must not block the loop.
+\end{qa}
+
+\begin{qa}{152}{Why not use a message broker between every module?}
+\alt{Kafka or MQTT between modules.}
+\trade{It would decouple and distribute, but add milliseconds, ordering issues and a broker as a single point of
+failure, with no need on one host. It becomes justified with per-site agents (Q130).}
+\end{qa}
+
+\begin{qa}{153}{Why not use an OpenFlow SDN controller as the central component?}
+\why{The problem is shaping and scheduling at a bottleneck and path protection. OpenFlow can steer packets to queues
+but does not schedule them.}
+\choice{The kernel qdiscs do the scheduling. The topology uses \code{OVSBridge} in standalone mode (no controller);
+the OVS backend uses OpenFlow \code{set_queue}.}
+\alt{Ryu or ONOS with meters and queues. It would add path computation for multipath healing.}
+\trade{Simpler and fewer moving parts; the cost is no flow-level path control (hence no load balancing).}
+\end{qa}
+
+\begin{qa}{154}{Why not use a rule engine instead of an ML decision layer?}
+We essentially \emph{do}: the default decision layer is rule-based (context weights, floors, water-filling,
+threshold detectors). ML is used only where rules lack information (traffic identity for a mixed UE) and as an
+evaluated alternative (RL). It is not justified by results.
+\end{qa}
+
+\begin{qa}{155}{Why not use a centralised optimiser with a global view?}
+For a single link with a separable concave objective, weighted water-filling with caps is essentially what an LP or
+convex solver returns (Q432). A global optimiser pays off with multiple links and paths. The global view here is
+just one link.
+\end{qa}
+
+\begin{qa}{156}{Advantages and disadvantages of centralised, distributed and hierarchical control?}
+\begin{itemize}
+\item Centralised: simple, consistent, but a single point of failure and a partition risk.
+\item Distributed: resilient, local, but needs coordination for consistent shares.
+\item Hierarchical: local enforcement and fast failover at the site, regional policy above.
+\end{itemize}
+CARS-SF is centralised per site, and that is the right granularity for one village. Regional deployment should be
+hierarchical.
+\end{qa}
+
+\begin{qa}{157}{How would you handle a partition that isolates the controller from some switches?}
+Switches keep their last HTB configuration (the kernel retains it), so enforcement continues. Healing on the cut-off
+side stops.
+\honest{No local fail-safe agent exists today. Add one with a lease: if the controller is silent for N seconds, revert
+to the context-independent safe profile and run local failover.}
+\end{qa}
+
+\begin{qa}{158}{What should keep operating locally if the central controller is unavailable?}
+Floors and the last allocation (already persistent in the kernel); local link-failure switchover (protection
+switching should be local by design); loop-safety interlocks.
+\end{qa}
+
+\begin{qa}{159}{How would you add a new service class without modifying every module?}
+Registry entries in \code{slices.yaml}, \code{applications.yaml} and \code{scenarios.yaml} are data-driven for QoS
+classes, monitoring and traffic.
+\honest{Several modules hard-code the 4-tuple \code{SERVICE_CLASSES} (allocators, env, analysis). Generalising that
+tuple to read the registry is required.}
+\end{qa}
+
+\begin{qa}{160}{How would you add a new telemetry backend without rewriting allocation logic?}
+Implement \code{TelemetrySource} so that it returns the same snapshot keys (\code{service_throughput_mbps},
+\code{tc_class_stats}, \code{service_rtt_ms}, \code{link_events}…). Allocation consumes only those through the demand
+estimator.
+\end{qa}
+
+\begin{qa}{161}{Which abstractions are essential, and which add unnecessary complexity?}
+Essential: the allocator, policy, QoS backend and telemetry snapshot. Questionable: the legacy \code{RecoveryPlanner}
+(superseded but kept for old tests) and the two context classes (\code{ContextManager} is a thin logger).
+\end{qa}
+
+\begin{qa}{162}{How would you separate policy, decision-making and enforcement more cleanly?}
+Policy = registries plus a policy object (weights, floors, SLAs) with a version. Decision = a pure function
+\code{(state, policy) → intent}. Enforcement = backend adapters that \emph{acknowledge} and read back. Today the
+healer mixes decision and enforcement (it calls topology primitives directly).
+\end{qa}
+
+\begin{qa}{163}{What is the smallest set of interfaces that preserves modularity?}
+Four: \code{TelemetrySource.poll}, \code{Allocator.allocate}, \code{QoSBackend.apply_allocation} and
+\code{Healer.handle/constraints}. Context and policy can be functions.
+\end{qa}
+
+\begin{qa}{164}{Which design decisions were driven by research needs rather than production requirements?}
+\begin{itemize}
+\item endpoint packet capture (evaluation ground truth);
+\item seeded generators;
+\item the oracle demand mode;
+\item seven baselines;
+\item the sudo-free namespace harness;
+\item per-run artefact directories;
+\item the predictive detector's OAM shortcut (reading the emulated impairment).
+\end{itemize}
+\end{qa}

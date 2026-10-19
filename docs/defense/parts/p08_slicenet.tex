@@ -1,0 +1,324 @@
+\part{SliceNet and the machine-learning pipeline}
+
+\FigSliceNet
+
+\section{Why machine learning?}
+
+\begin{qa}{357}{What specific decision does SliceNet make?}
+Given a flow's traffic shape (31 statistics over a window and the first 32 packets) at one vantage point, it predicts
+its service class (healthcare, education, agriculture, general). In the loop, that prediction picks the HTB class a
+flow from a multi-service device enters.
+\end{qa}
+
+\begin{qa}{358}{Why classify services if the traffic generators already know which service produced each flow?}
+The generator's knowledge is \emph{ground truth for evaluation}, never given to the controller. In deployment the
+network does not know the application. For single-institution UEs, the address is enough (host mode). SliceNet is for
+devices whose address does not identify the service (shared kiosks, gateways, NATed hotspots).
+\end{qa}
+
+\begin{qa}{359}{Is SliceNet for the simulator, a future live deployment, or both?}
+Both. It is evaluated offline on measured windows and runs live in emulation (in-loop, mixed UE, L3). A live real-network
+deployment is future work (L4 absent).
+\end{qa}
+
+\begin{qa}{360}{Why not use source IPs, ports, application metadata or static rules?}
+Those are better when available: the host and app modes \emph{are} such rules and are the defaults. Ports are
+unreliable in practice (shared 443, NAT, dynamic ports) and DSCP is untrusted from UEs. ML is reserved for when
+metadata is missing or untrustworthy.
+\end{qa}
+
+\begin{qa}{361}{When would a rule-based classifier beat ML?}
+\begin{itemize}
+\item When identity is in trusted metadata (the address of a clinic's device, an S-NSSAI in 5G);
+\item when traffic is encrypted but endpoints are known;
+\item when the deployment's traffic differs from training (ML degrades; rules do not);
+\item when explainability is required.
+\end{itemize}
+In this thesis, host rules equal SliceNet in disaster (\NMixedDisasterHostSla{} vs \NMixedDisasterSlicenetSla) for the
+mixed UE.
+\end{qa}
+
+\begin{qa}{362}{What does a classification error cost downstream?}
+The flow gets another slice's allocation and AQM. Critical traffic misclassified as general loses its priority
+share and floor; bulk traffic misclassified as healthcare can borrow healthcare capacity and inflate its queue.
+\end{qa}
+
+\begin{qa}{363}{Which errors are more dangerous: false critical, or missed critical?}
+Missed critical traffic violates a life-relevant SLA. A false ``critical'' label lets bulk traffic consume the critical
+slice, which can also violate it. Both are dangerous; the second can be capped by per-flow policing inside the critical
+class.
+\honest{Recall on healthcare is high (F1 \NSnRfHealthcare) but the asymmetric cost is not built into the decision
+rule.}
+\end{qa}
+
+\begin{qa}{364}{What is the simplest baseline SliceNet should be compared with?}
+The majority class (macro-F1 0.25 for 4 balanced classes); a direction-share rule (uplink-dominant $\rightarrow$
+healthcare or agriculture); a port oracle (app mode, 100\% by construction).
+\honest{Only the RSNSD-trained model and the RF/CNN pair were formally evaluated. Add a single-feature rule baseline.}
+\end{qa}
+
+\begin{qa}{365}{Why this model architecture?}
+\why{Two representations: aggregate statistics (tabular) and the early packet sequence (temporal).}
+\choice{An RF for the tabular statistics (strong with little data, robust to scale and collinearity) and a small 1D-CNN
+fusing a packet-sequence branch with a shape MLP (local patterns such as frame bursts and request/response
+alternation).}
+\alt{Logistic regression (linear: too weak for multimodal classes), XGBoost (likely similar to RF), LSTM or
+Transformer (more data-hungry).}
+\trade{The RF won (\NSnRfFone{} vs \NSnCnnFone) at about 14$\times$ the inference latency of the CNN.}
+\ev{Held-out-group evaluation, \NSnRfTest{} test windows.}{\Lthree}
+\end{qa}
+
+\begin{qa}{366}{Why not logistic regression, random forests, XGBoost, an MLP or another deep architecture?}
+RF is used. Logistic regression is a good sanity baseline but cannot express the multimodal classes. XGBoost would
+likely tie the RF. An MLP is subsumed by the CNN's shape branch. Larger deep models are not justified at
+\NSnRows{} windows.
+\honest{Logistic regression and XGBoost were not run.}
+\end{qa}
+
+\begin{qa}{367}{What evidence supports the architecture being suitable for the features?}
+Empirically: the RF beats the CNN, which suggests the discriminative information is in aggregate statistics more than
+in early packet order. The name ``SliceNet'' comes from prior work [1], and we do \emph{not} claim the CNN is best.
+\end{qa}
+
+\begin{qa}{368}{What is the input tensor or feature vector?}
+RF: 31 shape features (\code{SHAPE_FEATURES}). CNN: a $3\times32$ tensor (signed size/1500, $\log(1+\text{IAT}_{ms})$,
+TCP-control flag) plus the 31-feature vector.
+\end{qa}
+
+\begin{qa}{369}{What are the output classes?}
+Healthcare, education, agriculture, general (closed set).
+\end{qa}
+
+\begin{qa}{370}{How are features encoded, normalised or scaled?}
+RF: raw values, \texttt{NaN}$\rightarrow$0. CNN: $\text{sign}(x)\log(1+|x|)$ followed by a z-score with training
+mean and std; sequences are pre-scaled by construction.
+\end{qa}
+
+\begin{qa}{371}{Where are the fitted preprocessing parameters stored?}
+Inside the model artefacts: the RF pickle stores its column list; the CNN \code{.pt} stores the mean, std, column
+order and state dict.
+\end{qa}
+
+\begin{qa}{372}{How is model versioning handled?}
+By file names (\code{slicenet_baseline.pkl}, \code{slicenet_mininet.pkl}, \code{slicenet_cnn.pt}) plus metrics JSONs
+with timestamps; models are gitignored and regenerated by \code{make models}.
+\honest{There is no model registry and no hash link between a model and its training data.}
+\end{qa}
+
+\begin{qa}{373}{What happens if the model file is missing or incompatible?}
+In-loop classification is disabled (\code{enabled=False}), so flows stay in host or default classes. The post-run
+scorer falls back to the RSNSD model and records which one was used.
+\honest{An incompatible pickle would raise at load.}
+\end{qa}
+
+\begin{qa}{374}{How do you prevent inference from using a different feature order than training?}
+Both models re-index input columns to the stored order before predicting.
+\end{qa}
+
+\section{Training and model evaluation}
+
+\begin{qa}{375}{What is the exact training procedure?}
+\begin{enumerate}
+\item Merge the collection runs.
+\item Drop non-service labels.
+\item Group split (25\% of run$\times$UE groups held out, seed 42).
+\item RF: 200 trees, max depth 16, balanced class weights.
+\item CNN: 80 epochs, Adam (lr $10^{-3}$, weight decay $10^{-4}$), batch 128, class-weighted cross-entropy.
+\item Evaluate on the held-out groups.
+\end{enumerate}
+\code{classification/pipeline.py}.
+\end{qa}
+
+\begin{qa}{376}{Which loss function and optimiser, and why?}
+Class-weighted cross-entropy (standard for multi-class, counteracts imbalance) with Adam (robust defaults for small
+CNNs).
+\end{qa}
+
+\begin{qa}{377}{How are learning rate, batch size, epochs and regularisation selected?}
+Fixed standard defaults, not tuned. Epochs were raised from 40 to 80 after the training loss had not plateaued.
+Regularisation: batch norm, dropout 0.3, weight decay.
+\honest{No hyper-parameter search, which favours neither model.}
+\end{qa}
+
+\begin{qa}{378}{How do you determine whether the model is overfitting?}
+By the gap between training loss (0.23 at 80 epochs) and held-out performance, and by stability under group hold-out.
+\honest{There was no validation curve. Add a validation split carved from the training groups.}
+\end{qa}
+
+\begin{qa}{379}{What is the role of the validation set?}
+For tuning and early stopping. We had none because no tuning was done; the held-out groups are a pure test set.
+\end{qa}
+
+\begin{qa}{380}{When do you stop training?}
+After a fixed 80 epochs. No early stopping.
+\end{qa}
+
+\begin{qa}{381}{How do you select a classification threshold, if any?}
+Arg-max over four classes. There is no threshold and no reject option (Q396).
+\end{qa}
+
+\begin{qa}{382}{What are the accuracy, precision, recall, F1 and confusion-matrix results?}
+\begin{itemize}
+\item RF: macro-F1 \NSnRfFone, accuracy \NSnRfAcc. Per class: healthcare \NSnRfHealthcare, education
+\NSnRfEducation, agriculture \NSnRfAgriculture, general \NSnRfGeneral.
+\item CNN: macro-F1 \NSnCnnFone, accuracy \NSnCnnAcc.
+\end{itemize}
+Confusion matrices: \code{docs/figures/thesis/slicenet_confusion_*}. Most confusion is between education and general,
+which share web request/response models.
+\end{qa}
+
+\begin{qa}{383}{Which metric matters most for your application, and why?}
+Per-class recall of healthcare (a missed critical flow loses its SLA), then macro-F1 (every class counts equally,
+regardless of window counts).
+\end{qa}
+
+\begin{qa}{384}{How does performance differ across classes?}
+Healthcare and agriculture are near-perfect (uplink-dominant, distinctive periodic and video patterns). Education and
+general are lower because both have downlink web and streaming traffic.
+\end{qa}
+
+\begin{qa}{385}{How does class imbalance affect the reported metrics?}
+Accuracy would over-weight the frequent classes (low-rate IoT yields fewer windows). We report macro-F1 and use
+balanced class weights.
+\end{qa}
+
+\begin{qa}{386}{What is the difference between macro-F1 and weighted-F1?}
+Macro: the unweighted mean of per-class F1 (each class equal). Weighted: weighted by class support, so it is dominated
+by large classes.
+\end{qa}
+
+\begin{qa}{387}{Why is accuracy alone insufficient?}
+It hides class-specific failure. A classifier that never predicts the rare critical class can still score high
+accuracy.
+\end{qa}
+
+\begin{qa}{388}{How do you quantify uncertainty in the reported results?}
+\honest{Single group split, so there is no CI on F1 yet.}
+Fix: repeated \code{GroupKFold} (5 folds $\times$ 3 seeds), reporting the mean $\pm$ CI. A bootstrap over test groups
+gives a CI cheaply.
+\end{qa}
+
+\begin{qa}{389}{How much does performance vary across random seeds or data splits?}
+Not measured for the final models (Q388). An indirect signal: the RF was 0.959 on the earlier 12-run dataset and
+\NSnRfFone{} on the 18-run dataset; the CNN was 0.880 vs \NSnCnnFone. So the variation is about $\pm$0.01.
+\end{qa}
+
+\begin{qa}{390}{How do you decide whether an improvement is statistically meaningful?}
+With repeated group CV, compare models with a paired test across folds (Wilcoxon or a corrected resampled t-test).
+The RF-vs-CNN gap (about 0.08) is likely real given the $\pm$0.01 variation, but is untested.
+\end{qa}
+
+\begin{qa}{391}{What is the model's inference latency?}
+CNN: \NInferCnnMs\,ms for a single flow, \NInferCnnBatchMs\,ms for a batch of 100 (CPU). RF: \NInferRfMs\,ms single,
+dominated by thread-pool start-up (\code{n_jobs=-1}). Setting \code{n_jobs=1} would make the RF sub-millisecond.
+\end{qa}
+
+\begin{qa}{392}{What is the model's memory and CPU footprint?}
+CNN: \NCnnParams{} parameters (\NCnnSizeKb\,KB). RF: \NRfSizeMb\,MB on disk. Both run on CPU only.
+\end{qa}
+
+\begin{qa}{393}{How does performance change when traffic patterns shift?}
+The extreme shift we tested (RSNSD synthetic $\rightarrow$ measured) collapses performance to \NTrZero{}.
+Within-family shift (new seeds, contexts and runs) keeps \NSnRfFone.
+\honest{Moderate shifts (new apps, other codecs) are untested.}
+\end{qa}
+
+\begin{qa}{394}{How would you test generalisation to unseen scenarios, generators or network conditions?}
+Leave-one-context-out, leave-one-application-out, train at 100\,Mb/s and test at 50\,Mb/s, train on Linux bridges and
+test on OVS runs, and ultimately test on real traces.
+\end{qa}
+
+\begin{qa}{395}{How would you detect concept drift?}
+Monitor the distribution of predicted classes and confidences per site, and feature drift (KS or PSI on key shape
+features) against training. Periodic labelled audits. Trigger retraining.
+\end{qa}
+
+\begin{qa}{396}{What is the fallback when the model is uncertain or meets an unknown class?}
+Today: none. Arg-max always assigns a class, but a flow below 5 packets stays in the default (general) class.
+Proposed: if the maximum probability is below $\tau$, keep host or default treatment and re-try with more packets
+(safe default).
+\end{qa}
+
+\section{Runtime inference and deployment}
+
+\begin{qa}{397}{Is SliceNet actually invoked by the operational allocation and recovery path?}
+Only with \code{classification=slicenet}, for unknown or mixed UEs: \code{OnlineSliceClassifier.step} runs every
+control interval and installs per-flow u32 rules. Allocation and recovery never use it. They operate on slices, and
+SliceNet only decides which slice a flow enters.
+\end{qa}
+
+\begin{qa}{398}{If not, what determines service identity on that path?}
+By default, host rules (UE address $\rightarrow$ service), installed at QoS setup. In 3GPP mode, app rules (server and
+port $\rightarrow$ slice type).
+\end{qa}
+
+\begin{qa}{399}{How would you integrate live feature extraction and inference into the control loop?}
+It is already integrated for the mixed UE. Read the UE capture, group packets into flows, compute shape features and
+sequences, predict, call \code{classify_flow} (\code{classification/online.py}). For scale: an incremental flow table
+(not re-parsing the pcap), done at the gateway.
+\end{qa}
+
+\begin{qa}{400}{How is a predicted class mapped to a service policy?}
+Class name $\rightarrow$ HTB classid (from \code{slices.yaml}) $\rightarrow$ a u32 filter on the 5-tuple, in both
+directions, at the highest filter priority. The flow then gets that slice's allocation and AQM.
+\end{qa}
+
+\begin{qa}{401}{How do you prevent a wrong prediction from granting unlimited priority to non-critical traffic?}
+The slice's HTB rate and ceiling bound it (no class is unlimited), and fq\_codel isolates flows within a class.
+\honest{With borrowing up to link capacity, a misclassified bulk flow in the healthcare class could still crowd it.
+Per-flow policing or a ceiling inside critical classes, plus a confidence threshold, are needed.}
+\end{qa}
+
+\begin{qa}{402}{Would you use confidence thresholds, hysteresis, multiple observations or policy constraints?}
+Yes, all four:
+\begin{itemize}
+\item a confidence threshold;
+\item k-of-n agreement across windows before installing;
+\item stickiness (today the first decision sticks forever; it should be re-evaluated with hysteresis);
+\item policy constraints (per-flow caps in critical classes).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{403}{How would you reconcile a prediction with trusted application metadata?}
+Metadata wins (S-NSSAI in 5G, an authenticated app registration). ML fills gaps only, and disagreements are logged as
+drift or abuse signals.
+\end{qa}
+
+\begin{qa}{404}{Where should inference run: edge gateway, central controller or a dedicated service?}
+At the edge gateway (\code{s_rural} side), where the flows are seen and enforcement happens, which avoids exporting
+traffic metadata. The model is small (\NCnnSizeKb\,KB CNN).
+\end{qa}
+
+\begin{qa}{405}{What is the latency budget for the classification-to-enforcement path?}
+Decision after at least 5 packets, at the next control interval (up to 5\,s), plus milliseconds of inference and a
+millisecond-scale \code{tc filter add}. For short critical flows this is too slow; metadata or host rules must cover
+them.
+\end{qa}
+
+\begin{qa}{406}{What if inference is slower than the monitoring interval?}
+It runs synchronously in the loop, so a slow model would delay the tick. The wall-clock-aligned scheduler would not
+accumulate drift, but telemetry would be late. Mitigation: run inference in a worker thread with the latest-result
+pattern, like the probes.
+\end{qa}
+
+\begin{qa}{407}{How would you deploy a new model without interrupting service?}
+Load it next to the old one, run it in shadow mode (log predictions, do not act), compare agreement and confidence,
+then atomically swap the reference. Existing flow rules persist.
+\end{qa}
+
+\begin{qa}{408}{How would you roll back a model that degrades performance?}
+Keep the previous artefact. Watch per-slice SLA and confidence metrics; swap back on regression. Flow rules installed
+by the bad model can be flushed.
+\end{qa}
+
+\begin{qa}{409}{What monitoring is needed to detect inference failures or distribution shift?}
+Inference errors and latency, the prediction class mix vs expected, confidence histograms, feature drift statistics,
+and the downstream SLA of classified flows.
+\end{qa}
+
+\begin{qa}{410}{How would you evaluate the classifier on real network traffic?}
+Labelled ground truth from consenting institutions (known devices or apps), header-only capture, offline evaluation
+first, then shadow mode in the loop before acting.
+\end{qa}
+
+\FigTransfer

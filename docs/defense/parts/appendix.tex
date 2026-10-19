@@ -1,0 +1,63 @@
+\section{Evidence index}
+\label{app:evidence}
+{\scriptsize
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.6cm}l@{}}
+\toprule
+Claim & Artefact / experiment & Test & Level\\\midrule
+Packet-matched one-way delay and loss are exact & \code{features/packet_capture.py}; floors \NFloorEdge/\NFloorCore\,ms in every run & \code{test_features.py} & L3\\
+Service slicing raises healthcare SLA share & main study, \code{main_stats.csv} ($p=\NSlaPNoSlicing$) & Wilcoxon + Bonferroni & L3\\
+Allocator choice not significant & main study (\NUtilMin--\NUtilMax) & Wilcoxon & L3\\
+Borrowing dominates; surplus matters under strict caps & ablation study & 3 seeds, CIs & L3\\
+Fiber-cut outage sub-second & resilience study; real-OVS run (\NOvsOutageAfter\,s) & integration test & L3 (bridges, OVS)\\
+Predictive switchover before the cut & resilience (\NDegBeforeCutShare) & integration test & L3\\
+Core-switch fault localised & resilience (\NCoreDiagnosedShare) & integration test & L3\\
+Loop-free failover ordering & \code{self_healing/engine.py} & unit test (exact order) & L3\\
+No false failover without faults & \NFalseFailoverRuns/\NNoFaultRuns{} runs & matrix & L3\\
+SliceNet F1 on held-out groups & \code{slicenet_mininet_metrics.json} (RF \NSnRfFone) & group split & L3\\
+RSNSD does not transfer & \code{slicenet_transfer.json} (\NTrZero) & held-out groups & L3\\
+In-loop SliceNet for a mixed UE & slicenet\_inloop study & integration test & L3\\
+RL no significant gain & main study (PPO $p=\NPpoP$); \code{rl_training.json} & Wilcoxon & L3\\
+5G-core enforcement lowers critical delay under contention (disaster only) & \code{results/5g/} (\NFgDisasterCarsHcP{} vs \NFgDisasterNoneHcP\,ms) & --- & L3 (sim.\ RAN)\\
+Load balancing & --- & --- & none\\
+Real rural deployment & --- & --- & none\\\bottomrule
+\end{tabularx}}
+
+\section{Live demonstration commands}
+\begin{itemize}
+\item Unit and integration tests (no sudo): \code{make test integration}
+\item Full loop on real OVS: \code{sudo .venv/bin/python run_experiment.py --scenario backhaul_degradation --duration 45 --apply-qos}
+\item Real OVS without host sudo: \code{docker run --rm --privileged -v /lib/modules:/lib/modules:ro cars-sf .venv/bin/python run_experiment.py --scenario fiber_cut --duration 30 --apply-qos}
+\item Rural-day timeline: \code{python -m tests.integration.harness normal 40 apply_qos=true timeline=rural_day}
+\item Mixed UE with in-loop SliceNet: \code{python -m tests.integration.harness school 30 apply_qos=true classification=slicenet mixed_ue=true}
+\item 5G core: \code{docker compose -f deployment/5g/docker-compose.yml up -d}, then \code{python deployment/5g/run_5g.py --scenario disaster --capacity 10}
+\item Regenerate every number: \code{python experiments/aggregate.py \&\& python experiments/defense_numbers.py}
+\end{itemize}
+
+\section{Methodology change log}
+{\small
+\begin{enumerate}[leftmargin=1.4em]
+\item \textbf{Verification audit.} The Mininet path crashed on build (switch DPIDs), the bottleneck interface collided and
+disconnected a host, and the ``RL agent'' regressed random actions. All fixed before any reported run.
+\item \textbf{Delay placement.} The HTB root replaced the netem delay on the bottleneck, so delays were moved to
+destination-facing ports. Floors are now exact.
+\item \textbf{Generator busy-wait.} Host load reached 40--56 and perturbed timing. 111 runs archived; pacing fixed.
+\item \textbf{Partial final window.} Delivered rates were biased low in some runs. KPIs are recomputed from datasets.
+\item \textbf{Real-OVS validation} found uplink-only utilisation, false failover under AQM-less queues, and slow failover.
+All fixed (full-duplex utilisation, congestion-aware prediction, event-driven fast path); 340 runs archived and re-run.
+\item \textbf{RSNSD split label} corrected to ``random row split''.
+\end{enumerate}}
+
+\section{Glossary}
+{\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+AQM & active queue management (here fq\_codel)\\
+HTB & hierarchical token bucket (Linux classful shaper: rate, ceil, borrowing)\\
+OWD & one-way delay, packet-matched between sender and receiver captures\\
+MTTD / MTTR & time to detect / time to recovery action (control plane)\\
+Outage & longest delivery gap of affected flows after a failure (data plane)\\
+Weighted utility & $\sum_s w_s\min(1,x_s/d_s)/\sum_s w_s$ with context weights $w$\\
+SLA-met share & fraction of flow windows meeting all of their application's targets\\
+L1--L4 & evidence maturity: implemented, unit-tested, integrated \& validated (named environment), real network\\
+S-NSSAI & 5G slice identifier (SST + SD)\\
+CEM / PPO & Cross-Entropy Method (contextual bandit) / Proximal Policy Optimisation (sequential RL)\\
+\end{tabularx}}

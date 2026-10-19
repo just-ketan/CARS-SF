@@ -1,0 +1,414 @@
+\part{Monitoring, fault detection and self-healing}
+
+\FigHeal
+
+\section{Fault detection}
+
+\begin{qa}{470}{What faults is CARS-SF designed to detect?}
+Backhaul cut (loss of carrier); backhaul degradation (rising delay and loss); core switch failure (core unreachable
+after failover); bottleneck congestion (drops); saturation (utilisation above 95\%); latency spikes (RTT above
+200\,ms); total connectivity loss.
+\end{qa}
+
+\begin{qa}{471}{Which faults are explicitly represented in the test scenarios?}
+\code{fiber_cut} (cut at $\frac13$, repair at $\frac23$), \code{backhaul_degradation} (+15\,ms and +0.3\% loss per
+tick from $0.2$ of the run, cut at $0.7$), \code{core_switch_failure} (all core ports down at $\frac13$, repair at
+$\frac23$). Congestion arises naturally from load.
+\end{qa}
+
+\begin{qa}{472}{How do you distinguish link failure, congestion, excessive latency, packet loss and telemetry failure?}
+\begin{itemize}
+\item Link failure: carrier transition on \code{s_edge-bh}.
+\item Congestion: local drops, backlog or saturation.
+\item Excessive latency: RTT above threshold; as a trend without local congestion, attributed to the backhaul.
+\item Loss: degradation loss shows as lost probes and loss in captures.
+\item Telemetry failure: \textbf{not distinguished}. An unavailable reader looks like zero (Q279).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{473}{Fault detection vs diagnosis vs localisation vs recovery?}
+Detection: something is wrong. Diagnosis: what kind (cut vs degradation vs congestion). Localisation: where (backhaul
+link vs core switch). Recovery: restoring service. CARS-SF localises by elimination: if failover to a path that
+bypasses the link does not restore the core, the fault is the shared endpoint (\code{s_core}).
+\end{qa}
+
+\begin{qa}{474}{Is the detector rule-based, statistical, ML-based or hybrid?}
+Hybrid rule and statistical: thresholds and link events (reactive), plus a least-squares RTT trend over a 6-sample
+window with a horizon forecast (predictive). No ML.
+\end{qa}
+
+\begin{qa}{475}{Why is that detector appropriate here?}
+\why{Faults must be acted on in under 1\,s, explainably, with no failure labels for training.}
+\choice{Physical signals (carrier) for cuts; trends plus a congestion discriminator for degradation.}
+\alt{An ML anomaly detector (isolation forest, LSTM) over telemetry.}
+\trade{Deterministic, explainable and data-free; but thresholds are hand-set and novel fault types are missed.}
+\ev{Detected every injected cut; no false failover in any run without an injected fault (Q487).}{\Lthree}
+\end{qa}
+
+\begin{qa}{476}{What are the inputs to the detector?}
+The per-tick snapshot (drops delta, utilisation, per-service RTT, backhaul and backup flags, queue backlog) and
+timestamped link-watcher events, delivered between ticks through the fast path.
+\end{qa}
+
+\begin{qa}{477}{What constitutes an anomaly?}
+\begin{itemize}
+\item More than 50 bottleneck drops per tick, or utilisation above 95\%.
+\item RTT above 200\,ms.
+\item All probes lost (connectivity loss).
+\item Core probes lost with edge probes alive (core unreachable).
+\item Carrier loss on the backhaul (cut).
+\item Predicted degradation: every core-bound RTT slope at least 2\,ms per tick, the forecast 5 ticks ahead at least
+the strictest core threshold, edge flat, and no local congestion in the window.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{478}{How are thresholds calibrated?}
+By design and checked against scenario runs: the strictest core-bound threshold is twice education's 150\,ms SLA;
+the slope floor of 2\,ms per tick lies above probe noise ($\approx$0.5\,ms).
+\honest{No ROC calibration. The congestion discriminator was added after a real false failover on OVS.}
+\end{qa}
+
+\begin{qa}{479}{What are the trade-offs between false positives and false negatives?}
+A false failover moves core traffic to a 50\,Mb/s, 40\,ms path, costing capacity and latency, and flaps. A missed cut
+costs an outage. Cuts use a physical signal (near-zero false positives); prediction is conservative (several
+conditions must hold), trading earlier warnings for fewer false alarms.
+\end{qa}
+
+\begin{qa}{480}{What if a genuine fault produces no immediate SLA violation?}
+Carrier-based detection does not wait for an SLA violation: the cut is acted on at once. Degradation is caught as a
+trend \emph{before} the SLA breaks (which is the point of prediction).
+\end{qa}
+
+\begin{qa}{481}{What if normal workload variation triggers an anomaly?}
+Latency spikes and congestion in normal runs do trigger healthcare or affected-slice boosts. These are cheap,
+bounded ($\times$2) and expire. Normal variation does \emph{not} trigger failover: \NFalseFailoverRuns{} false failovers
+in \NNoFaultRuns{} runs without a fault.
+\end{qa}
+
+\begin{qa}{482}{How does the detector distinguish a transient spike from persistent degradation?}
+Prediction needs a 6-sample trend with a consistent slope and no congestion anywhere in the window; escalation needs 2
+consecutive ticks; boosts react to single ticks but expire.
+\end{qa}
+
+\begin{qa}{483}{What is the role of temporal windows and consecutive violations?}
+They suppress noise: the trend window for prediction, 2 consecutive ticks for core-failure diagnosis, a 5-tick
+hold-down before fail-back, and a 6-tick boost lifetime.
+\end{qa}
+
+\begin{qa}{484}{How do you detect a fiber cut if the interface stays present but traffic stops flowing?}
+The interface stays present after a cut; what matters is carrier. On veth (as on fiber with loss of light), a far-end
+failure sets our side to \code{lowerlayerdown}, which the watcher sees within 50\,ms.
+\honest{A \emph{silent} failure (carrier up, forwarding dead) shows only as core-unreachable probes, and in the
+\textsf{NORMAL} state that event does not trigger failover. Gap: add ``core unreachable for 2 ticks while NORMAL''
+$\rightarrow$ fail over.}
+\end{qa}
+
+\begin{qa}{485}{How do you distinguish a dead path from a merely congested one?}
+Dead: probes are lost, carrier is down, deliveries stop. Congested: probes return with high RTT, and local backlog and
+drops rise.
+\end{qa}
+
+\begin{qa}{486}{How is diagnosis validated against known injected faults?}
+Each resilience run records injector events (type, tick, timestamp) and healer actions (trigger, timestamp). The
+report compares them: switched before the cut in \NDegBeforeCutShare{} of degradation runs; core-switch failure
+diagnosed in \NCoreDiagnosedShare{}; an integration test asserts each.
+\end{qa}
+
+\begin{qa}{487}{How do you measure precision, recall, false-alarm rate and detection delay?}
+\begin{itemize}
+\item Recall: injected failures with a healing response, \NInjectedDetected/\NInjectedRuns.
+\item False alarms: failovers in fault-free runs, \NFalseFailoverRuns/\NNoFaultRuns.
+\item Detection delay: MTTD \NMttdCutFull\,s for a cut (event-driven); \NMttdDegFull\,s from the start of degradation
+for prediction (by design it waits for the trend).
+\end{itemize}
+\honest{Small $n$ per fault type (3 seeds $\times$ 3 variants), so no confidence intervals on recall.}
+\end{qa}
+
+\begin{qa}{488}{How does detector performance change with several simultaneous faults?}
+\honest{Untested. Combinations (degradation + congestion, cut + context change) are not in the matrix. Congestion
+during degradation would, by design, suppress prediction (conservative); cuts would still be caught.}
+\end{qa}
+
+\begin{qa}{489}{What happens with a fault outside the detector's known categories?}
+It is caught only if it shows up as one of the signals (RTT, drops, carrier, reachability). Otherwise it is
+invisible. The SLA monitor still records the violation.
+\end{qa}
+
+\begin{qa}{490}{How does the system avoid acting on unreliable or stale observations?}
+Link events carry timestamps; self-inflicted transitions (within 1\,s of the healer's own action) are ignored;
+prediction requires sustained trends.
+\honest{There is no general staleness check (Q280).}
+\end{qa}
+
+\section{Recovery planning and action selection}
+
+\begin{qa}{491}{What recovery actions can CARS-SF execute?}
+\begin{itemize}
+\item Quarantine the primary backhaul, activate the backup, flush the FDBs.
+\item Fail back (backup down, then primary up, then flush).
+\item Allocation constraints: core slices capped to 95\% of backup capacity with HTB ceilings; degraded mode holds
+core slices at their floors and lends the rest to edge slices.
+\item Priority boosts (affected slice $\times$2; general $\times$0.5 on saturation).
+\item Diagnosis escalation.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{492}{Which actions change bandwidth allocation, and which change the forwarding path?}
+Path: quarantine, backup activation, fail-back. Allocation: constraints, ceilings, boosts.
+\end{qa}
+
+\begin{qa}{493}{How is the candidate action set constructed?}
+A fixed mapping from failure type to action (state machine). There is no search over candidates.
+\end{qa}
+
+\begin{qa}{494}{How does the planner decide which action to attempt first?}
+Path protection first (it restores connectivity), then allocation constraints (the controller re-plans at once because
+the healing state changed).
+\end{qa}
+
+\begin{qa}{495}{Why does context influence recovery ordering?}
+It does not influence the \emph{ordering}; it influences the \emph{post-recovery allocation}, which uses the current
+context's weights under the healing constraints.
+\honest{Context-dependent recovery (e.g.\ preferring a costlier path only in an emergency) is not implemented.}
+\end{qa}
+
+\begin{qa}{496}{How does the system account for resource capacity when choosing an action?}
+The constraints encode the backup's capacity (core slices $\le$0.95$\times$50\,Mb/s) and degraded mode. Without the
+ceilings, the 50\,Mb/s backup bufferbloated (RTT oscillating 116--336\,ms); with them it stays at its 96\,ms floor.
+\end{qa}
+
+\begin{qa}{497}{What if the preferred recovery action is infeasible?}
+If the backup does not restore the core, the engine escalates to \textsf{DEGRADED} (graceful degradation). There is
+no other path to try.
+\end{qa}
+
+\begin{qa}{498}{How does the planner compare predicted outcomes of candidate actions?}
+\honest{It does not. There is no outcome model in the planner.}
+The calibrated sequential simulator could score candidate allocations before applying them.
+\end{qa}
+
+\begin{qa}{499}{What evidence supports the prediction model?}
+For the \emph{fault predictor}: switched before the cut in \NDegBeforeCutShare{} of runs; outage \NOutDegFullMean{} vs
+\NOutDegReactiveMean\,s reactive-only. There is no outcome-prediction model for actions.
+\end{qa}
+
+\begin{qa}{500}{What happens when the predicted outcome differs from the actual outcome?}
+For prediction, the guards handle it: if the primary later proves healthy (OAM), fail-back follows after hold-down.
+A wrong failover costs only capacity until then.
+\end{qa}
+
+\begin{qa}{501}{How do you prevent an action from degrading another service's QoS?}
+Floors always hold; constraints only move capacity from slices that cannot use it (core-bound slices during an outage)
+to edge slices; boosts are bounded and expire.
+\end{qa}
+
+\begin{qa}{502}{How do you avoid oscillating between two allocations or paths?}
+A 5-tick hold-down; OAM-gated fail-back; ignoring self-inflicted link events; the change threshold; boost cooldowns.
+\ev{Before these guards, a degradation run alternated failover and fail-back 3 times in 3 ticks. After them, exactly
+one proactive switchover. An OVS run with AQM-less queues flapped before the congestion discriminator and did not
+after.}{\Lthree}
+\end{qa}
+
+\begin{qa}{503}{Is there a maximum number of recovery attempts?}
+Path switching happens once per failure episode (state-guarded).
+\honest{Boosts can recur every 6 ticks indefinitely; there is no attempt counter.}
+\end{qa}
+
+\begin{qa}{504}{How are retry delays and back-off selected?}
+Fixed: a 6-tick boost lifetime and cooldown, a 5-tick hold-down, 2 ticks before escalation. Chosen to exceed the
+5\,s control interval and TCP's reaction time.
+\honest{There is no exponential back-off.}
+\end{qa}
+
+\begin{qa}{505}{How does the planner tell a failed action from one that needs more time?}
+After backup activation it waits 2 ticks (and requires 2 consecutive core-unreachable ticks) before concluding the
+core itself is down.
+\end{qa}
+
+\begin{qa}{506}{Reactive recovery vs proactive reconfiguration?}
+Reactive: after the cut (carrier). Proactive: before the cut, when trends predict a breach. Measured outage: proactive
+\NOutDegFullMean\,s vs reactive \NOutDegReactiveMean\,s on degradation scenarios.
+\end{qa}
+
+\begin{qa}{507}{When should the system escalate to an operator?}
+On \textsf{DEGRADED} (core-switch failure, which needs physical repair), on repeated boosts with no SLA recovery, on
+configuration failures, and on any state that persists beyond a time limit.
+\honest{Escalation is only logged; there is no paging integration.}
+\end{qa}
+
+\begin{qa}{508}{How do you ensure the controller does not endlessly repeat an ineffective action?}
+Path actions are state-guarded (one per episode).
+\honest{Boost repetition is not limited. Add an attempt budget and escalation after N ineffective boosts.}
+\end{qa}
+
+\FigResilience
+
+\section{The closed-loop control system}
+
+\begin{qa}{509}{What are the precise stages of the CARS-SF self-healing loop?}
+Monitor (telemetry, SLA monitor, link watcher) $\rightarrow$ Analyse (reactive detector, predictor) $\rightarrow$
+Plan (healing state machine, controller re-plan under constraints) $\rightarrow$ Execute (topology primitives, QoS
+backend) $\rightarrow$ Knowledge (registries and history). This is a MAPE-K loop.
+\end{qa}
+
+\begin{qa}{510}{What is the role of monitoring in the loop?}
+To provide the observations (rates, drops, RTT, carrier) and the per-slice SLA record against which success is
+judged.
+\end{qa}
+
+\begin{qa}{511}{What is the role of diagnosis?}
+To pick the right action: a cut means fail over; a core failure means degrade gracefully (failover is pointless);
+congestion means re-prioritise and do \emph{not} fail over.
+\end{qa}
+
+\begin{qa}{512}{What is the role of the recovery planner?}
+To map the diagnosis to a safe action sequence (loop-free ordering) and to constraints for the allocator.
+\end{qa}
+
+\begin{qa}{513}{What is the role of the enforcement backend?}
+To execute path changes (\code{ip link}, FDB flush) and rate changes (tc, OVS or UPF).
+\end{qa}
+
+\begin{qa}{514}{What is the role of post-action verification?}
+To confirm that the action achieved the goal before declaring success, or to trigger the next step. CARS-SF verifies
+\emph{reachability} after failover (core-unreachable escalation) and \emph{link health} before fail-back (far end up
+plus OAM).
+\honest{There is no generic KPI check after allocation changes and no rollback.}
+\end{qa}
+
+\begin{qa}{515}{Why is verification necessary after a recovery action?}
+Actions can fail silently (a dead backup, a tc error, stale FDB entries) or fix the wrong problem (failover when the
+core switch is the fault). The core-switch case is exactly where verification changed the decision.
+\end{qa}
+
+\begin{qa}{516}{What evidence is required to declare recovery successful?}
+Online: core probes answered again on the new path. Post-run (ground truth): the measured outage (longest delivery
+gap) and packets lost. Fiber cut: \NOutCutFullMean\,s mean outage.
+\end{qa}
+
+\begin{qa}{517}{How long should the system wait for the network to settle?}
+At least the FDB relearning time plus TCP recovery, about 1\,s on OVS. We use 2 ticks before escalation and 5 ticks of
+hold-down before fail-back.
+\end{qa}
+
+\begin{qa}{518}{How many consecutive good measurements before declaring recovery?}
+Implicitly 2 (escalation logic) for the core path.
+\honest{There is no explicit ``recovered'' declaration with N good SLA samples. Add one with N=3.}
+\end{qa}
+
+\begin{qa}{519}{What if the SLA improves temporarily and then degrades again?}
+On backup, renewed degradation would show in probes. Escalation and boosts react. A repeated primary failure after
+fail-back starts a new episode.
+\end{qa}
+
+\begin{qa}{520}{What if the action improves latency but drops throughput below the SLA?}
+That is what happens on backup: capacity halves, so core slices are capped and their satisfaction drops while
+connectivity is restored. The SLA monitor records it. It is a deliberate trade-off (connectivity over throughput),
+reported per slice.
+\end{qa}
+
+\begin{qa}{521}{How do you evaluate recovery when several KPIs must hold at once?}
+Per-slice compliance requires latency, loss and satisfaction together (\code{sla_ok}). Run-level: outage, packets lost
+and weighted utility (\NOutCutFullMean\,s, \NLostCutFull{} packets, utility in \code{resilience_summary.csv}).
+\end{qa}
+
+\begin{qa}{522}{What if the verifier reports that recovery failed?}
+For a failover that did not restore the core: escalate to \textsf{DEGRADED}. For fail-back with OAM failing: stay on
+backup.
+\end{qa}
+
+\begin{qa}{523}{Does the controller roll back, escalate, or try another action?}
+It escalates (degraded mode).
+\honest{It does not roll back to the primary while the primary is down, and there is no alternative action list
+beyond that.}
+\end{qa}
+
+\begin{qa}{524}{How do you ensure rollback does not worsen the original fault?}
+Fail-back is the rollback, and it is gated by far-end-up plus OAM health plus hold-down, so we never return to a
+known-bad link.
+\end{qa}
+
+\begin{qa}{525}{How is every decision, action and verification result recorded?}
+\code{healing_actions} (action, tick, timestamp, trigger, trigger timestamp, state); \code{injector_events};
+\code{failure_types}; \code{controller_history}; \code{feedback.csv} (per-tick healing state); \code{resilience}
+summary, all in \code{summary.json}.
+\end{qa}
+
+\begin{qa}{526}{Open-loop recovery script vs verified closed-loop controller?}
+An open-loop script executes a fixed action. A closed-loop controller observes the outcome and adapts (escalation,
+OAM-gated fail-back, hold-down). CARS-SF is closed-loop for path recovery, but only partially verified for allocation
+changes.
+\end{qa}
+
+\begin{qa}{527}{What experiment proves that verification reduces unnecessary reconfigurations?}
+Anecdotal but measured: without the hold-down, OAM gate and self-event suppression, a degradation run produced 3
+failover/fail-back cycles; with them, 1 switchover.
+\honest{There is no controlled ablation across seeds. Add a ``no guards'' variant to the resilience study.}
+\end{qa}
+
+\begin{qa}{528}{How would you demonstrate the entire loop in a live Mininet run?}
+\code{sudo .venv/bin/python run_experiment.py --scenario backhaul_degradation --duration 45 --apply-qos}. Watch the
+log: degradation start; predicted degradation; proactive backup activation; ceilings applied; the cut (no outage);
+fail-back after repair. Then open \code{summary.json}: \code{resilience}, \code{healing_actions}.
+\end{qa}
+
+\section{Fault tolerance of the controller itself}
+
+\begin{qa}{529}{What happens if the monitoring component crashes?}
+It runs in the orchestrator process. A crash ends the run; the kernel keeps the last QoS state.
+\honest{There is no supervisor, so a crash means loss of healing.}
+\end{qa}
+
+\begin{qa}{530}{What happens if the controller loses contact with the switch?}
+Not applicable in emulation (local commands). In a deployment it would be a partition: enforcement persists, healing
+on the far side stops (Q157).
+\end{qa}
+
+\begin{qa}{531}{What happens if the controller restarts mid-recovery?}
+\honest{State is in memory only. After a restart the engine starts in \textsf{NORMAL} while the primary is quarantined
+and the backup active.}
+Fix: persist the healing state, and on start reconcile from link admin states.
+\end{qa}
+
+\begin{qa}{532}{How is the previous network configuration recovered after a crash?}
+It is not reconstructed. The kernel retains qdiscs and link states, and Mininet teardown in \code{finally} cleans up
+the emulation. A real deployment would read back state on start.
+\end{qa}
+
+\begin{qa}{533}{How do you prevent two controller instances from issuing conflicting actions?}
+\honest{Nothing does. A single instance is assumed.} Use a lease or leader election (etcd or ZooKeeper) and
+idempotent intents.
+\end{qa}
+
+\begin{qa}{534}{How do you handle duplicate commands and retries?}
+Most commands are idempotent (\code{ip link set up/down}, \code{tc class change} to absolute values), and the injector
+skips duplicates. \code{tc filter add} is not idempotent, so flow rules are tracked and installed once.
+\end{qa}
+
+\begin{qa}{535}{Are configuration changes idempotent?}
+Rates and ceilings, link states and FDB flushes are idempotent. Filter additions are guarded by the flow-rule table.
+\end{qa}
+
+\begin{qa}{536}{How do you ensure the system eventually converges to a stable state?}
+Finite states with guarded transitions (hold-down, OAM, one switch per episode); expiring boosts; the change
+threshold. In tests and runs it always converged.
+\honest{There is no formal convergence proof.}
+\end{qa}
+
+\begin{qa}{537}{What if the primary and backup paths fail simultaneously?}
+That is equivalent to the core-switch case: escalate to \textsf{DEGRADED}, protect edge services, wait for repair.
+\end{qa}
+
+\begin{qa}{538}{What if no feasible recovery action exists?}
+Degrade gracefully (keep surviving services prioritised), keep monitoring, escalate to the operator.
+\end{qa}
+
+\begin{qa}{539}{How does the controller preserve critical traffic during partial failure?}
+Floors, context weights, and degraded-mode reallocation: core slices are held at their floors and edge slices,
+including healthcare (served by the edge), get the capacity.
+\end{qa}
+
+\begin{qa}{540}{What is the minimum safe behaviour when the controller cannot decide reliably?}
+Keep the last good configuration, never form loops, never fail back without OAM, keep floors, alert the operator.
+The kernel's persistence of HTB state provides much of this for free.
+\end{qa}

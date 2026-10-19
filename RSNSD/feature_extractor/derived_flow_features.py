@@ -11,6 +11,8 @@ Author: RSNSD
 
 from __future__ import annotations
 
+import zlib
+
 from RSNSD.domain.dataset import DatasetRecord
 
 
@@ -66,7 +68,8 @@ class DerivedFlowFeatureExtractor:
         is_web = "Web" in flow.application_id or "Cloud" in flow.application_id
         is_stream = "Stream" in flow.application_id or "Video" in flow.application_id
         src_port = 443 if is_web else (554 if is_stream else 8080)
-        dst_port = int(10000 + (hash(flow.application_id) % 50000))
+        # zlib.crc32 is stable across processes (str hash() is salted per run)
+        dst_port = int(10000 + (zlib.crc32(flow.application_id.encode()) % 50000))
         
         # IAT logic
         mean_iat_ms = (duration_s * 1000) / max(1, packet_count)

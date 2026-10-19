@@ -1,225 +1,305 @@
 """
-Extract flow features from PCAP files aligned to the CARS-SF feature schema.
+Extract windowed application-flow features from endpoint packet captures.
+
+A record is one application flow of one UE over one time window (default
+5 s). QoS fields are measured, not estimated:
+
+  end_to_end_latency_ms   mean one-way delay of delivered data-direction packets
+  jitter_ms               mean |Δ one-way delay| of consecutive packets (RFC 3550 style)
+  packet_loss_rate        % of data-direction packets sent but never received
+  queueing_delay_ms       mean one-way delay above the flow's minimum (propagation)
+  throughput/goodput      delivered bytes / window (goodput excludes retransmissions)
+
+The *data direction* is whichever direction carried more bytes in the window
+(e.g. UE→server for telemetry uploads, server→UE for video or downloads).
 """
 
 from __future__ import annotations
 
-import os
-from collections import defaultdict
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from core.config import load_features
+from features.packet_capture import CapturePoint, match_packets
 from features.schema_mapper import map_to_schema
+from features.shape import SHAPE_FEATURES, frame_from_matched, packet_sequence, shape_features
+
+TCP_FIN, TCP_SYN, TCP_RST, TCP_ACK = 0x01, 0x02, 0x04, 0x10
+IDLE_GAP_S = 0.5
+MIN_PACKETS = 2
 
 
 class FlowFeatureExtractor:
-    """Extract per-flow features from PCAP captures using Scapy."""
+    """Builds schema-aligned flow-window records from matched endpoint captures."""
 
     def __init__(
         self,
-        pcap_paths: list[str],
+        capture_points: list[CapturePoint] | None = None,
         telemetry_snapshots: list[dict[str, Any]] | None = None,
         spawn_metadata: list[dict[str, Any]] | None = None,
         scenario_context: dict[str, Any] | None = None,
+        ue_ips: set[str] | None = None,
+        window_s: float = 5.0,
     ):
-        self.pcap_paths = pcap_paths
+        self.capture_points = capture_points or []
         self.telemetry = telemetry_snapshots or []
         self.spawn_metadata = spawn_metadata or []
         self.scenario_context = scenario_context or {}
+        self.ue_ips = ue_ips or {s["host_ip"] for s in self.spawn_metadata if "host_ip" in s}
+        self.window_s = window_s
         self.feature_config = load_features()
+        self.sequences: list[np.ndarray] = []   # aligned with returned records
+
+    # ------------------------------------------------------------------ public
 
     def extract(self) -> list[dict[str, Any]]:
-        all_records: list[dict[str, Any]] = []
-        for pcap_path in self.pcap_paths:
-            records = self._extract_from_pcap(pcap_path)
-            all_records.extend(records)
+        packets = self.matched_packets()
+        if packets.empty:
+            return []
+        return self.records_from_packets(packets)
 
-        if not all_records and self.telemetry:
-            all_records = self._extract_from_telemetry()
+    def matched_packets(self) -> pd.DataFrame:
+        return match_packets(self.capture_points, self.ue_ips)
 
-        return all_records
-
-    def _extract_from_pcap(self, pcap_path: str) -> list[dict[str, Any]]:
-        if not os.path.exists(pcap_path):
+    def records_from_packets(self, packets: pd.DataFrame) -> list[dict[str, Any]]:
+        packets = packets[packets["proto"].isin([6, 17])].copy()  # ICMP = probes, not apps
+        if packets.empty:
+            return []
+        spawns = [self._match_flow(flow) for flow in packets["flow"]]
+        packets["spawn_idx"] = [s if s is not None else -1 for s in spawns]
+        packets = packets[packets["spawn_idx"] >= 0]
+        if packets.empty:
             return []
 
-        try:
-            from scapy.all import IP, TCP, UDP, rdpcap
-        except ImportError:
-            return []
-
-        try:
-            packets = rdpcap(pcap_path)
-        except Exception:
-            return []
-
-        flows: dict[tuple, list] = defaultdict(list)
-        for pkt in packets:
-            if IP not in pkt:
-                continue
-            src_ip = pkt[IP].src
-            dst_ip = pkt[IP].dst
-            proto = pkt[IP].proto
-            src_port, dst_port = 0, 0
-            tcp_syn = tcp_ack = tcp_fin = tcp_rst = 0
-            tcp_window = 65535
-            ttl = int(pkt[IP].ttl)
-            dscp = (int(pkt[IP].tos) >> 2) & 0x3F
-
-            if TCP in pkt:
-                src_port, dst_port = int(pkt[TCP].sport), int(pkt[TCP].dport)
-                flags = int(pkt[TCP].flags)
-                tcp_syn = 1 if flags & 0x02 else 0
-                tcp_ack = 1 if flags & 0x10 else 0
-                tcp_fin = 1 if flags & 0x01 else 0
-                tcp_rst = 1 if flags & 0x04 else 0
-                tcp_window = int(pkt[TCP].window)
-            elif UDP in pkt:
-                src_port, dst_port = int(pkt[UDP].sport), int(pkt[UDP].dport)
-
-            key = (src_ip, dst_ip, src_port, dst_port, proto)
-            flows[key].append({
-                "pkt": pkt, "time": float(pkt.time), "len": len(pkt),
-                "ttl": ttl, "dscp": dscp,
-                "tcp_syn": tcp_syn, "tcp_ack": tcp_ack,
-                "tcp_fin": tcp_fin, "tcp_rst": tcp_rst,
-                "tcp_window": tcp_window,
-            })
+        t0 = packets["tx_ts"].min()
+        packets["window"] = ((packets["tx_ts"] - t0) // self.window_s).astype(int)
+        # Propagation floor per (spawn, direction) over the whole run.
+        base_owd = packets.groupby(["spawn_idx", "direction"])["owd_ms"].min()
 
         records = []
-        avg_telemetry = self._average_telemetry()
-        flow_idx = 0
-
-        for flow_key, entries in flows.items():
-            src_ip, dst_ip, src_port, dst_port, proto = flow_key
-            timestamps = [e["time"] for e in entries]
-            lengths = [e["len"] for e in entries]
-
-            duration_ms = (max(timestamps) - min(timestamps)) * 1000 if len(timestamps) > 1 else 0
-            packet_count = len(entries)
-            byte_count = sum(lengths)
-
-            duration_s = max(duration_ms / 1000, 0.001)
-            packet_rate = packet_count / duration_s
-            byte_rate = byte_count / duration_s
-            throughput_mbps = (byte_count * 8) / (duration_s * 1_000_000)
-
-            iats = np.diff(timestamps) * 1000 if len(timestamps) > 1 else np.array([0.0])
-            mean_iat = float(np.mean(iats))
-            std_iat = float(np.std(iats))
-
-            spawn = self._match_spawn_metadata(dst_ip, dst_port)
-            latency_ms = mean_iat * 2 if mean_iat > 0 else 1.0
-            jitter_ms = std_iat
-            loss_rate = avg_telemetry.get("tc_drops", 0) / max(packet_count, 1) * 100
-
-            partial = {
-                "src_ip": src_ip, "dst_ip": dst_ip,
-                "src_port": src_port, "dst_port": dst_port,
-                "transport_protocol": proto,
-                "flow_duration_ms": round(duration_ms, 3),
-                "packet_count": packet_count, "byte_count": byte_count,
-                "packet_rate_pps": round(packet_rate, 3),
-                "byte_rate_bps": round(byte_rate * 8, 3),
-                "mean_iat_ms": round(mean_iat, 3), "std_iat_ms": round(std_iat, 3),
-                "min_iat_ms": round(float(np.min(iats)), 3),
-                "max_iat_ms": round(float(np.max(iats)), 3),
-                "mean_packet_size": round(float(np.mean(lengths)), 3),
-                "median_packet_size": round(float(np.median(lengths)), 3),
-                "min_packet_size": int(min(lengths)), "max_packet_size": int(max(lengths)),
-                "throughput_mbps": round(throughput_mbps, 3),
-                "goodput_mbps": round(throughput_mbps * (1 - loss_rate / 100), 3),
-                "end_to_end_latency_ms": round(latency_ms, 3),
-                "jitter_ms": round(jitter_ms, 3),
-                "packet_loss_rate": round(min(loss_rate, 100.0), 3),
-                "queue_drops": avg_telemetry.get("tc_drops", 0),
-                "ovs_bytes": avg_telemetry.get("ovs_bytes", 0),
-                "link_utilization_pct": avg_telemetry.get("link_utilization_pct", 0),
-                "network_load_pct": self.scenario_context.get(
-                    "network_load_pct", avg_telemetry.get("link_utilization_pct", 0)
-                ),
-                "ttl": entries[0]["ttl"], "dscp": entries[0]["dscp"],
-                "tcp_syn_count": sum(e["tcp_syn"] for e in entries),
-                "tcp_ack_count": sum(e["tcp_ack"] for e in entries),
-                "tcp_fin_count": sum(e["tcp_fin"] for e in entries),
-                "tcp_rst_count": sum(e["tcp_rst"] for e in entries),
-                "tcp_window_size": entries[0]["tcp_window"],
-                "udp_packet_count": packet_count if proto == 17 else 0,
-                "flow_start_time": min(timestamps), "flow_end_time": max(timestamps),
-                "_packet_lengths": lengths,
-                "service_class": spawn.get("service_class", "unknown"),
-                "application_id": spawn.get("application_id", "unknown"),
-                "slice_type_label": spawn.get("slice_type", "eMBB"),
-                "priority_level": spawn.get("priority", 4),
-                "sla_satisfied": latency_ms <= spawn.get("latency_requirement_ms", 100),
-                "reward_score": self._compute_reward(throughput_mbps, latency_ms, spawn),
-            }
+        for (spawn_idx, window), group in packets.groupby(["spawn_idx", "window"], sort=True):
+            if len(group) < MIN_PACKETS:
+                continue
+            spawn = self.spawn_metadata[spawn_idx]
+            window_start = t0 + window * self.window_s
+            partial = self._window_features(group, spawn, base_owd, spawn_idx)
+            partial.update(self._telemetry_features(window_start, window_start + self.window_s))
+            partial["window_index"] = int(window)
+            partial["ue_host"] = spawn["host"]
+            shape_frame = frame_from_matched(group)
+            shape = shape_features(shape_frame, self.window_s)
+            partial.update({f"shape_{k}": round(v, 6) for k, v in shape.items()})
+            self.sequences.append(packet_sequence(shape_frame))
+            partial["active_flows"] = int(
+                packets.loc[packets["window"] == window, "spawn_idx"].nunique()
+            )
             records.append(map_to_schema(
-                partial, flow_index=flow_idx, scenario_context=self.scenario_context
+                partial, flow_index=len(records), scenario_context=self.scenario_context
             ))
-            flow_idx += 1
-
         return records
 
+    # -------------------------------------------------------------- matching
+
+    def _match_flow(self, flow: tuple) -> int | None:
+        """Map a canonical (ue_ip, peer_ip, proto, ue_port, peer_port) flow to a spawn."""
+        ue_ip, peer_ip, proto, ue_port, peer_port = flow
+        proto_name = {6: "tcp", 17: "udp"}.get(proto)
+        for idx, spawn in enumerate(self.spawn_metadata):
+            if (
+                spawn.get("host_ip") == ue_ip
+                and spawn.get("server_ip") == peer_ip
+                and spawn.get("protocol", proto_name) == proto_name
+                and spawn.get("port") in (ue_port, peer_port)
+            ):
+                return idx
+        return None
+
+    def _match_spawn_metadata(
+        self, src_ip: str, dst_ip: str, src_port: int, dst_port: int, proto: int
+    ) -> dict[str, Any]:
+        """Spawn record for a packet in either direction ({} if not an application)."""
+        if src_ip in self.ue_ips:
+            flow = (src_ip, dst_ip, proto, src_port, dst_port)
+        else:
+            flow = (dst_ip, src_ip, proto, dst_port, src_port)
+        idx = self._match_flow(flow)
+        return self.spawn_metadata[idx] if idx is not None else {}
+
+    # -------------------------------------------------------------- features
+
+    def _window_features(self, group: pd.DataFrame, spawn, base_owd, spawn_idx) -> dict[str, Any]:
+        group = group.sort_values("tx_ts")
+        fwd, bwd = group[group["direction"] == 1], group[group["direction"] == -1]
+        data_dir = 1 if fwd["ip_len"].sum() >= bwd["ip_len"].sum() else -1
+        data = group[(group["direction"] == data_dir) & ~group["in_flight"]]
+        delivered = data[data["rx_ts"].notna()].sort_values("rx_ts")
+
+        ts = group["tx_ts"].to_numpy()
+        iats = np.diff(ts) * 1000 if len(ts) > 1 else np.array([0.0])
+        sizes = group["ip_len"].to_numpy()
+
+        owd = delivered["owd_ms"].to_numpy()
+        latency = float(np.mean(owd)) if len(owd) else np.nan
+        jitter = float(np.mean(np.abs(np.diff(owd)))) if len(owd) > 1 else 0.0
+        floor = base_owd.get((spawn_idx, data_dir), np.nan)
+        queueing = float(np.mean(owd - floor)) if len(owd) and not np.isnan(floor) else 0.0
+        loss = (1 - len(delivered) / len(data)) * 100 if len(data) else 0.0
+
+        retrans = delivered["retransmission"].to_numpy(dtype=bool)
+        throughput = delivered["ip_len"].sum() * 8 / self.window_s / 1e6
+        goodput = delivered.loc[~retrans, "payload_len"].sum() * 8 / self.window_s / 1e6
+        tcp_data = group[(group["proto"] == 6) & (group["payload_len"] > 0)]
+
+        idle_ms = float(iats[iats > IDLE_GAP_S * 1000].sum()) if len(iats) else 0.0
+        duration_ms = float((ts[-1] - ts[0]) * 1000) if len(ts) > 1 else 0.0
+        sla = spawn.get("sla", {})
+        reward = self._sla_score(latency, jitter, loss, sla, spawn)
+        flags = group["tcp_flags"].to_numpy()
+
+        return {
+            "flow_duration_ms": round(duration_ms, 3),
+            "packet_count": int(len(group)),
+            "byte_count": int(sizes.sum()),
+            "forward_packet_count": int(len(fwd)),
+            "backward_packet_count": int(len(bwd)),
+            "forward_byte_count": int(fwd["ip_len"].sum()),
+            "backward_byte_count": int(bwd["ip_len"].sum()),
+            "packet_rate_pps": round(len(group) / self.window_s, 3),
+            "byte_rate_bps": round(sizes.sum() * 8 / self.window_s, 3),
+            "flow_start_time": float(ts[0]),
+            "flow_end_time": float(ts[-1]),
+            "ttl": int(group["ttl"].iloc[0]),
+            "dscp": int(group["dscp"].mode().iloc[0]),
+            "transport_protocol": int(group["proto"].iloc[0]),
+            "src_port": int(group["flow"].iloc[0][3]),
+            "dst_port": int(group["flow"].iloc[0][4]),
+            "tcp_syn_count": int(((flags & TCP_SYN) > 0).sum()),
+            "tcp_ack_count": int(((flags & TCP_ACK) > 0).sum()),
+            "tcp_fin_count": int(((flags & TCP_FIN) > 0).sum()),
+            "tcp_rst_count": int(((flags & TCP_RST) > 0).sum()),
+            "tcp_window_size": int(group["tcp_win"].mean()) if (group["proto"] == 6).any() else 0,
+            "tcp_retransmissions": int(group["retransmission"].sum()),
+            "retransmission_rate": round(
+                float(tcp_data["retransmission"].mean()) if len(tcp_data) else 0.0, 4
+            ),
+            "udp_packet_count": int((group["proto"] == 17).sum()),
+            "mean_iat_ms": round(float(np.mean(iats)), 3),
+            "std_iat_ms": round(float(np.std(iats)), 3),
+            "min_iat_ms": round(float(np.min(iats)), 3),
+            "max_iat_ms": round(float(np.max(iats)), 3),
+            "forward_mean_iat_ms": _mean_iat(fwd["tx_ts"].to_numpy()),
+            "backward_mean_iat_ms": _mean_iat(bwd["tx_ts"].to_numpy()),
+            "flow_active_time_ms": round(max(duration_ms - idle_ms, 0.0), 3),
+            "flow_idle_time_ms": round(idle_ms, 3),
+            "mean_packet_size": round(float(np.mean(sizes)), 3),
+            "median_packet_size": round(float(np.median(sizes)), 3),
+            "min_packet_size": int(sizes.min()),
+            "max_packet_size": int(sizes.max()),
+            "_packet_lengths": sizes.tolist(),
+            "end_to_end_latency_ms": round(latency, 3) if not np.isnan(latency) else np.nan,
+            "p95_latency_ms": round(float(np.percentile(owd, 95)), 3) if len(owd) else np.nan,
+            "jitter_ms": round(jitter, 3),
+            "packet_loss_rate": round(loss, 3),
+            "queueing_delay_ms": round(queueing, 3),
+            "throughput_mbps": round(float(throughput), 4),
+            "goodput_mbps": round(float(min(goodput, throughput)), 4),
+            "service_class": spawn["service_class"],
+            "application_id": spawn["application_id"],
+            "slice_type_label": spawn.get("slice_type", "eMBB"),
+            "priority_level": spawn.get("priority", 4),
+            "sla_satisfied": bool(reward >= 100.0 - 1e-9),
+            "reward_score": reward,
+            "qos_satisfaction_score": reward,
+        }
+
+    @staticmethod
+    def _sla_score(latency: float, jitter: float, loss: float, sla: dict, spawn: dict) -> float:
+        """100 × mean of per-target satisfaction (latency, jitter, loss), each capped at 1."""
+        lat_target = sla.get("latency_ms", spawn.get("latency_requirement_ms", 100))
+        parts = []
+        if not np.isnan(latency):
+            parts.append(min(1.0, lat_target / max(latency, 1e-6)))
+        parts.append(min(1.0, sla.get("jitter_ms", 50) / max(jitter, 1e-6)))
+        parts.append(min(1.0, sla.get("loss_pct", 5) / max(loss, 1e-6)))
+        return round(100 * float(np.mean(parts)), 2)
+
+    def _telemetry_features(self, start: float, end: float) -> dict[str, Any]:
+        snaps = [s for s in self.telemetry if start <= s.get("timestamp", -1) < end]
+        if not snaps:
+            snaps = self.telemetry[-1:] if self.telemetry else []
+        if not snaps:
+            return {}
+        return {
+            "link_utilization_pct": round(float(np.mean([s.get("link_utilization_pct", 0) for s in snaps])), 3),
+            "queue_drops": int(sum(s.get("tc_drops", 0) for s in snaps)),
+            "ovs_bytes": int(np.mean([s.get("ovs_bytes", 0) for s in snaps])),
+            "host_cpu_pct": round(float(np.mean([s.get("host_cpu_pct", 0) for s in snaps])), 2),
+            "host_mem_pct": round(float(np.mean([s.get("host_mem_pct", 0) for s in snaps])), 2),
+        }
+
+    # ------------------------------------------------------- telemetry-only path
+
     def _extract_from_telemetry(self) -> list[dict[str, Any]]:
-        """Fallback: create schema-aligned records from telemetry when PCAP is empty."""
+        """Fallback when no captures exist: one record per (tick, spawn), clearly marked."""
         records = []
-        flow_idx = 0
         for snap in self.telemetry:
             for spawn in self.spawn_metadata:
+                service = spawn.get("service_class", "unknown")
+                tput = snap.get("service_throughput_mbps", {}).get(service, 0.0)
+                rtt = snap.get("service_rtt_ms", {}).get(service)
                 partial = {
-                    "tick": snap.get("tick", 0),
                     "flow_duration_ms": 1000.0,
-                    "packet_count": max(int(snap.get("ovs_bytes", 0) // 1500), 1),
-                    "byte_count": snap.get("ovs_bytes", 0),
-                    "throughput_mbps": snap.get("ovs_bytes", 0) / 1_000_000,
-                    "end_to_end_latency_ms": 5.0,
-                    "jitter_ms": 1.0,
-                    "packet_loss_rate": snap.get("tc_drops", 0),
+                    "throughput_mbps": tput,
+                    "end_to_end_latency_ms": rtt / 2 if rtt else np.nan,
                     "queue_drops": snap.get("tc_drops", 0),
-                    "ovs_bytes": snap.get("ovs_bytes", 0),
                     "link_utilization_pct": snap.get("link_utilization_pct", 0),
-                    "network_load_pct": self.scenario_context.get(
-                        "network_load_pct", snap.get("link_utilization_pct", 0)
-                    ),
-                    "service_class": spawn.get("service_class", "unknown"),
+                    "service_class": service,
                     "application_id": spawn.get("application_id", "unknown"),
                     "slice_type_label": spawn.get("slice_type", "eMBB"),
                     "priority_level": spawn.get("priority", 4),
-                    "sla_satisfied": True,
-                    "reward_score": 80.0,
-                    "_packet_lengths": [1500] * 10,
+                    "data_source": "telemetry_fallback",
                 }
                 records.append(map_to_schema(
-                    partial, flow_index=flow_idx, scenario_context=self.scenario_context
+                    partial, flow_index=len(records), scenario_context=self.scenario_context
                 ))
-                flow_idx += 1
         return records
 
-    def _match_spawn_metadata(self, dst_ip: str, dst_port: int) -> dict[str, Any]:
-        for spawn in self.spawn_metadata:
-            if spawn.get("server_ip") == dst_ip and spawn.get("port") == dst_port:
-                return spawn
-        for spawn in self.spawn_metadata:
-            if spawn.get("server_ip") == dst_ip:
-                return spawn
-        return {}
+    def _service_qos(self, service: str) -> tuple[float | None, float, float]:
+        """Probe-based RTT mean/jitter and loss for a service (online monitoring view)."""
+        rtts = [s.get("service_rtt_ms", {}).get(service, "missing") for s in self.telemetry]
+        rtts = [r for r in rtts if r != "missing"]
+        answered = [r for r in rtts if r is not None]
+        probe_loss = (len(rtts) - len(answered)) / len(rtts) * 100 if rtts else 0.0
+
+        queue_loss = 0.0
+        if self.telemetry:
+            stats = self.telemetry[-1].get("tc_class_stats", {}).get(service)
+            if stats:
+                attempted = stats["sent_packets"] + stats["dropped"]
+                queue_loss = stats["dropped"] / attempted * 100 if attempted else 0.0
+
+        if not answered:
+            return None, 0.0, max(probe_loss, queue_loss)
+        return (
+            float(np.mean(answered)),
+            float(np.mean(np.abs(np.diff(answered)))) if len(answered) > 1 else 0.0,
+            max(probe_loss, queue_loss),
+        )
 
     def _average_telemetry(self) -> dict[str, Any]:
         if not self.telemetry:
             return {}
-        keys = self.telemetry[0].keys()
+        keys = [
+            k for k, v in self.telemetry[0].items()
+            if k != "tick" and isinstance(v, (int, float)) and not isinstance(v, bool)
+        ]
         return {
             k: sum(s.get(k, 0) for s in self.telemetry) / len(self.telemetry)
-            for k in keys if k != "tick"
+            for k in keys
         }
 
-    def _compute_reward(
-        self, throughput: float, latency: float, spawn: dict[str, Any]
-    ) -> float:
-        latency_req = spawn.get("latency_requirement_ms", 100)
-        latency_score = max(0, 100 - (latency / latency_req) * 50)
-        throughput_score = min(100, throughput * 10)
-        return round((latency_score + throughput_score) / 2, 2)
+
+def _mean_iat(ts: np.ndarray) -> float:
+    return round(float(np.mean(np.diff(ts)) * 1000), 3) if len(ts) > 1 else 0.0

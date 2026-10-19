@@ -1,0 +1,471 @@
+\part{The problem statement and research motivation}
+
+\section{What exactly is the problem?}
+
+\begin{qa}{1}{Define the CARS-SF problem in one precise sentence.}
+When several socially critical services share one scarce, failure-prone rural backhaul, decide continuously how
+much of that bottleneck each \emph{service} receives (from the operating context and measured demand), enforce
+that decision in the data plane, and restore connectivity on its own when the backhaul degrades or fails, while
+keeping critical-service SLAs.
+\end{qa}
+
+\begin{qa}{2}{What does CARS-SF stand for, and what does each part of the name mean operationally?}
+\textbf{C}ontext-\textbf{A}ware \textbf{R}ural \textbf{S}ervice \textbf{S}licing \textbf{F}ramework.
+\begin{itemize}
+\item \emph{Context-aware}: the priority matrix is chosen by \code{ContextInferenceEngine} from clock, season, alerts
+and admin override (\code{context/engine.py}).
+\item \emph{Rural}: one shared uplink is the only contention point, with a standby backup backhaul (Fig.~\ref{fig:topo}).
+\item \emph{Service slicing}: four classes (healthcare, education, agriculture, general), each with its own HTB class,
+floor and SLA (\code{registries/slices.yaml}), not eMBB/URLLC/mMTC.
+\item \emph{Framework}: swappable stages behind protocols (\code{core/interfaces.py}), composed from
+\code{registries/schedulers.yaml}.
+\end{itemize}
+The thesis title also says ``autonomous self-healing'': the \code{SelfHealingEngine}.
+\end{qa}
+
+\begin{qa}{3}{Is the primary research problem rural connectivity, service-aware allocation, context awareness, slicing, self-healing, or their integration?}
+The integration: a single closed loop in which context, measured demand, service slicing and self-healing act on
+the \emph{same} bottleneck through shared constraints. The healer constrains the allocator rather than overwriting it
+(\code{apply_constraints}). Rural connectivity is the setting, not the contribution.
+\honest{Integration is a weaker novelty claim than a new algorithm. Defend it with what integration
+\emph{enabled} that the parts alone cannot: backup-capacity ceilings that prevent bufferbloat after failover, and
+congestion-aware prediction that prevents false failover (both found and fixed in this work).}
+\end{qa}
+
+\begin{qa}{4}{Which is the central contribution, and which are supporting engineering components?}
+\textbf{Central:}
+\begin{itemize}
+\item (C1) service-centric slicing with a context-driven, demand-aware allocator enforced at the rural bottleneck;
+\item (C2) a loop-free self-healing state machine with predictive switchover, integrated with allocation;
+\item (C3) a packet-matched measurement methodology that makes C1 and C2 evaluable.
+\end{itemize}
+\textbf{Supporting:} traffic models, harness, matrix runner, 5G deployment.
+\textbf{Secondary research results:} SliceNet on measured traffic and the synthetic-to-measured transfer study.
+RL is an evaluated alternative with a \emph{negative} result.
+\end{qa}
+
+\begin{qa}{5}{What concrete failure or inefficiency exists in a conventional rural network that CARS-SF addresses?}
+\begin{itemize}
+\item (a) A single FIFO uplink lets bulk downloads and video inflate everyone's queue. In the main study, ``no slicing''
+meets the healthcare SLA in \NHcSlaNoSlicing{} of windows vs \NHcSlaProposed{} with slicing.
+\item (b) Static per-technology shares (3GPP-style) ignore that a disaster changes \emph{which} service matters.
+\item (c) A fiber cut with no automated failover means an outage of the order of the repair time. Without self-healing,
+the injected cut cost \NOutCutNoneMean\,s of core-bound outage in each run (until the scripted repair).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{6}{What do you mean by resilient connectivity? Which measurable properties constitute resilience?}
+Six measured properties:
+\begin{itemize}
+\item time to detect (MTTD) and time to act (control-plane MTTR);
+\item service outage: the longest delivery gap of affected flows, from matched packets;
+\item packets lost during failover;
+\item SLA compliance while degraded;
+\item correct localisation (link vs core switch);
+\item safe fail-back with no loops or flapping.
+\end{itemize}
+All six are produced per run (\code{healer.resilience_summary}, \code{analysis/metrics.outage_metrics}).
+Availability over months is \emph{not} measured.
+\end{qa}
+
+\begin{qa}{7}{What do you mean by context-aware? What qualifies as context, and how does it change a decision?}
+Context is information \emph{external} to the traffic that changes social priority:
+\begin{itemize}
+\item time of day and weekday (school hours);
+\item season (harvest months);
+\item alerts (flood, fire, medical emergency, fiber cut);
+\item an administrative override.
+\end{itemize}
+It selects the priority matrix (e.g.\ disaster: healthcare weight 10 vs 1), and in timeline runs it also changes the
+offered traffic. It does \emph{not} change floors or SLA targets.
+\ev{timeline runs switch contexts live; unit tests check the precedence rules (\code{tests/test_context.py}).}{\Lthree}
+\end{qa}
+
+\begin{qa}{8}{What do you mean by self-healing? How does it differ from detecting a fault, raising an alert or manual repair?}
+Self-healing closes the loop: it detects (link watcher, telemetry, prediction), diagnoses (link vs core switch),
+acts on the network (quarantine, backup activation, MAC flush), adapts the allocation (constraints, ceilings), and
+reverts safely once the fault has cleared (hold-down + OAM check). An alert stops at detection; manual repair needs a human.
+\honest{Post-action verification is partial. Escalation to \textsf{DEGRADED} happens when the core is still unreachable
+after failover, but there is no generic ``verify KPI, otherwise roll back'' stage for every action (see Q514).}
+\end{qa}
+
+\begin{qa}{9}{What is the exact system boundary of CARS-SF?}
+\textbf{Inside:}
+\begin{itemize}
+\item the control loop (\code{core/}, \code{slicing/}, \code{self_healing/}, \code{scheduler/}, \code{classification/online.py});
+\item the qdiscs and filters on the two ends of the rural uplink;
+\item the s\_edge-side backhaul ports.
+\end{itemize}
+\textbf{Outside:}
+\begin{itemize}
+\item end hosts and their congestion control;
+\item the core and edge servers;
+\item the radio access network;
+\item physical repair.
+\end{itemize}
+The traffic generators, topology and capture are \emph{experimental apparatus}, not part of the framework.
+\end{qa}
+
+\begin{qa}{10}{What does CARS-SF control, what does it observe, and what is outside its control?}
+\textbf{Controls:}
+\begin{itemize}
+\item HTB rates and ceilings per class, in both directions;
+\item classification rules (host, app, per-flow);
+\item the admin state of the s\_edge backhaul and backup ports;
+\item the forwarding database (MAC flush).
+\end{itemize}
+\textbf{Observes:}
+\begin{itemize}
+\item interface counters and HTB class stats;
+\item RTT probes and link state;
+\item OVS stats (on OVS);
+\item packet captures (post-run, plus live for the mixed UE).
+\end{itemize}
+\textbf{Outside its control:} offered load, TCP behaviour, the far end of the backhaul, the radio.
+\end{qa}
+
+\begin{qa}{11}{Is CARS-SF a protocol, a management framework, a decision engine, a dataset, an ML model, or a combination?}
+Most defensible: \emph{a network-management framework with a closed-loop decision engine}, plus an evaluation
+methodology. It is not a protocol and does not change packet formats. Datasets (RSNSD, the measured windows)
+and models (SliceNet, PPO) are \emph{artefacts} it produces and consumes.
+\end{qa}
+
+\begin{qa}{12}{What is the unit of decision-making?}
+The \textbf{service slice} (four HTB classes) for allocation, re-planned every 5\,s. The \textbf{flow} (5-tuple) only
+for in-loop classification of a mixed UE. The \textbf{link} for self-healing. There are no per-packet decisions:
+the kernel's HTB and fq\_codel handle packets.
+\end{qa}
+
+\begin{qa}{13}{What is the unit of failure detection and recovery?}
+Detection: a link (carrier transition on \code{s_edge-bh}), reachability per tier (edge vs core RTT probes), and the
+per-slice SLA. Recovery: path-level (primary $\leftrightarrow$ backup backhaul) plus slice-level constraints.
+\end{qa}
+
+\begin{qa}{14}{What does the system optimise, and what constraints must never be violated?}
+It maximises priority-weighted demand satisfaction
+$U=\sum_s w_s\min(1,x_s/d_s)/\sum_s w_s$, approximately and greedily (Q432).
+\textbf{Hard constraints:}
+\begin{itemize}
+\item $\sum_s x_s\le C$;
+\item $x_s\ge \min(f_s,d_s)$ for the floors $f$ (healthcare 5, education 2, agriculture 1, general 1\,Mb/s);
+\item the L2 domain is never looped;
+\item learned policies can only rescale priorities, never bypass floors or constraints.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{15}{Maximise average performance, or guarantee minimum quality for critical applications?}
+Minimum guarantees first: floors are allocated before any priority share, and HTB \code{rate} is a reservation.
+Above the floors it maximises weighted satisfaction.
+\honest{The floors are bandwidth guarantees, not latency guarantees. Latency is protected empirically
+(fq\_codel + priority), not provably (Q461).}
+\end{qa}
+
+\begin{qa}{16}{Improving average performance vs preserving critical connectivity in an emergency?}
+The average can stay flat while the critical service collapses. In the main study, weighted satisfaction is
+statistically indistinguishable across schedulers (\NUtilMin--\NUtilMax), yet healthcare SLA compliance differs by
+\NSlaDeltaNoSlicing{} between slicing and no slicing. CARS-SF is judged on the second kind of metric.
+\end{qa}
+
+\begin{qa}{17}{Which user-facing outcomes improve if CARS-SF works?}
+\begin{itemize}
+\item Telemedicine and ECG streams keep low delay and loss under load (healthcare p95 $\approx$\NHcPninefiveProposed\,ms in the main study).
+\item Classrooms and downloads get the surplus instead of a fixed share.
+\item A fiber cut is a sub-second blip instead of a minutes-long outage.
+\item A shared multi-service device (a village kiosk) still gets per-service treatment.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{18}{What is the smallest implementation that could demonstrate the central hypothesis?}
+One bottleneck, two classes (critical vs bulk), HTB+fq\_codel, a static context switch and an injected link cut with a
+standby path. Measure the critical SLA and outage with and without. The \code{ablation} and \code{resilience} studies
+are essentially this, scaled up.
+\end{qa}
+
+\begin{qa}{19}{What functionality is unnecessary for proving that hypothesis?}
+RL policies, SliceNet, the 5G deployment, the RSNSD generator, PPO calibration and the OVS QoS backend. They answer
+\emph{secondary} questions (RQ3, RQ5, RQ6, RQ8). The thesis presents them as such.
+\end{qa}
+
+\begin{qa}{20}{What is explicitly outside the scope of the thesis?}
+\begin{itemize}
+\item radio scheduling and handover;
+\item real field deployment;
+\item multi-site topologies with several bottlenecks;
+\item multipath load balancing;
+\item controller high availability;
+\item security of context feeds;
+\item energy and power-failure modelling;
+\item real-trace traffic.
+\end{itemize}
+\end{qa}
+
+\section{Why rural networks?}
+
+\begin{qa}{21}{Why rural connectivity rather than generic enterprise networking?}
+Rural sites typically combine one scarce shared backhaul, little redundancy, long repair times and a few socially
+critical services (clinic, school, farm cooperative) whose importance swings with events (harvest, flood). Enterprise
+networks usually have redundant links and overprovisioning, so allocation under scarcity and autonomous healing
+matter less there.
+\honest{This characterisation is argued from the problem framing and literature, not from rural measurements made
+in this thesis.}
+\end{qa}
+
+\begin{qa}{22}{Which rural characteristics make the problem technically different?}
+\begin{itemize}
+\item A single contention point carries every service.
+\item Demand composition changes with context more than with load.
+\item The backhaul is long and fragile, and any backup has lower capacity.
+\item Repair takes long, so autonomy matters.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{23}{Limited bandwidth, intermittent backhaul, power, sparse infrastructure, latency or poor redundancy?}
+Represented: limited bandwidth (100\,Mb/s shared, swept 50--150), backhaul failure and degradation, poor redundancy
+(a single standby backup at half capacity), and long backhaul delay (20\,ms primary, 40\,ms backup).
+Not represented: power instability, sparse radio coverage.
+\end{qa}
+
+\begin{qa}{24}{Which constraints are directly represented in the testbed?}
+\begin{itemize}
+\item bottleneck capacity (HTB root = 100\,Mb/s);
+\item propagation delays (netem on destination-facing ports);
+\item a backup path of 50\,Mb/s and 40\,ms;
+\item failures: fiber cut, gradual degradation (delay +15\,ms and loss +0.3\% per tick), core switch failure.
+\end{itemize}
+See \code{topology/rural_topology.py} and \code{self_healing/injector.py}.
+\end{qa}
+
+\begin{qa}{25}{Which are only assumed or discussed conceptually?}
+Power failures, radio coverage gaps, weather-driven radio degradation, the cost of a backup link, multi-village
+topologies and actual rural traffic mixes. The radio fields in RSNSD are scenario-injected and excluded from ML.
+\end{qa}
+
+\begin{qa}{26}{What evidence supports heterogeneous, competing requirements of rural services?}
+The application registry assigns per-application SLAs (e.g.\ ECG 20\,ms, telemedicine 50\,ms, bulk library 300\,ms,
+irrigation 500\,ms) and distinct traffic models.
+\honest{These are literature-typical values chosen by design (\code{registries/applications.yaml}), not measured
+in rural deployments. The heterogeneity is \emph{assumed} and then modelled.}
+\end{qa}
+
+\begin{qa}{27}{Rural network vs low-capacity network: interchangeable in your formulation?}
+Not quite. A low-capacity network explains the scarcity. ``Rural'' adds a single fragile backhaul with a weaker backup,
+socially prioritised services, and context swings. The allocation results would carry over to any single-bottleneck
+network; the resilience results depend on the rural assumptions.
+\end{qa}
+
+\begin{qa}{28}{Why not solve it by increasing bandwidth?}
+\begin{itemize}
+\item Capacity is the expensive, slow resource in rural areas.
+\item The capacity sweep (\code{sensitivity_capacity}) shows the proposed scheduler's advantage is modest at every capacity.
+At 50\,Mb/s in disaster it protects healthcare better (SLA share \NSensCapDisasterProposedFiveZeroHcSla{} vs
+\NSensCapDisasterStaticFiveZeroHcSla), without higher utility.
+\item More bandwidth does not fix a cut fiber.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{29}{Why might adding bandwidth fail for intermittent or physical failures?}
+A cut link has zero capacity whatever its nominal size. Recovery needs a \emph{different} path, plus fast
+detection and safe switching. Bandwidth helps only the backup's quality while on backup.
+\end{qa}
+
+\begin{qa}{30}{No alternate route, no spare capacity, no radio coverage?}
+Then CARS-SF can only \emph{degrade gracefully}: it detects the fault, gives the surviving capacity (e.g.\ edge-hosted
+services) to critical slices, and reports. This is exactly the core-switch-failure case: the outage of core-hosted
+services lasts until repair (\NOutCoreFullMean\,s, the same as without healing), while edge services keep running.
+\end{qa}
+
+\begin{qa}{31}{Can software restore connectivity when the physical infrastructure is completely unavailable?}
+No. Software can only use surviving physical paths faster and more safely, and re-prioritise. The thesis states
+this explicitly through the core-switch result (Fig.~\ref{fig:resilience}).
+\end{qa}
+
+\begin{qa}{32}{What minimum infrastructure does CARS-SF assume?}
+\begin{itemize}
+\item one Linux-capable aggregation switch at each end of the bottleneck (tc / HTB);
+\item a standby backhaul for healing;
+\item the ability to probe edge and core servers;
+\item UEs whose addresses map to institutions (or SliceNet for mixed devices).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{33}{How do you model limited resources without making the network so constrained that your method looks artificially good?}
+\begin{itemize}
+\item Design demands run from 80\,Mb/s (normal) to 145\,Mb/s (school), i.e.\ 0.8--1.45 of capacity, not extreme overload.
+\item Capacity is swept from 50 to 150\,Mb/s and load from 0.5$\times$ to 1.5$\times$.
+\item The result is reported honestly: at 0.5$\times$ load the proposed scheduler is \emph{not} better than static
+(\NSensLoadSchoolProposedZeropFive{} vs \NSensLoadSchoolStaticZeropFive).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{34}{How representative are the topologies of actual rural deployments?}
+Structurally plausible (access aggregation, a long backhaul, an edge MEC, a core), but parameterised, not surveyed.
+It is one topology with one bottleneck. Treat the results as properties of this class of topology.
+\end{qa}
+
+\begin{qa}{35}{One backhaul village vs a region with multiple community gateways?}
+With multiple gateways you get several bottlenecks and real path choice, so allocation becomes a multi-link problem
+(per-path HTB, routing). Healing gains load balancing (ECMP or OpenFlow groups instead of a standby link), and the
+controller probably becomes hierarchical (per-village agents). See Q130 and Q156.
+\end{qa}
+
+\begin{qa}{36}{Why are rural networks the right setting, not just a motivating example?}
+Because the three mechanisms matter most exactly there: scarcity (allocation matters only above 1$\times$ load in
+our sweep), context swings (disaster weights), and fragile single backhauls with long repair (self-healing).
+\end{qa}
+
+\section{Why these application domains?}
+
+\begin{qa}{37}{Why e-healthcare, e-education and smart agriculture?}
+They are the canonical rural public-service pillars, and they span the QoS space: latency-critical low-rate
+(ECG, voice), high-throughput elastic (classroom video, library downloads), and sparse periodic IoT (soil, weather).
+General internet is the best-effort fourth class.
+\end{qa}
+
+\begin{qa}{38}{What are the distinctive QoS requirements of each domain?}
+From \code{registries/applications.yaml}:
+\begin{itemize}
+\item Healthcare: one-way latency 10--50\,ms, loss $\le$1\%, jitter $\le$10\,ms.
+\item Education: 150--300\,ms, high throughput.
+\item Agriculture: 250--1000\,ms, low rate, loss tolerant.
+\item General: 300--500\,ms, best effort.
+\end{itemize}
+Slice-level targets are in \code{registries/slices.yaml}.
+\end{qa}
+
+\begin{qa}{39}{Why is a domain label alone insufficient to determine the priority of every flow?}
+A domain contains apps with different needs (ECG 0.08\,Mb/s at 20\,ms vs telemedicine video at 4\,Mb/s with 50\,ms),
+and context changes urgency. CARS-SF therefore uses domain $\to$ slice for \emph{bandwidth}, per-app SLAs for
+\emph{evaluation}, and fq\_codel \emph{within} a slice so that its sparse flows are not delayed by its bulk flows.
+\honest{There is no per-app priority within a slice.}
+\end{qa}
+
+\begin{qa}{40}{How does emergency healthcare traffic differ from routine monitoring?}
+In the models: emergency voice (talkspurt VoIP) and ambulance on/off bursts vs periodic health-monitoring reports.
+Under the \code{medical_emergency} context the healthcare weight rises to 15 and its demand to 95\,Mb/s.
+In the network the distinction is by context, not by flow.
+\end{qa}
+
+\begin{qa}{41}{Is a live classroom always more important than agricultural telemetry?}
+No. The school context weights education 5 vs agriculture 2, the harvest context the opposite (3 vs 5), and floors
+keep sparse IoT alive in all cases. Within a slice, fq\_codel keeps sparse telemetry from waiting behind video.
+\end{qa}
+
+\begin{qa}{42}{How do you distinguish an application needing throughput from one needing low latency?}
+By declared SLA (registry) and by mechanism: throughput comes from HTB rate and surplus, latency from AQM (fq\_codel)
+plus HTB priority. The ablation shows that removing borrowing raises school healthcare p95 from
+\NAblSchoolFullHc{} to \NAblSchoolFullStrictHc\,ms.
+\end{qa}
+
+\begin{qa}{43}{Can two applications in the same domain have conflicting QoS requirements?}
+Yes: ECG (strict latency, tiny rate) vs telemedicine video (bursty, larger). They share the healthcare class.
+fq\_codel's per-flow queues isolate the sparse ECG flow from video bursts, but bandwidth is shared.
+Per-app sub-classes are a possible extension.
+\end{qa}
+
+\begin{qa}{44}{How should CARS-SF respond when several critical services compete for the same bottleneck?}
+Floors first, then priority-weighted shares capped at demand, then the surplus by priority among unsatisfied slices
+(Fig.~\ref{fig:alloc}). If even the floors exceed capacity, each floor is clipped to $C/4$ (Q427).
+\end{qa}
+
+\begin{qa}{45}{What policy prevents indefinite starvation of best-effort traffic?}
+Three mechanisms:
+\begin{itemize}
+\item a general-class floor of 1\,Mb/s;
+\item work-conserving HTB (best effort borrows idle capacity);
+\item healing boosts that expire after 6 ticks.
+\end{itemize}
+\honest{1\,Mb/s keeps it alive but satisfies little. In disaster runs the general slice's satisfaction is low by design.}
+\end{qa}
+
+\begin{qa}{46}{How would you extend the framework to industrial IoT, disaster response or public safety?}
+Add a slice entry (class, floor, SLA) in \code{slices.yaml}, applications in \code{applications.yaml}, weights per
+context in \code{scenarios.yaml}, and retrain SliceNet. QoS class tables, the allocator and monitoring are data-driven.
+\honest{The service list is hard-coded as a 4-tuple in several modules (\code{SERVICE_CLASSES}). A fifth class needs
+those constants generalised (Q159).}
+\end{qa}
+
+\begin{qa}{47}{Were the domains chosen for real requirements, distinct traffic, or easy classification?}
+For requirements and policy relevance. Distinct traffic patterns follow from the applications. Classification was
+deliberately made \emph{harder} by excluding ports and DSCP from features. Even so, the traffic models were written
+by us, so their separability is partly designed (Q334).
+\end{qa}
+
+\section{Research questions and hypotheses}
+
+\begin{qa}{48}{State the primary research question in a testable form.}
+On a shared rural bottleneck under the design contexts, does service-centric slicing (context-driven, demand-aware,
+with self-healing) achieve higher priority-weighted demand satisfaction and critical-service SLA compliance than
+technology-centric (3GPP), static or no slicing? (RQ1, \code{docs/thesis/research_design.md}.)
+\end{qa}
+
+\begin{qa}{49}{State the null hypothesis for the main evaluation.}
+$H_0$: for each baseline $b$, the paired difference in weighted utility between the proposed scheduler and $b$ has
+median zero across (scenario, seed) pairs (Wilcoxon signed-rank).
+\end{qa}
+
+\begin{qa}{50}{State the alternative hypothesis.}
+$H_1$: the median paired difference is positive (proposed better). It was pre-registered as H1a.
+\textbf{Result: not supported.} No baseline difference in weighted utility is significant (smallest $p=\NUtilPMin$).
+\end{qa}
+
+\begin{qa}{51}{What is your independent variable?}
+The scheduler (seven levels), crossed with context (five levels). In the other studies the IVs are the ablation
+variant, capacity, load, UEs per service, healing variant and classification mode.
+\end{qa}
+
+\begin{qa}{52}{What are your dependent variables?}
+Weighted demand satisfaction, per-slice demand satisfaction, SLA-met share, p95/p99 one-way delay, jitter, loss,
+Jain fairness, outage, failover loss, MTTD/MTTR, and macro-F1.
+\end{qa}
+
+\begin{qa}{53}{Which variables must be held constant?}
+Topology and capacities, traffic models and seeds (identical across schedulers for a given seed), run duration (40\,s),
+window length (5\,s), UEs per service (2), host load (4 parallel workers, pacing without busy-waiting) and code version
+(the git hash is recorded per run).
+\end{qa}
+
+\begin{qa}{54}{Which baseline would falsify the claim that context awareness is useful?}
+The \code{no_context} ablation, which uses the normal priority matrix in every context. Context awareness is falsified
+if it performs as well as \code{full}. Result: school utility \NAblSchoolNoContextUtil{} vs \NAblSchoolFullUtil{} (full);
+disaster \NAblDisasterNoContextUtil{} vs \NAblDisasterFullUtil. \textbf{By this test, context awareness is falsified in our setting}:
+demand-capping plus HTB borrowing absorb the effect of the weights.
+\honest{Say this plainly. Context still decides \emph{which} slice wins under scarcity, but its measured contribution to outcomes here is nil.}
+\end{qa}
+
+\begin{qa}{55}{What result would show self-healing adds nothing beyond static slicing?}
+Equal outage with and without healing. Observed: fiber cut \NOutCutFullMean{} vs \NOutCutNoneMean\,s; degradation
+\NOutDegFullMean{} vs \NOutDegNoneMean\,s. For a core switch failure, healing indeed adds nothing to the outage
+(\NOutCoreFullMean{} vs \NOutCoreNoneMean\,s), and we report that.
+\end{qa}
+
+\begin{qa}{56}{What result would show the ML classifier is unnecessary?}
+If address-based (host) slicing served the mixed UE as well as in-loop SliceNet. Observed:
+\begin{itemize}
+\item disaster: equal (\NMixedDisasterHostSla{} vs \NMixedDisasterSlicenetSla);
+\item school: SliceNet better (\NMixedSchoolSlicenetSla{} vs \NMixedSchoolHostSla).
+\end{itemize}
+H5b required a gain in both, so it is \textbf{not supported}. More fundamentally, for single-institution UEs, address
+rules suffice and SliceNet \emph{is} unnecessary. Its value is confined to multi-service devices.
+\end{qa}
+
+\begin{qa}{57}{What would count as a negative result, and how would you report it?}
+Any pre-registered hypothesis whose test fails. The report generator marks verdicts mechanically
+(\code{experiments/report.py}). H1a, H1b, H3, H5b, H7 and H9 are reported as \emph{not supported} in
+\code{docs/thesis/results.md}, next to the supported ones.
+\end{qa}
+
+\begin{qa}{58}{Which claims are hypotheses, which are implementation goals, and which are demonstrated findings?}
+\begin{itemize}
+\item \textbf{Demonstrated} (L3):
+  \begin{itemize}
+  \item slicing vs none for healthcare SLA (exploratory, significant);
+  \item self-healing outage reduction (H4a, H4b);
+  \item SliceNet F1 $\ge$0.9 on held-out runs (H5a);
+  \item poor synthetic transfer (H6);
+  \item self-healing reduces core-bound outage against no healing (H10, added during the audit, not pre-registered);
+  \item 5G-core benefit under contention (H8 is marked supported by its directional criterion, but only the disaster effect is substantive: the school difference is about 1\,ms with $n=3$ and changed sign between the pre- and post-audit runs).
+  \end{itemize}
+\item \textbf{Not supported}: H1a, H1b, H3, H5b, H7, H9 (context-aware vs context-unaware: +0.002 utility, $p=0.054$).
+\item \textbf{Implementation goals only}: OVS QoS backend at scale, load balancing (absent), multi-site.
+\end{itemize}
+\end{qa}

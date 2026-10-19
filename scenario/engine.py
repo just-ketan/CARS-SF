@@ -26,6 +26,7 @@ class ScenarioOrchestrator:
             "demand_mbps": scenario.get("demand_mbps", {}),
             "network_load_pct": scenario.get("network_load_pct", 50),
             "backhaul_degraded": scenario.get("backhaul_degraded", False),
+            "failure": scenario.get("failure"),
         }
 
     def set_scenario(self, scenario_id: str):

@@ -1,0 +1,347 @@
+\part{Context-aware priority, allocation and QoS enforcement}
+
+\section{Priority and policy design}
+
+\begin{qa}{411}{What determines the priority of a service?}
+The operating context's weight vector (\code{scenarios.yaml}), multiplied by an optional learned policy multiplier and
+by temporary healing boosts:
+\[
+p_s(t)=w_s\big(c_t\big)\cdot m_s(c_t,\text{state})\cdot b_s(t).
+\]
+\end{qa}
+
+\begin{qa}{412}{Which inputs influence priority?}
+Context (always), the learned policy (CEM or PPO, if configured), SLA violations (latency or congestion boosts of
+$\times$2 for 6 ticks; saturation halves general's weight), and operator policy (via the admin override, which picks the
+context). Demand affects \emph{allocation}, not priority.
+\end{qa}
+
+\begin{qa}{413}{Is priority a static rank, a score, a set of constraints, or a learned value?}
+A positive numerical weight per slice (a ratio scale), not a rank. Floors and healing limits are separate
+\emph{constraints}. Learned multipliers rescale the weights.
+\end{qa}
+
+\begin{qa}{414}{What is the mathematical definition of the priority function?}
+$p_s=w_s(c)\,m_s\,b_s$ with $m_s\in[0.1,10]$ (CEM) or $10^{a_s}$, $a_s\in[-1,1]$ (PPO), and $b_s\in\{1,2,0.5\}$ with
+expiry. Shares are proportional to $p_s$ among slices still unsatisfied (Q432).
+\end{qa}
+
+\begin{qa}{415}{Why that formulation?}
+Multiplicative weights compose cleanly (context $\times$ learning $\times$ healing), are scale-free, and plug directly
+into weighted water-filling. An ordinal rank would force strict priority, with starvation.
+\end{qa}
+
+\begin{qa}{416}{How are competing requirements weighted?}
+Floors guarantee the minima, priorities share the rest, demand caps prevent waste, and surplus goes to unsatisfied
+slices by priority.
+\end{qa}
+
+\begin{qa}{417}{How are weights selected and validated?}
+Selected by design per context (e.g.\ disaster: healthcare 10, others 1); validated by sensitivity. The
+\code{no_context} ablation and the learned-multiplier experiments probe whether other weights do better. Learned
+multipliers did not significantly improve outcomes, which suggests the design weights are not far from a local
+optimum for this metric.
+\honest{They are not derived from stakeholder elicitation.}
+\end{qa}
+
+\begin{qa}{418}{How does an emergency change priorities without changing application identity?}
+Only $w(c)$ changes. Flows stay in their slices, and only the weights of those slices change.
+\end{qa}
+
+\begin{qa}{419}{How do you prevent one context event from permanently elevating a service's priority?}
+Alerts have explicit clear events (timeline), healing boosts expire after 6 ticks, and context is re-inferred every tick.
+\honest{A stuck alert would persist. Add alert time-to-live.}
+\end{qa}
+
+\begin{qa}{420}{What prevents priority oscillations when context changes frequently?}
+The context changes only on events or calendar boundaries; re-planning applies only if a slice moves by at least
+1\,Mb/s; boosts have a cooldown. There is no context dwell-time hysteresis (Q178).
+\end{qa}
+
+\begin{qa}{421}{How do you distinguish urgency from resource demand?}
+Urgency = weight (how much a slice is preferred under scarcity). Demand = measured offered load (how much it can use).
+The allocator caps every share at demand, so high urgency with low demand wastes nothing.
+\end{qa}
+
+\begin{qa}{422}{What if the highest-priority service doesn't need more bandwidth?}
+It receives exactly its demand and the remainder is redistributed. Example (school): healthcare weight 5 but demand
+5\,Mb/s, so it gets 5 and education gets 70.33 (Fig.~\ref{fig:alloc}). The proportional baseline would hand
+healthcare 38.46\,Mb/s it cannot use.
+\end{qa}
+
+\begin{qa}{423}{Can a high-priority flow have a throughput ceiling?}
+Yes. Each class has an HTB \code{ceil}: link capacity when work-conserving, the allocation when strict, or the backup
+capacity share for core slices while on backup.
+\end{qa}
+
+\begin{qa}{424}{How do you prevent lower-priority services from starving?}
+Floors (general 1\,Mb/s), HTB guaranteed \code{rate}, borrowing of idle capacity, and fq\_codel within classes. Strict
+priority is never used.
+\end{qa}
+
+\begin{qa}{425}{How are minimum service guarantees represented?}
+\code{min_mbps} per slice in \code{slices.yaml} (healthcare 5, education 2, agriculture 1, general 1), allocated first
+as $\min(f_s,d_s,C/4)$ and enforced as HTB \code{rate}.
+\end{qa}
+
+\begin{qa}{426}{How do you handle services with both minimum and maximum requirements?}
+Minimum = the floor. Maximum = the demand cap (the allocator never grants above demand) plus the HTB ceiling.
+\end{qa}
+
+\begin{qa}{427}{What if the sum of minimum requirements exceeds capacity?}
+Each floor is clipped to $C/4$, i.e.\ equal division at the floor level.
+\honest{This is crude. A priority-ordered floor allocation (critical floors first) would be better, and it would also
+need an operator alarm. Not exercised in the matrix: floors sum to 9\,Mb/s against capacities of at least 50.}
+\end{qa}
+
+\begin{qa}{428}{Which policy decisions must remain deterministic and explainable?}
+Floors, context precedence, healing actions and constraints, and the final allocation given its inputs. Every
+re-plan records its reason, demand estimate, priorities and allocation (\code{controller_history}). Learned
+multipliers are logged but only rescale explainable weights.
+\end{qa}
+
+\begin{qa}{429}{What happens when a context source is unavailable or untrusted?}
+The engine keeps the calendar-based context, and unknown alerts default to disaster (conservative). There is no trust
+model (Q184).
+\end{qa}
+
+\section{Resource allocation}
+
+\FigAlloc
+
+\begin{qa}{430}{What resources does CARS-SF allocate?}
+Bandwidth on the shared rural uplink, in both directions, per service slice: the HTB guaranteed rate and the ceiling.
+Path choice (primary or backup) is decided by healing. Queue \emph{capacity} is managed by fq\_codel, not allocated.
+\end{qa}
+
+\begin{qa}{431}{Is the decision about bandwidth, queue rates, path selection, queue capacity, or a combination?}
+Bandwidth and queue service rates (HTB rate and ceiling) per slice, plus path selection on failure.
+\end{qa}
+
+\begin{qa}{432}{What is the mathematical resource-allocation problem?}
+Given capacity $C$, weights $p_s$, demands $d_s$ and floors $f_s$:
+\begin{enumerate}
+\item $g_s=\min(f_s,d_s,C/4)$.
+\item Residual $R=C-\sum g_s$, residual demand $d'_s=d_s-g_s$.
+\item Weighted water-filling: repeatedly give each unsatisfied slice $\min\!\big(R\,p_s/\sum_{u}p_u,\ d'_s\big)$,
+subtract, and repeat until $R\approx0$ or all are satisfied.
+\item $x_s=g_s+$ water-filled share.
+\end{enumerate}
+This is the \emph{weighted max-min fair} allocation with demand caps, on top of guaranteed floors.
+\end{qa}
+
+\begin{qa}{433}{What is the objective function?}
+Implicit: weighted max-min fairness (lexicographically maximise $\min_s x_s/p_s$ subject to the caps). The
+\emph{evaluation} metric is $U=\sum p_s\min(1,x_s/d_s)/\sum p_s$.
+\honest{The allocator does not maximise $U$ directly. $U$ would favour high-$p_s$, low-$d_s$ slices greedily. The RL
+policies were the attempt to optimise $U$ end to end, and gained nothing significant.}
+\end{qa}
+
+\begin{qa}{434}{What are the constraints?}
+$\sum_s x_s\le C$; $x_s\ge g_s$; $x_s\le d_s$ (above the floor); on backup,
+$\sum_{s\in\text{core}}x_s\le0.95\,C_{backup}$; in the degraded state, core slices are held at their floor.
+\end{qa}
+
+\begin{qa}{435}{Is the allocation feasible for every demand vector?}
+Yes. The floors sum to at most $C$ by construction, and water-filling never exceeds $R$. If total demand is below $C$,
+every slice is fully satisfied and spare rate remains (borrowable).
+\end{qa}
+
+\begin{qa}{436}{What happens when it is infeasible?}
+It cannot be infeasible in the constraint sense. ``Demand above capacity'' just means some slices are unsatisfied, by
+priority. Floors above capacity are clipped (Q427).
+\end{qa}
+
+\begin{qa}{437}{How is available capacity estimated?}
+It is configured, not estimated: the nominal bottleneck rate (HTB root), plus the known backup capacity when on backup.
+\honest{There is no online capacity estimation. A degraded-but-up link (e.g.\ a microwave fade) would be over-allocated.}
+\end{qa}
+
+\begin{qa}{438}{How is nominal vs usable capacity handled?}
+HTB enforces the nominal rate at L2. Calibration from runs gave delivered/allocated efficiency 1.0 (demand is also
+measured at L2). The backup is capped at 95\% to keep its queue empty.
+\end{qa}
+
+\begin{qa}{439}{How do you account for protocol overhead and control traffic?}
+Both demand and enforcement count L2 bytes, so overhead is included consistently. Control traffic (probes, about 4
+packets per second) lands in the class of the probing UE (host filters), which is negligible.
+\end{qa}
+
+\begin{qa}{440}{What is the difference between a bandwidth ceiling and a reservation?}
+Reservation (HTB \code{rate}): guaranteed when backlogged. Ceiling (\code{ceil}): the maximum including borrowing.
+Our default is reservation = allocation, ceiling = link (work-conserving).
+\end{qa}
+
+\begin{qa}{441}{How do you prevent configured allocations from exceeding the bottleneck capacity?}
+By the allocator invariant (unit-tested: $\sum\le C+0.01$), and in the data plane the HTB root class caps the total at
+$C$ regardless.
+\end{qa}
+
+\begin{qa}{442}{How do you allocate spare capacity?}
+Twice:
+\begin{itemize}
+\item control plane: surplus redistribution to unsatisfied slices by priority;
+\item data plane: HTB borrowing (ceiling = capacity), in prio order, at packet timescale.
+\end{itemize}
+The ablation shows the data-plane mechanism dominates. Surplus redistribution matters only with strict caps
+(\NAblSchoolFullStrictUtil{} vs \NAblSchoolNoSurplusStrictUtil).
+\end{qa}
+
+\begin{qa}{443}{What if demand is below the configured minimum?}
+The floor is $\min(f_s,d_s)$, so nothing is over-reserved.
+\end{qa}
+
+\begin{qa}{444}{How do you reclaim unused capacity?}
+Instantly by borrowing (an idle reservation is lent at once), and structurally at the next re-plan as measured demand
+falls.
+\end{qa}
+
+\begin{qa}{445}{How does the algorithm respond to sudden demand changes?}
+Instantly through borrowing; within 5\,s through re-planning (sooner on a context change). Elastic flows at their cap
+trigger a 1.25$\times$ probe-up; a Holt forecast tracks trends.
+\end{qa}
+
+\begin{qa}{446}{Greedy priority vs weighted fair vs proportional fairness vs optimisation-based allocation?}
+\begin{itemize}
+\item Greedy or strict priority: serve in order, causing starvation.
+\item Weighted fair: shares proportional to weight, without demand caps (our \code{proportional} baseline).
+\item Proportional fairness: maximise $\sum\log x_s$, a throughput--fairness compromise.
+\item Optimisation: an explicit objective plus constraints, solved numerically.
+\end{itemize}
+Ours is weighted max-min with demand caps and floors.
+\end{qa}
+
+\begin{qa}{447}{Why is the chosen method appropriate?}
+Closed form, deterministic, explainable, $O(n^2)$, never wastes capacity on satisfied slices, and honours floors.
+Under borrowing, the outcome is close to any reasonable allocator anyway, which matches the null main-study result.
+\end{qa}
+
+\begin{qa}{448}{What is its computational complexity?}
+$O(n\cdot k)$ with $k\le n$ rounds, so $O(n^2)$ for $n$ slices. With $n=4$: \NCtrlStepUs\,$\mu$s per controller step.
+\end{qa}
+
+\begin{qa}{449}{How does it scale with flows, slices, links and constraints?}
+It is independent of the number of flows (slice-level). Quadratic in slices (trivial). A single link only: multiple
+links require a network-flow or LP formulation.
+\end{qa}
+
+\begin{qa}{450}{Locally optimal vs globally optimal allocation?}
+For one link and the max-min criterion, water-filling is \emph{globally} optimal. Multi-link max-min needs progressive
+filling across links.
+\end{qa}
+
+\begin{qa}{451}{How do you prevent reallocation from costing more than it saves?}
+A 1\,Mb/s change threshold, a 5\,s interval, an estimator warm-up after context changes, and boost cooldowns. A re-plan
+is 8 tc commands.
+\end{qa}
+
+\begin{qa}{452}{Which baseline allocation policies should be compared?}
+All compared: no slicing (FIFO), static equal, proportional, 3GPP fixed (URLLC 20 / eMBB 70 / mMTC 10), the proposed
+scheduler, CEM, PPO, and the no-surplus variant.
+\end{qa}
+
+\FigMainSla
+
+\section{QoS and SLA enforcement}
+
+\begin{qa}{453}{What is the difference between QoS, an SLA and a service priority?}
+QoS: measured treatment (delay, loss, throughput). SLA: target thresholds the QoS must meet. Priority: the relative
+weight in sharing scarce capacity.
+\end{qa}
+
+\begin{qa}{454}{Which SLAs are defined for each service class?}
+From \code{slices.yaml} (one-way delay, jitter, loss, minimum satisfaction):
+\begin{itemize}
+\item healthcare: 50\,ms, 10\,ms, 1\%, 0.95;
+\item education: 150\,ms, 30\,ms, 2\%, 0.8;
+\item agriculture: 250\,ms, 50\,ms, 2\%, 0.8;
+\item general: 500\,ms, 200\,ms, 5\%, 0.5.
+\end{itemize}
+Per-application SLAs (e.g.\ ECG 20\,ms) live in \code{applications.yaml}.
+\end{qa}
+
+\begin{qa}{455}{Are latency, jitter, throughput, packet loss and availability all measured?}
+Latency, jitter, loss and throughput: yes, per flow window (packet-matched), and online per slice (RTT/2, HTB drops,
+counters). Availability: no (Q105).
+\end{qa}
+
+\begin{qa}{456}{Which metrics are measured directly, and which are estimated?}
+Directly: one-way delay, loss, throughput (post-run), counters, drops. Estimated: online latency (RTT/2 from one probe
+per service), demand (with elastic probe-up), and loss online (drop ratio).
+\end{qa}
+
+\begin{qa}{457}{How are SLA thresholds derived?}
+Typical-requirement values by design (voice and real-time medical stricter, bulk looser).
+\honest{Not derived from clinical or regulatory sources. Cite standards (e.g.\ ITU-T G.114 for interactive voice
+delay)\textsuperscript{†} and present the values as assumptions.}
+\end{qa}
+
+\begin{qa}{458}{Are thresholds absolute or context-dependent?}
+Absolute.
+\honest{One could argue they should tighten in emergencies; not modelled.}
+\end{qa}
+
+\begin{qa}{459}{How are SLA violations aggregated over time?}
+Per slice per tick (\code{SliceMonitor}) giving compliance shares; per flow window (\code{sla_satisfied}) giving the
+SLA-met share; per-tick reward in \code{feedback.csv}.
+\end{qa}
+
+\begin{qa}{460}{Why is one anomalous measurement insufficient to declare a sustained failure?}
+Single probes are noisy (one lost ICMP packet, a scheduling hiccup). We report shares over windows and ticks, the
+predictor uses 6-sample trends, and escalation needs 2 consecutive ticks.
+\honest{The latency-spike \emph{boost} reacts to a single tick (it is cheap and expires).}
+\end{qa}
+
+\begin{qa}{461}{QoS target vs hard guarantee?}
+Targets are monitored and pursued. A hard guarantee would need admission control plus worst-case bounds (network
+calculus). HTB guarantees \emph{rate} under backlog; delay is not guaranteed.
+\end{qa}
+
+\begin{qa}{462}{Can a software-defined virtual network guarantee a latency target under arbitrary CPU contention?}
+No. Timers and softirqs slip under CPU starvation. We observed this (Q220) and controlled for it, but no software
+emulation can promise it.
+\end{qa}
+
+\begin{qa}{463}{How do you measure the effects of HTB and queue configuration on each class?}
+With ablations (Fig.~\ref{fig:ablation}): removing borrowing raises school healthcare p95 from \NAblSchoolFullHc{} to
+\NAblSchoolFullStrictHc\,ms; removing AQM \emph{raises} throughput satisfaction (\NAblSchoolFullUtil{}$\rightarrow$\NAblSchoolNoAqmUtil) but
+general-internet p95 rises from \NAblSchoolFullGenP{} to \NAblSchoolNoAqmGenP\,ms, and disaster healthcare SLA share falls
+from \NAblDisasterFullHcSla{} to \NAblDisasterNoAqmHcSla. Plus per-class HTB counters.
+\end{qa}
+
+\FigAblation
+
+\begin{qa}{464}{How do you verify QoS is applied to the intended interface and class?}
+Unit tests assert the exact commands (class ids, interfaces, filter matches). At run time, per-class counters move
+for the expected class only.
+\honest{There is no read-back assertion in the controller.}
+\end{qa}
+
+\begin{qa}{465}{How do you handle configuration errors or unsupported kernel commands?}
+\honest{Not handled: command output is ignored.}
+Fix: check exit codes, read back the qdisc and class state, and raise a \code{config_failure} event (Q139).
+\end{qa}
+
+\begin{qa}{466}{How do you prevent a new policy from violating another service's SLA?}
+Floors and constraints bound harm, and boosts expire.
+\honest{There is no predictive check that a re-plan keeps every other slice within its SLA. That would need a model
+of delay as a function of allocation (the calibrated simulator could serve).}
+\end{qa}
+
+\begin{qa}{467}{How do you evaluate fairness alongside critical-service performance?}
+Jain fairness of per-slice demand satisfaction, reported for every run: proposed \NFairProposed{} vs no slicing
+\NFairNoSlicing. No slicing is \emph{fairer} but worse for healthcare SLAs. That is the trade-off made explicit.
+\end{qa}
+
+\begin{qa}{468}{How do you measure the cost of better healthcare latency to best-effort throughput?}
+Per-slice demand satisfaction tables per scheduler and context (\code{main_summary.csv}), and the general slice's
+satisfaction in disaster contexts, where it gives way to healthcare.
+\end{qa}
+
+\begin{qa}{469}{What if the SLA registry is inconsistent with the experiment configuration?}
+The monitor (slice SLAs) and the dataset labels (app SLAs) read the same registries, so there is no copy to drift.
+\honest{Slice-level and app-level SLAs are two layers that can disagree (an app stricter than its slice). Results
+report both.}
+\end{qa}
+
+\FigLoad

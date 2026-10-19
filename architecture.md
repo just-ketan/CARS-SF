@@ -1,7 +1,23 @@
 # Architecture.md
 
-> **Note:** This document is superseded by [ARCHITECTURE.md](ARCHITECTURE.md) (unified architecture).
-> The content below is preserved for historical reference.
+> **Implementation status (October 2026).** This is the original vision document.
+> The system as built is described in [ARCHITECTURE.md](ARCHITECTURE.md), whose §12
+> maps every module and principle below to code. Measured results are in
+> [docs/thesis/results.md](docs/thesis/results.md). In short:
+>
+> | Module (§9 below) | Status |
+> |---|---|
+> | Context Engine | ✅ clock / season / alert / admin inference, timelines |
+> | Demand Generator | ✅ measured demand + Holt forecast (ML forecasting: future) |
+> | Priority Engine | ✅ rule-based and learned (CEM, PPO) policies |
+> | Allocation Engine | ✅ demand-aware + floors + surplus redistribution |
+> | QoS Enforcer | ✅ tc HTB + fq_codel both directions; OVS and 5G-UPF backends |
+> | Monitoring | ✅ per-slice SLA monitoring, measured one-way delay and loss |
+> | Visualization | ✅ thesis figures from aggregated results |
+> | Self-Healing | ✅ detection, backup activation, fault localisation, predictive switchover (load balancing: not implemented) |
+> | Learning Engine | ✅ sequential RL environment + PPO; SliceNet classification in the loop |
+>
+> The repository structure in §5 below is historical; see ARCHITECTURE.md §2.
 
 # RuralSliceAI
 ## System Architecture Document

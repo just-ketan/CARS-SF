@@ -1,0 +1,302 @@
+% CARS-SF design-defense handbook — compact figures (TikZ / pgfplots).
+% Data-bearing plots read \N... macros from numbers.tex (generated from results/).
+
+% ------------------------------------------------------------ evidence ladder
+\newcommand{\FigLadder}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[x=1cm,y=0.42cm,font=\scriptsize]
+  \foreach \l/\c [count=\i] in {1/lvlone,2/lvltwo,3/lvlthree,4/lvlfour}
+    \node[fill=\c,text=white,font=\scriptsize\bfseries,minimum width=6mm,inner sep=1.2pt] at (2.6+0.8*\i,0) {L\l};
+  \foreach \name/\lv/\note [count=\r] in {
+    {Context engine + timelines}/3/,
+    {Measured demand + Holt forecast}/3/,
+    {Demand-aware allocator}/3/,
+    {HTB+fq\_codel QoS (tc)}/3/also on real OVS,
+    {OVS linux-htb QoS backend}/3/2 runs on real OVS,
+    {Closed-loop controller}/3/,
+    {Per-slice SLA monitor}/3/,
+    {Self-healing (cut, degradation, core)}/3/also on real OVS,
+    {Load balancing primary+backup}/0/,
+    {SliceNet RF and 1D-CNN}/3/on emulated traffic,
+    {In-loop SliceNet (mixed UE)}/3/,
+    {RL policies (CEM, PPO)}/3/integrated; no significant gain,
+    {5G core (Open5GS + UERANSIM)}/3/simulated RAN,
+    {Any claim about real rural radio}/0/}{
+    \node[anchor=east] at (3.1,-\r) {\name};
+    \ifnum\lv>0
+      \foreach \k in {1,...,4}{\draw[rule] (2.6+0.8*\k,-\r) circle (2.4pt);}
+      \foreach \k in {1,...,\lv}{\fill[lvlthree] (2.6+0.8*\k,-\r) circle (2.4pt);}
+    \else
+      \node[anchor=west,text=lvlno,font=\scriptsize\bfseries] at (3.2,-\r) {no evidence (not implemented / not tested)};
+    \fi
+    \node[anchor=west,text=ink2,font=\tiny] at (6.6,-\r) {\note};
+  }
+  \node[anchor=west,text=ink2,font=\tiny] at (-3.2,-15.2) {L1 implemented \quad L2 unit-tested \quad L3 integrated \& validated in the named environment \quad L4 real network};
+\end{tikzpicture}
+\caption{Evidence maturity per component. Nothing reaches L4: every network result comes from emulation
+(Mininet with Linux bridges or a real Open vSwitch), or from the Open5GS 5G core with a simulated RAN.}
+\label{fig:ladder}
+\end{figure}}
+
+% ------------------------------------------------------------ architecture
+\newcommand{\FigArch}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize,every node/.append style={text width=2.15cm,minimum width=2.3cm}]
+  % row 0: live decision path
+  \node[live] (ctx) at (0,0) {Context Engine\\\tiny clock, season, alerts};
+  \node[live] (dem) at (3.3,0) {Demand estimator\\\tiny measured + Holt};
+  \node[live] (pri) at (6.6,0) {Priority Engine\\\tiny matrix $\times$ policy};
+  \node[live] (alc) at (9.9,0) {Allocator\\\tiny floors + surplus};
+  \node[live] (qos) at (13.2,0) {QoS enforcer\\\tiny HTB + fq\_codel};
+  % row 1: network, telemetry, monitoring, healing
+  \node[heal] (hea) at (0,-1.55) {Self-healing\\\tiny state machine};
+  \node[heal] (det) at (3.3,-1.55) {Detector\\\tiny reactive + predictive};
+  \node[live] (mon) at (6.6,-1.55) {SLA monitor\\\tiny per slice};
+  \node[mod]  (tel) at (9.9,-1.55) {Telemetry\\\tiny counters, HTB, RTT, links};
+  \node[net]  (net) at (13.2,-1.55) {Network\\\tiny Mininet / OVS / UPF};
+  % row 2: offline
+  \node[off] (fb)  at (1.65,-3.25) {feedback.csv\\\tiny per tick};
+  \node[off] (lrn) at (4.95,-3.25) {Learning\\\tiny calibrate, CEM, PPO};
+  \node[off] (sn)  at (8.25,-3.25) {SliceNet\\\tiny RF / 1D-CNN};
+  \node[off] (fea) at (11.55,-3.25) {Flow windows\\\tiny OWD, loss, shape};
+  \node[off] (cap) at (14.85,-3.25) {Endpoint\\captures};
+  % live chain
+  \draw[arr] (ctx)--(dem); \draw[arr] (dem)--(pri); \draw[arr] (pri)--(alc); \draw[arr] (alc)--(qos);
+  \draw[arr] (qos)--(net);
+  \draw[arr] (net)--(tel); \draw[arr] (tel)--(mon); \draw[arr] (mon)--(det); \draw[arr] (det)--(hea);
+  % feedback paths
+  \draw[arr] (tel.north) -- (9.9,-0.75) -| node[lbl,above,pos=0.15,text width=]{measured demand} (dem.south);
+  \draw[arr,cH] (hea.west) -- (-1.5,-1.55) -- (-1.5,0.75) -| node[lbl,above,pos=0.25,text width=,text=cH]{allocation constraints, priority boosts} (alc.north);
+  \draw[arr,cH] (hea.south) -- (0,-2.2) -| node[lbl,below,pos=0.25,text width=,text=cH]{reroute / quarantine / fail-back} (net.south);
+  \draw[arr] (net.east) -| (cap.north);
+  \draw[arr] (cap)--(fea); \draw[arr] (fea)--(sn);
+  \draw[arr] (tel.south) -- (9.9,-2.45) -| (fb.north);
+  \draw[arr] (fb)--(lrn);
+  \draw[darr,cD!70!black] (lrn.north) -- (4.95,-0.95) -| node[lbl,below,pos=0.3,text width=]{policy} (pri.south);
+  \draw[darr,cD!70!black] (sn.north) -- (8.25,-0.55) -| node[lbl,below,pos=0.75,text width=]{per-flow rules} (12.7,-0.3);
+\end{tikzpicture}
+\caption{End-to-end architecture. Row 1: live decision path (1\,s ticks, re-plan every 5\,s). Row 2: observation and self-healing.
+Row 3: offline data, training and analysis; dashed arrows are artefacts deployed back into the loop.}
+\label{fig:arch}
+\end{figure}}
+
+% ------------------------------------------------------------ topology
+\newcommand{\FigTopo}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize,node distance=4mm]
+  \foreach \s/\c [count=\i] in {health/cA,edu/cB,agri/cC,gen/cD}{
+    \node[mod,fill=\c!15,draw=\c] (u\i) at (0,1.9-0.62*\i) {UE\,$\times$2 \textsf{\s}};}
+  \node[net,minimum height=2.3cm] (sr) at (2.4,0.35) {s\_rural};
+  \node[net,minimum height=1.3cm] (se) at (6.1,0.35) {s\_edge};
+  \node[net] (sc) at (9.6,0.35) {s\_core};
+  \node[mod] (srv) at (6.1,1.7) {srv\_edge, mec\_*};
+  \node[mod] (core) at (9.6,1.3) {srv\_core};
+  \foreach \i in {1,...,4}\draw (u\i.east)--(sr.west|-u\i.east);
+  \draw[very thick,cH] (sr.east)--node[above,lbl,text=cH]{rural uplink 100\,Mb/s}node[below,lbl]{bottleneck, HTB+fq\_codel both dirs}(se.west);
+  \draw[thick] (se.east)--node[above,lbl]{fiber 20\,ms}(sc.west);
+  \draw[dashed,thick,cG] ($(se.south east)+(0,0.1)$) to[bend right=25] node[below,lbl,text=cG]{backup 50\,Mb/s, 40\,ms (standby)} ($(sc.south west)+(0,0.1)$);
+  \draw (se)--(srv); \draw (sc)--(core);
+  \node[lbl,align=left,anchor=north west] at (-0.6,-1.15) {propagation on destination-facing ports: UE$\leftrightarrow$edge 8\,ms, UE$\leftrightarrow$core 28\,ms (measured floors \NFloorEdge{} / \NFloorCore{}\,ms)};
+\end{tikzpicture}
+\caption{Emulated rural network: one shared contention point, a primary and a standby backhaul.}
+\label{fig:topo}
+\end{figure}}
+
+% ------------------------------------------------------------ control-loop tick
+\newcommand{\FigTick}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize,x=1.62cm]
+  \draw[arr] (0,0)--(9.4,0) node[right,lbl]{time};
+  \foreach \x/\t in {0.2/context,1.2/inject,2.2/telemetry,3.2/monitor,4.2/detect,5.2/heal,6.2/controller,7.2/SliceNet,8.2/feedback}{
+     \node[live,minimum width=1.4cm] at (\x+0.5,0.6) {\t};}
+  \draw[decorate,decoration={brace,mirror,amplitude=3pt}] (0.2,-0.2)--(9.2,-0.2) node[midway,below=3pt,lbl]{one 1\,s tick (controller re-plans every 5 ticks, on context change, or on healing-state change)};
+  \node[heal,align=center] at (5.0,-1.25) {link-watcher fast path (50\,ms polling): carrier loss wakes the loop $\Rightarrow$ detect + heal immediately};
+\end{tikzpicture}
+\caption{Order of operations per tick (\capcode{core/orchestrator.py}).}
+\label{fig:tick}
+\end{figure}}
+
+% ------------------------------------------------------------ self-healing state machine
+\newcommand{\FigHeal}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[->,>={Stealth[length=1.6mm]},node distance=4.6cm,font=\scriptsize,
+   every state/.style={draw=cH,fill=cH!7,minimum size=12mm,inner sep=1pt}]
+  \node[state,initial,initial text=] (n) {\textsf{NORMAL}};
+  \node[state,right=of n] (b) {\textsf{ON\_BACKUP}};
+  \node[state,right=of b] (d) {\textsf{DEGRADED}};
+  \path (n) edge[bend left=18] node[above,align=center]{fiber cut (link event)\\or predicted degradation\\\tiny quarantine primary, then enable backup} (b)
+        (b) edge[bend left=18] node[below,align=center]{hold-down $\wedge$ far end up $\wedge$ OAM ok\\\tiny backup down, then primary up} (n)
+        (b) edge[bend left=18] node[above,align=center]{core unreachable\\$\geq$2 ticks} (d)
+        (d) edge[bend left=18] node[below]{core reachable} (b)
+        (d) edge[bend left=55] node[below]{fail-back (same guard)} (n);
+\end{tikzpicture}
+\caption{Self-healing state machine (\capcode{self_healing/engine.py}). The L2 domain is loop-free at every instant.}
+\label{fig:heal}
+\end{figure}}
+
+% ------------------------------------------------------------ measurement method
+\newcommand{\FigMeasure}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize]
+  \node[mod] (s) at (0,0) {sender capture};
+  \node[net] (n) at (3.4,0) {network (queues, links)};
+  \node[mod] (r) at (6.8,0) {receiver capture};
+  \draw[arr] (s)--(n); \draw[arr] (n)--(r);
+  \node[lbl,align=center,anchor=south] at (0,0.35) {tx: $t_{tx}$ + fingerprint\\(addrs, ports, IP-ID, seq/ack, payload[0:18])};
+  \node[lbl,align=center,anchor=south] at (6.8,0.35) {rx: $t_{rx}$ + same fingerprint};
+  \node[off,align=left,anchor=north] at (3.4,-0.45) {match FIFO per fingerprint $\Rightarrow$ OWD $=t_{rx}-t_{tx}$ (one kernel clock);
+    lost $=$ tx without rx (excl.\ last 1\,s);\\ queueing $=$ OWD $-$ min OWD of the flow; jitter $=$ mean $|\Delta$OWD$|$};
+\end{tikzpicture}
+\caption{Packet-matched one-way delay and loss (\capcode{features/packet_capture.py}).}
+\label{fig:measure}
+\end{figure}}
+
+% ------------------------------------------------------------ allocation example
+\newcommand{\FigAlloc}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=5pt,width=0.92\linewidth,height=4.2cm,ymin=0,ymax=85,
+  symbolic x coords={Healthcare,Education,Agriculture,General},xtick=data,
+  ylabel={Mb/s},ylabel style={font=\scriptsize},tick label style={font=\scriptsize},
+  legend style={font=\tiny,draw=none,at={(0.99,0.98)},anchor=north east,legend columns=2},
+  axis lines*=left,ymajorgrids,grid style={rule},enlarge x limits=0.15]
+ \addplot[fill=ink2!35,draw=none] coordinates {(Healthcare,5)(Education,80)(Agriculture,10)(General,50)};
+ \addplot[fill=cA,draw=none] coordinates {(Healthcare,5)(Education,70.33)(Agriculture,10)(General,14.67)};
+ \addplot[fill=cB,draw=none] coordinates {(Healthcare,5)(Education,37)(Agriculture,10)(General,8)};
+ \addplot[fill=cC,draw=none] coordinates {(Healthcare,38.46)(Education,38.46)(Agriculture,15.38)(General,7.69)};
+ \addplot[fill=cD,draw=none] coordinates {(Healthcare,25)(Education,25)(Agriculture,25)(General,25)};
+ \legend{Demand,Demand-aware (100 used),No surplus (60 used),Proportional,Static equal}
+\end{axis}
+\end{tikzpicture}
+\caption{Allocators on the school context (demand 145\,Mb/s on 100\,Mb/s; weights 5/5/2/1; floors 5/2/1/1).
+Values are produced by \capcode{slicing/allocators.py}.}
+\label{fig:alloc}
+\end{figure}}
+
+% ------------------------------------------------------------ SliceNet pipeline
+\newcommand{\FigSliceNet}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize]
+  \node[off] (cap) at (0,0) {endpoint\\captures};
+  \node[off] (win) at (2.3,0) {5\,s flow\\windows};
+  \node[off] (shape) at (5.0,0.45) {31 shape features\\\tiny sizes, IAT, bursts, direction};
+  \node[off] (seq) at (5.0,-0.75) {first 32 packets\\\tiny 3$\times$32 tensor};
+  \node[mod] (rf) at (8.3,0.45) {random forest\\\tiny 200 trees};
+  \node[mod] (cnn) at (8.3,-0.75) {Conv1d 32-64-64\\\tiny + shape MLP $\rightarrow$ 4};
+  \node[mod] (gs) at (11.0,-0.15) {held-out\\run$\times$UE groups};
+  \node[live] (inl) at (13.8,-0.15) {in-loop: classify\\mixed-UE flow\\$\rightarrow$ u32 rule};
+  \draw[arr] (cap)--(win); \draw[arr] (win)--(shape); \draw[arr] (win)--(seq);
+  \draw[arr] (shape)--(rf); \draw[arr] (seq)--(cnn); \draw[arr] (rf)--(gs); \draw[arr] (cnn)--(gs); \draw[arr] (gs)--(inl);
+  \node[lbl,anchor=north west] at (-0.6,-1.45) {Excluded from features: QoS outcomes (slice-dependent), ports, DSCP, timestamps, scenario-injected radio/context fields.};
+\end{tikzpicture}
+\caption{SliceNet: features, models, evaluation protocol and in-loop use.}
+\label{fig:slicenet}
+\end{figure}}
+
+% ------------------------------------------------------------ 5G deployment
+\newcommand{\FigFiveG}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize,node distance=4mm and 5mm]
+  \node[mod,fill=cA!10] (ue) {4 UEs (UERANSIM)\\\tiny one per S-NSSAI/DNN};
+  \node[mod,right=of ue] (gnb) {gNB\\\tiny UERANSIM (sim.\ RAN)};
+  \node[mod,right=8mm of gnb,minimum width=2.6cm,minimum height=1.2cm] (cp) {AMF, SMF, NRF, SCP,\\AUSF, UDM, UDR, PCF,\\NSSF, BSF (Open5GS)};
+  \node[net,below=of cp] (upf) {UPF\\\tiny CARS-SF HTB+fq\_codel};
+  \node[mod,right=of upf] (dn) {data network\\\tiny traffic sink/src};
+  \draw[arr] (ue)--node[above,lbl]{Uu (sim.)}(gnb);
+  \draw[arr] (gnb)--node[above,lbl]{N2/NGAP}(cp);
+  \draw[arr] (gnb.south) |- node[below,lbl,pos=0.7]{N3/GTP-U} (upf);
+  \draw[arr] (cp)--node[right,lbl]{N4/PFCP}(upf);
+  \draw[arr] (upf)--node[above,lbl]{N6}(dn);
+\end{tikzpicture}
+\caption{Real 5G core deployment (\capcode{deployment/5g}). CARS-SF enforces at the UPF, classifying by slice address pool.}
+\label{fig:fiveg}
+\end{figure}}
+
+% ------------------------------------------------------------ results: healthcare SLA share
+\newcommand{\FigMainSla}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.62\linewidth,height=4.6cm,xmin=0.6,xmax=1,
+  symbolic y coords={No slicing,3GPP,Static,Proportional,RL PPO,RL CEM,Proposed},ytick=data,
+  xlabel={healthcare flow windows meeting SLA (mean of 5 contexts $\times$ 5 seeds)},
+  xlabel style={font=\scriptsize},tick label style={font=\scriptsize},axis lines*=left,xmajorgrids,grid style={rule},
+  nodes near coords,nodes near coords style={font=\tiny,anchor=west},point meta=explicit symbolic]
+ \addplot[only marks,mark=*,mark size=2.2pt,cA] coordinates {(\NHcSlaNoSlicing,No slicing)[\NHcSlaNoSlicing](\NHcSlaTgpp,3GPP)[\NHcSlaTgpp](\NHcSlaStatic,Static)[\NHcSlaStatic](\NHcSlaProportional,Proportional)[\NHcSlaProportional](\NHcSlaPpo,RL PPO)[\NHcSlaPpo](\NHcSlaCem,RL CEM)[\NHcSlaCem](\NHcSlaProposed,Proposed)[\NHcSlaProposed]};
+\end{axis}
+\end{tikzpicture}
+\caption{Any slicing vs none: the significant effect in the main study
+($\Delta=\NSlaDeltaNoSlicing$, Wilcoxon $p=\NSlaPNoSlicing$, $n=\NSlaPairs$ pairs).
+The differences between slicing schemes are not significant. Dots, not bars: the axis is zoomed to 0.6--1.}
+\label{fig:mainsla}
+\end{figure}}
+
+% ------------------------------------------------------------ results: ablation
+\newcommand{\FigAblation}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=7pt,width=0.9\linewidth,height=4cm,ymin=0,ymax=1,
+  symbolic x coords={full,no AQM,no context,full strict,no surplus strict,oracle demand},xtick=data,
+  ylabel={weighted satisfaction},ylabel style={font=\scriptsize},tick label style={font=\tiny},
+  legend style={font=\tiny,draw=none,at={(0.99,1.02)},anchor=south east,legend columns=2},axis lines*=left,ymajorgrids,grid style={rule}]
+ \addplot[fill=cA,draw=none] coordinates {(full,\NAblSchoolFullUtil)(no AQM,\NAblSchoolNoAqmUtil)(no context,\NAblSchoolNoContextUtil)(full strict,\NAblSchoolFullStrictUtil)(no surplus strict,\NAblSchoolNoSurplusStrictUtil)(oracle demand,\NAblSchoolOracleDemandUtil)};
+ \addplot[fill=cB,draw=none] coordinates {(full,\NAblDisasterFullUtil)(no AQM,\NAblDisasterNoAqmUtil)(no context,\NAblDisasterNoContextUtil)(full strict,\NAblDisasterFullStrictUtil)(no surplus strict,\NAblDisasterNoSurplusStrictUtil)(oracle demand,\NAblDisasterOracleDemandUtil)};
+ \legend{school,disaster}
+\end{axis}
+\end{tikzpicture}
+\caption{Ablation (3 seeds). Strict caps (no borrowing) cost the most; surplus redistribution matters only once borrowing is disabled.
+Removing AQM \emph{raises} this throughput metric while tail delay explodes (Q463); removing context changes nothing measurable.}
+\label{fig:ablation}
+\end{figure}}
+
+% ------------------------------------------------------------ results: resilience
+\newcommand{\FigResilience}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=7pt,width=0.75\linewidth,height=4cm,ymode=log,ymin=0.001,ymax=40,log origin=infty,
+  symbolic x coords={fiber cut,degradation,core switch},xtick=data,
+  ylabel={core-bound outage (s, log)},ylabel style={font=\scriptsize},tick label style={font=\scriptsize},
+  legend style={font=\tiny,draw=none,at={(0.02,0.98)},anchor=north west},axis lines*=left,ymajorgrids,grid style={rule},enlarge x limits=0.25]
+ \addplot[fill=cA,draw=none] coordinates {(fiber cut,\NOutCutFullMean)(degradation,\NOutDegFullMean)(core switch,\NOutCoreFullMean)};
+ \addplot[fill=cD,draw=none] coordinates {(fiber cut,\NOutCutReactiveMean)(degradation,\NOutDegReactiveMean)(core switch,\NOutCoreReactiveMean)};
+ \addplot[fill=cH,draw=none] coordinates {(fiber cut,\NOutCutNoneMean)(degradation,\NOutDegNoneMean)(core switch,\NOutCoreNoneMean)};
+ \legend{full (predictive+reactive),reactive only,no self-healing}
+\end{axis}
+\end{tikzpicture}
+\caption{Longest delivery gap of core-bound flows after the failure (packet-matched, 3 seeds; log scale).
+Core-switch failure cannot be bypassed: healing localises the fault but cannot restore core-hosted services.}
+\label{fig:resilience}
+\end{figure}}
+
+% ------------------------------------------------------------ results: transfer
+\newcommand{\FigTransfer}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.55\linewidth,height=3.8cm,xmin=-2,xmax=52,ymin=0,ymax=1,
+  xlabel={measured groups added to synthetic training (\%)},ylabel={macro-F1 (held-out)},
+  label style={font=\scriptsize},tick label style={font=\scriptsize},axis lines*=left,ymajorgrids,grid style={rule},
+  legend style={font=\tiny,draw=none,at={(0.98,0.05)},anchor=south east}]
+ \addplot[cA,thick,mark=*,mark size=1.6pt] coordinates {(0,\NTrZero)(10,\NTrTen)(25,\NTrQuarter)(50,\NTrHalf)};
+ \addplot[cB,dashed,thick,domain=0:50] {\NTrMininetOnly};
+ \legend{RSNSD synthetic + measured,measured only}
+\end{axis}
+\end{tikzpicture}
+\caption{Synthetic-to-measured transfer: RSNSD alone is near chance on measured traffic.}
+\label{fig:transfer}
+\end{figure}}
+
+% ------------------------------------------------------------ results: load sensitivity
+\newcommand{\FigLoad}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.55\linewidth,height=3.8cm,xmin=0.4,xmax=1.6,ymin=0.5,ymax=1,
+  xlabel={offered load ($\times$ design demand), school},ylabel={weighted satisfaction},
+  label style={font=\scriptsize},tick label style={font=\scriptsize},axis lines*=left,ymajorgrids,grid style={rule},
+  legend style={font=\tiny,draw=none,at={(0.02,0.05)},anchor=south west}]
+ \addplot[cA,thick,mark=*,mark size=1.6pt] coordinates {(0.5,\NSensLoadSchoolProposedZeropFive)(1,\NSensLoadSchoolProposedOne)(1.5,\NSensLoadSchoolProposedOnepFive)};
+ \addplot[cD,thick,mark=square*,mark size=1.6pt] coordinates {(0.5,\NSensLoadSchoolStaticZeropFive)(1,\NSensLoadSchoolStaticOne)(1.5,\NSensLoadSchoolStaticOnepFive)};
+ \legend{proposed,static equal}
+\end{axis}
+\end{tikzpicture}
+\caption{Load sensitivity (school, 3 seeds): the proposed scheduler helps only once demand exceeds capacity.}
+\label{fig:load}
+\end{figure}}

@@ -1,0 +1,181 @@
+\part{Critical evaluation, limitations and the hostile round}
+\textit{Reconstructed section.}
+
+\section{Critical evaluation}
+
+\begin{qa}{C1}{What is the single biggest weakness of this thesis?}
+No real-network evidence: everything is L3 in emulation or on a 5G core with a simulated RAN, and the traffic and
+demands are modelled, not measured. Every quantitative claim is conditional on those models.
+\end{qa}
+
+\begin{qa}{C2}{What is the second biggest weakness?}
+The headline mechanism comparison is null. The demand-aware allocator and RL are not significantly better than simple
+slicing. The defensible contribution therefore shifts to ``service slicing with AQM, plus healing, measured
+rigorously'', which is narrower than the original vision document claimed.
+\end{qa}
+
+\begin{qa}{C3}{Which original claims did you retract or narrow, and why?}
+\begin{itemize}
+\item ``AI-driven allocation improves service quality'': not supported (RL null, H3).
+\item ``Context awareness drives the gains'': not supported (no measurable ablation effect).
+\item ``RSNSD enables classification of rural traffic'': refuted for measured traffic (transfer F1 \NTrZero).
+\item ``Self-healing with load balancing'': load balancing not implemented.
+\item ``QoS Enforcer: prototype'' in the original status table: the Mininet path had never run when the verification
+began.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{C4}{What result surprised you most?}
+That HTB borrowing (a data-plane mechanism) erases most differences between allocation policies: once idle capacity is
+lent at packet timescales, control-plane share computation matters only under strict caps or heavy overload. That
+reframes where engineering effort should go: AQM and enforcement, not clever allocators.
+\end{qa}
+
+\begin{qa}{C5}{What would you do differently if you started again?}
+\begin{itemize}
+\item Build the measurement harness and baselines first, before mechanisms.
+\item Run on real OVS from day one (the false-failover bug was invisible on bridges).
+\item Pre-register hypotheses externally.
+\item Seek real traces early.
+\item Spend less on RL and RSNSD scale, more on real-world validity.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{C6}{Does the thesis generalise beyond the studied topology?}
+Mechanism-level conclusions (slicing with AQM protects critical flows; loop-free protection switching gives sub-second
+recovery) are standard enough to generalise to single-bottleneck networks. Quantitative results do not transfer to
+multi-bottleneck, radio-limited or larger networks without new experiments.
+\end{qa}
+
+\begin{qa}{C7}{Is there enough here for a master's thesis?}
+Yes, on method and evidence:
+\begin{itemize}
+\item a working integrated system;
+\item a validated packet-level measurement method;
+\item a 340-run, statistically analysed evaluation with negative results reported;
+\item real-OVS and 5G-core replications;
+\item documented discovery and correction of methodological errors.
+\end{itemize}
+The contribution is empirical and architectural rather than algorithmic, and it should be presented that way.
+\end{qa}
+
+\begin{qa}{C8}{What are the ethical implications of prioritising some services over others?}
+Prioritisation encodes value judgements (whose traffic matters in a disaster) that should come from accountable local
+stakeholders, not engineers. Floors guarantee minimum access for everyone; context weights should be governed,
+transparent and auditable (the history log). Misuse (surveillance-driven classification, political prioritisation) is a
+real risk. SliceNet classifies only coarse service classes from metadata.
+\end{qa}
+
+\begin{qa}{C9}{What are the privacy implications?}
+Traffic-shape features are metadata but can still reveal activity. Deployment must capture headers only (or compute
+features on the fly without storage), keep classification on site, and avoid per-user profiling. Our evaluation
+captures included about 60\,B of synthetic payload for matching, which would be unacceptable on real traffic.
+\end{qa}
+
+\begin{qa}{C10}{What are the security risks?}
+\begin{itemize}
+\item Spoofed context alerts (forcing the disaster profile).
+\item A compromised controller (arbitrary QoS, link shutdowns).
+\item Evasion of SliceNet (mimicking healthcare traffic shapes to gain priority).
+\end{itemize}
+Mitigations: authenticated feeds, least privilege for controller commands, per-flow caps inside critical classes,
+anomaly monitoring on classification.
+\end{qa}
+
+\begin{qa}{C11}{What would block a real rural deployment?}
+Access to a standby backhaul (cost); skilled operators; power reliability for the controller and switches; integration
+with the operator's 5G policy framework (PCF/QER instead of host tc); and stakeholder governance of priorities.
+\end{qa}
+
+\begin{qa}{C12}{What are the next six months of work?}
+\begin{enumerate}
+\item An L4 trial on an SDR-based private 5G testbed with a real backhaul bottleneck.
+\item Real labelled traces and re-validation of SliceNet.
+\item Standards-aligned enforcement (QER via PCF).
+\item Controller resilience (state persistence, local fail-safe agent).
+\item Multi-village topology with multipath healing (load balancing).
+\end{enumerate}
+\end{qa}
+
+\begin{qa}{C13}{Which parts were AI-assisted, and how did you verify them?}
+\textit{Answer truthfully for your own case.} Name the tools and say which components they helped with. The
+verification was independent of authorship: unit tests on exact values, end-to-end runs on two switch implementations
+and a 5G core, measurement cross-checks (floors, probe vs one-way delay), and the corrections documented in E12--E13.
+Examiners care most that you understand and can defend every line. Rehearse the code walkthroughs in Q131--Q132.
+\end{qa}
+
+\section{The hostile round: one-line answers}
+
+\begin{qa}{H1}{``Isn't this just Linux tc with extra steps?''}
+The enforcement \emph{is} tc, deliberately. The thesis is about what to configure, when, and how to recover, and about
+measuring that the outcome is right. The results say the configuring matters less than expected, and we report that.
+\end{qa}
+
+\begin{qa}{H2}{``Your RL doesn't work. Why is it in the thesis?''}
+Because whether learning beats a good heuristic here is a legitimate research question, and a rigorously measured
+negative answer (paired, Bonferroni-corrected, in emulation) is a result. It is presented as such, not as a
+contribution.
+\end{qa}
+
+\begin{qa}{H3}{``Your classifier is trained on traffic you generated. Isn't the F1 meaningless?''}
+It is an upper bound on separability of our models, evaluated on held-out runs and devices, with shortcuts removed.
+The transfer study (\NTrZero{} zero-shot) shows exactly how generator-dependent such numbers are. Real-trace validation is
+stated as the open gap.
+\end{qa}
+
+\begin{qa}{H4}{``Mininet isn't a real network.''}
+Correct, so everything is labelled L3 in emulation. Mininet runs the real kernel stack, real TCP and real qdiscs; we
+replicated the key results on real Open vSwitch and on a real 5G core; and we never claim field performance.
+\end{qa}
+
+\begin{qa}{H5}{``Most of your hypotheses failed. Is the thesis a failure?''}
+No. Five pre-registered hypotheses were supported (ablation, healing outage, predictive switchover, SliceNet F1,
+transfer gap). Six were not, and they are reported. A thesis that only confirms its hypotheses should worry a panel more.
+\end{qa}
+
+\begin{qa}{H6}{``Self-healing is just protection switching from the 1990s.''}
+The switching is standard; what we add is coupling it to slice allocation (backup ceilings, degraded mode), loop-free
+ordering without STP, OAM-gated fail-back, congestion-aware prediction, and packet-level outage measurement.
+\end{qa}
+
+\begin{qa}{H7}{``Your OAM check reads the emulator's netem configuration. Isn't that cheating?''}
+It is a stand-in for Y.1731 or BFD measurement on the standby path, which reports the same delay and loss in reality.
+It is documented as such in the code and the thesis. It only gates fail-back, and it does not affect any measured
+outage.
+\end{qa}
+
+\begin{qa}{H8}{``How do I know you didn't tune on the test set?''}
+No hyper-parameter search was done (fixed defaults). Thresholds were set by design and changed only for documented
+bugs (which triggered full re-runs). SliceNet test groups are disjoint runs and devices.
+\end{qa}
+
+\begin{qa}{H9}{``Your 5G part isn't really 5G slicing.''}
+Slice identity is genuine 5G (S-NSSAI, DNN, PDU sessions on Open5GS). Enforcement is CARS-SF on the UPF host, not
+3GPP QoS. We say exactly that, and give the standards path (PCF, QER, RAN quotas).
+\end{qa}
+
+\begin{qa}{H10}{``If you had to cut half the thesis, what stays?''}
+Service slicing with AQM and its measured critical-SLA benefit; loop-free self-healing with sub-second outage; the
+measurement methodology. RL, RSNSD scale and the 5G stretch go.
+\end{qa}
+
+\begin{qa}{H11}{``What if I run it now and it fails?''}
+\code{make setup data models test integration} runs without sudo. The real-OVS path runs in Docker
+(\code{docker run --privileged cars-sf}). Every reported number comes from scripted pipelines over stored artefacts.
+Offer a live run of Q528.
+\end{qa}
+
+\begin{qa}{H12}{``Why should a rural planner trust demands and SLAs you assumed?''}
+They shouldn't trust the numbers; they can reuse the mechanism. Weights, floors and SLAs are registry data meant to be
+set by local stakeholders, and the evaluation method can be re-run with their values.
+\end{qa}
+
+\begin{qa}{H13}{``Your sample sizes are tiny.''}
+25 paired observations per main comparison, with CIs everywhere; 3-seed studies are presented descriptively. The null
+allocator result is ``differences below about 0.02 in utility'', a bounded claim, not proof of zero.
+\end{qa}
+
+\begin{qa}{H14}{``Couldn't DiffServ marking with static queues give the same result?''}
+Largely, for the steady state: our own static and 3GPP baselines are close. What it cannot do is healing coupled to
+allocation, or slicing devices that cannot be trusted to mark (in-loop classification for the mixed UE).
+\end{qa}

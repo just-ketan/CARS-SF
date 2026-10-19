@@ -1,0 +1,89 @@
+# CARS-SF thesis evaluation matrix.
+# Each study expands to the Cartesian product of its `grid`, merged over `base`.
+# Run with:  python experiments/run_matrix.py --config configs/experiments/thesis.yaml [--study main]
+
+defaults:
+  duration: 40
+  apply_qos: true
+  ues_per_service: 2
+
+studies:
+  main:
+    description: Proposed vs learned vs baseline schedulers across operating contexts.
+    grid:
+      scenario: [normal, school, harvest, disaster, medical_emergency]
+      scheduler: [proposed, context_unaware, rl_cem, rl_ppo, proportional, static_equal, tgpp, no_slicing]
+      seed: [0, 1, 2, 3, 4]
+
+  ablation:
+    description: Remove one contribution at a time from the proposed scheduler.
+    grid:
+      scenario: [school, disaster]
+      seed: [0, 1, 2]
+      variant:
+        - {name: full}
+        - {name: no_surplus_strict, scheduler: no_surplus, work_conserving: false}
+        - {name: full_strict, work_conserving: false}
+        - {name: no_aqm, aqm: false}
+        - {name: no_context, context_aware: false}
+        - {name: oracle_demand, demand_mode: oracle}
+
+  sensitivity_capacity:
+    description: Bottleneck capacity sweep.
+    grid:
+      scenario: [school, disaster]
+      scheduler: [proposed, static_equal]
+      topo_bottleneck_mbps: [50, 100, 150]
+      seed: [0, 1, 2]
+
+  sensitivity_load:
+    description: Offered-load sweep (scales every service's demand).
+    grid:
+      scenario: [school, disaster]
+      scheduler: [proposed, static_equal]
+      load_scale: [0.5, 1.0, 1.5]
+      seed: [0, 1, 2]
+
+  scalability:
+    description: UEs per service.
+    grid:
+      scenario: [school]
+      scheduler: [proposed]
+      ues_per_service: [1, 2, 4]
+      seed: [0, 1, 2]
+
+  resilience:
+    description: Failure scenarios with full, reactive-only and no self-healing.
+    base: {duration: 45}
+    grid:
+      scenario: [fiber_cut, backhaul_degradation, core_switch_failure]
+      seed: [0, 1, 2]
+      variant:
+        - {name: full}
+        - {name: reactive_only, predictive: false}
+        - {name: no_healing, self_healing: false}
+
+  timeline:
+    description: A compressed rural day with context changes and a disaster alert.
+    base: {duration: 40, timeline: rural_day}
+    grid:
+      scheduler: [proposed, static_equal, tgpp]
+      seed: [0, 1, 2]
+
+  slicenet_inloop:
+    description: Mixed-service UE sliced by address vs by in-loop SliceNet.
+    base: {mixed_ue: true}
+    grid:
+      scenario: [school, disaster]
+      classification: [host, slicenet]
+      seed: [0, 1, 2]
+
+  online_rl:
+    description: >
+      Mininet online learning. The online-CEM policy starts from the simulator-trained
+      CEM policy and updates from live transitions; its checkpoint carries over between
+      consecutive runs. Run sequentially: --study online_rl --workers 1.
+    base: {duration: 60, scheduler: rl_online}
+    grid:
+      scenario: [school, disaster]
+      seed: [0, 1, 2, 3, 4]

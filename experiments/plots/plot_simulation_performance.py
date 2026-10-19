@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-DATASET_PATH = "/home/ketan/Desktop/Projects/CARS-SF/RSNSD/dataset/raw/rsnsd_v1.0.csv"
-OUTPUT_DIR = "/home/ketan/Desktop/Projects/CARS-SF/docs/figures"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATASET_PATH = os.path.join(REPO_ROOT, "RSNSD", "dataset", "raw", "rsnsd_v1.0.csv")
+OUTPUT_DIR = os.path.join(REPO_ROOT, "docs", "figures")
 
 def ensure_dir(path):
     if not os.path.exists(path):

@@ -1,0 +1,237 @@
+\part{5G architecture and real-network integration}
+
+\FigFiveG
+
+\section{Understanding the 5G system}
+
+\begin{qa}{575}{Explain the path from a user device to an external application through a 5G network.}
+\begin{enumerate}
+\item The UE registers through the gNB with the AMF (NAS over N1/N2; authentication via AUSF and UDM).
+\item The UE requests a PDU session for an S-NSSAI and DNN; the SMF selects a UPF and installs packet rules over N4
+(PFCP).
+\item User packets go UE $\rightarrow$ (radio) $\rightarrow$ gNB $\rightarrow$ GTP-U tunnel on N3 $\rightarrow$ UPF
+$\rightarrow$ N6 $\rightarrow$ data network.
+\end{enumerate}
+In our deployment the radio leg is simulated by UERANSIM.
+\end{qa}
+
+\begin{qa}{576}{What are the responsibilities of the UE, gNB, RAN and 5G Core?}
+UE: the subscriber device and its NAS stack. gNB / RAN: radio access, radio scheduling, mobility, the N2/N3 interfaces.
+5G Core: registration, sessions, policy, subscriber data, user-plane forwarding.
+\end{qa}
+
+\begin{qa}{577}{What are the roles of the AMF, SMF, UPF, PCF, UDM, AUSF and NRF?}
+\begin{itemize}
+\item AMF: access, mobility, NAS termination.
+\item SMF: session management, UPF control (PFCP), IP allocation.
+\item UPF: user-plane forwarding, GTP-U, QoS enforcement (QER), usage reporting.
+\item PCF: policy (QoS and charging rules).
+\item UDM: subscription data and credentials.
+\item AUSF: authentication.
+\item NRF: network-function discovery.
+\end{itemize}
+(Plus SCP, NSSF, BSF, UDR in our deployment.)
+\end{qa}
+
+\begin{qa}{578}{Control-plane signalling vs user-plane traffic?}
+Control: NAS and NGAP (N1/N2), service-based HTTP/2 between network functions, PFCP (N4). User: GTP-U-encapsulated
+packets (N3) and plain IP (N6). CARS-SF acts only on the user plane (UPF egress).
+\end{qa}
+
+\begin{qa}{579}{What is a PDU session?}
+A logical connection between a UE and a data network (DNN) through a UPF, with an IP address and one or more QoS
+flows, created for a given S-NSSAI.
+\end{qa}
+
+\begin{qa}{580}{What is a QoS flow, and how does it relate to a PDU session?}
+The finest QoS granularity in 5G: packets are mapped by filters (SDF templates) to a QoS flow (identified by QFI)
+within a PDU session, each with a 5QI and parameters (GBR/MBR, ARP).
+\end{qa}
+
+\begin{qa}{581}{What are 5QI values, and how do they relate to QoS treatment?}
+Standardised indices (3GPP TS 23.501) mapping to a resource type (GBR, non-GBR, delay-critical), priority, packet delay
+budget and error rate. For example 5QI 1 is conversational voice and 5QI 9 is best-effort default.
+\honest{All our subscribers use 5QI 9. Differentiation comes from CARS-SF's UPF qdiscs, not 5QI.}
+\end{qa}
+
+\begin{qa}{582}{What is the difference between a network slice and a QoS flow?}
+A slice is an end-to-end logical network (S-NSSAI) with its own network-function instances, policy or resources. A
+QoS flow is a traffic treatment class inside a PDU session within a slice. CARS-SF's ``service slice'' maps to an
+S-NSSAI plus DNN in the 5G deployment.
+\end{qa}
+
+\begin{qa}{583}{What is an S-NSSAI?}
+Single Network Slice Selection Assistance Information: identifies a slice as SST plus an optional SD.
+\end{qa}
+
+\begin{qa}{584}{What are SST and SD?}
+SST: Slice/Service Type (1 eMBB, 2 URLLC, 3 MIoT standardised). SD: Slice Differentiator, distinguishing slices of the
+same SST. We use healthcare SST 2/SD 000001, education 1/000002, agriculture 3/000003, general 1/000004.
+\end{qa}
+
+\begin{qa}{585}{What is the difference between eMBB, URLLC and mMTC?}
+Enhanced Mobile Broadband (high throughput), Ultra-Reliable Low-Latency Communication (strict latency and
+reliability), massive Machine-Type Communication (many low-rate devices). These are technology classes; CARS-SF argues
+for service classes on top (the 3GPP baseline in the main study maps applications to them).
+\end{qa}
+
+\begin{qa}{586}{What is the RAN's role in allocating radio resources?}
+The gNB's MAC scheduler allocates PRBs per TTI among UEs and QoS flows (and slices, with RAN slicing). This is where
+most capacity contention lives in real cellular networks. It is absent from our testbed.
+\end{qa}
+
+\begin{qa}{587}{Why can transport-layer bandwidth allocation not, by itself, guarantee radio-layer QoS?}
+If the radio is the bottleneck (poor coverage, cell congestion), packets queue or are lost in the RAN before reaching
+the backhaul. Shaping at the UPF or rural uplink then shapes a link that is not the constraint. CARS-SF's allocation is
+meaningful when the backhaul or transport is the bottleneck, which is our stated rural assumption.
+\end{qa}
+
+\begin{qa}{588}{What is the role of edge computing in rural connectivity?}
+Hosting critical services (clinic, agri) at the edge keeps them reachable and fast when the backhaul fails or degrades.
+Our topology shows this: edge-hosted healthcare survives a core switch failure, while core-hosted services cannot.
+\end{qa}
+
+\begin{qa}{589}{How could backhaul constraints interact with radio-resource constraints?}
+They form two bottlenecks in series. If they are allocated inconsistently (the RAN favours education, the backhaul
+favours healthcare), the tighter one dominates and capacity is wasted. Joint slicing (RAN plus transport) would need a
+shared policy, e.g.\ the same weights pushed to RAN-slice quotas and to transport HTB.
+\end{qa}
+
+\begin{qa}{590}{Which of these concepts are implemented in CARS-SF, and which are background?}
+\textbf{Implemented and run} (L3, simulated RAN):
+\begin{itemize}
+\item registration, PDU sessions;
+\item four S-NSSAIs and DNNs with their own address pools;
+\item GTP-U user plane through the UPF;
+\item CARS-SF enforcement on UPF N6 and \code{ogstun}.
+\end{itemize}
+\textbf{Background only:} 5QI differentiation, PCF policy, RAN scheduling and slicing, QoS flows beyond the default,
+mobility.
+\end{qa}
+
+\section{Open5GS, UERANSIM and deployment claims}
+
+\begin{qa}{591}{What is Open5GS?}
+An open-source implementation of the 4G EPC and 5G Core (AMF, SMF, UPF, NRF, SCP, AUSF, UDM, UDR, PCF, NSSF, BSF),
+used here as version 2.7.2 in a single container.
+\end{qa}
+
+\begin{qa}{592}{What is UERANSIM?}
+An open-source 5G UE and gNB simulator: it implements NAS, RRC-level procedures and GTP-U, but not a physical radio
+layer. Version 3.2.6.
+\end{qa}
+
+\begin{qa}{593}{Which components does each provide?}
+Open5GS: the full 5GC network functions. UERANSIM: \code{nr-gnb} (NGAP over SCTP, GTP-U) and \code{nr-ue}
+(registration, PDU sessions, TUN interface \code{uesimtun0}).
+\end{qa}
+
+\begin{qa}{594}{What is needed for a working UE-to-core-to-data-network path?}
+\begin{itemize}
+\item Matching PLMN (999/70), TAC and slices in gNB, AMF and NSSF.
+\item Subscribers in MongoDB (keys, OPc, slice and DNN).
+\item SMF session pools per DNN; UPF with \code{ogstun} carrying each slice gateway.
+\item The UPF running as root (TUN creation).
+\item SCTP to the AMF (start order mattered: the gNB does not retry).
+\item Routes from UEs via \code{uesimtun0}, and from the data network back to the slice pools via the UPF's N6.
+\end{itemize}
+All of it is in \code{deployment/5g/} and was brought up and verified (ping in both directions).
+\end{qa}
+
+\begin{qa}{595}{Where would CARS-SF sit in that architecture?}
+As an application function at the edge. Today it is a controller that enforces on the UPF's N6 and \code{ogstun}
+egress via tc. A standards-aligned version would sit behind the PCF or NEF (an AF influencing policy) and steer QERs.
+\end{qa}
+
+\begin{qa}{596}{Which actual interfaces would CARS-SF use to observe and influence the 5G system?}
+\textbf{Now:} Linux interfaces on the UPF host (tc stats, counters) and captures on N6 and the UE TUNs.
+\textbf{Standards path:}
+\begin{itemize}
+\item NWDAF or UPF usage reports (observation);
+\item Npcf / N5 via the AF, and NEF for policy;
+\item SMF $\rightarrow$ UPF QERs (MBR/GBR) over N4;
+\item RAN slice quotas via O-RAN A1/E2 for radio.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{597}{How would an allocation decision become a supported 5G configuration?}
+Map slice allocations to session or QoS-flow AMBR/MBR/GBR and QER updates (through the PCF, as policy for each S-NSSAI
+and DNN), and to RAN-slice PRB quotas. Our tc shaping on the UPF host is a pragmatic stand-in with the same effect
+on the N6 bottleneck.
+\end{qa}
+
+\begin{qa}{598}{Which 5G functions would need modification?}
+None for the demonstrated mode (tc on the UPF host is outside 5G functions). For a standards-aligned integration: none
+in principle, using the PCF with AF influence and QER-based enforcement in the UPF. In practice, Open5GS's support for
+dynamic QER updates driven by an AF would need checking or extending, and the RAN side needs an E2-capable gNB (not
+UERANSIM).
+\end{qa}
+
+\begin{warnbox}{Reconstructed questions}
+The questionnaire was truncated at Q598. Questions 598a onward cover the rest of the 5G section, experiments and
+critical evaluation, written to match the questionnaire's intent and its stated headings (``Experiments \textperiodcentered{}
+Critical evaluation'').
+\end{warnbox}
+
+\begin{qa}{598a}{What exactly did you run on the 5G core, and at which evidence level?}
+\begin{itemize}
+\item Open5GS with four slice UEs (UERANSIM) and PDU sessions on their own S-NSSAI/DNN pools.
+\item CARS-SF traffic generators in sidecars sharing each UE's namespace.
+\item A 10\,Mb/s UPF bottleneck shaped by CARS-SF, compared with no slicing, in the disaster and school contexts.
+\item Captures on \code{uesimtun0} (raw IP) and on the data network, matched with the same code.
+\end{itemize}
+\Lthreefg. It is not L4: the radio is simulated.
+\end{qa}
+
+\begin{qa}{598b}{What did the 5G experiment show?}
+Disaster context, 10\,Mb/s UPF:
+\begin{itemize}
+\item healthcare p95 \NFgDisasterCarsHcP\,ms with CARS-SF vs \NFgDisasterNoneHcP\,ms without;
+\item healthcare SLA-met share \NFgDisasterCarsHcSla{} vs \NFgDisasterNoneHcSla;
+\item agriculture p95 \NFgDisasterCarsAgP{} vs \NFgDisasterNoneAgP\,ms.
+\end{itemize}
+Trade-off: weighted throughput satisfaction \NFgDisasterCarsUtil{} vs \NFgDisasterNoneUtil, because fq\_codel drops
+some of healthcare's bursty video in exchange for low delay.
+School: healthcare p95 \NFgSchoolCarsHcP{} vs \NFgSchoolNoneHcP\,ms. Healthcare is uncontended there; the report marks
+H8 (``lower in every scenario'') \textbf{supported}, but this difference is about 1\,ms with $n=3$ and had the opposite
+sign before the audit, so I claim only the disaster effect; weighted utility still improves
+(\NFgSchoolCarsUtil{} vs \NFgSchoolNoneUtil).
+\end{qa}
+
+\begin{qa}{598c}{Why a 10\,Mb/s bottleneck on the 5G core, not 100\,Mb/s?}
+At 20\,Mb/s, healthcare showed about 390\,ms p95 in \emph{both} modes. The queue was in UERANSIM's user-space GTP path,
+not at the UPF. At 10\,Mb/s the UPF is the contention point, which is what the experiment needs. This is a documented
+limitation of UERANSIM, not of CARS-SF.
+\end{qa}
+
+\begin{qa}{598d}{Does slicing at the UPF with tc constitute 5G network slicing?}
+Partially. Slice \emph{identity} is genuine 5G (S-NSSAI, DNN, PDU sessions through the 5GC); slice \emph{resource
+enforcement} is CARS-SF's tc on the UPF host, not 3GPP QoS (5QI, QER, PCF). Say exactly that.
+\end{qa}
+
+\begin{qa}{598e}{How would you reach L4 evidence?}
+Replace UERANSIM with an SDR-based gNB (e.g.\ a USRP B210 with an open-source RAN stack) and commercial UEs on a
+private PLMN, as in the repository's existing 5G testbed proposal (\code{existing/5G_TestBed}). Then run the
+fiber-cut and disaster scenarios over the air, with a measured backhaul bottleneck.
+\end{qa}
+
+\begin{qa}{598f}{What were the deployment pitfalls, and why do they matter for the defense?}
+\begin{itemize}
+\item The image runs as non-root, so TUN creation failed.
+\item A read-only \code{/proc/sys}.
+\item MongoDB readiness.
+\item YAML indentation of \code{s_nssai}.
+\item The gNB connected 16\,ms before the AMF listened and did not retry.
+\item Captures on a TUN device use LINKTYPE\_RAW (101), which our parser initially dropped.
+\end{itemize}
+Each was found and fixed by running end to end. That is evidence the result is from a working system, not a diagram.
+\end{qa}
+
+\begin{qa}{598g}{What is the evidence level of the OVS QoS backend and of real-OVS operation generally?}
+Real OVS 3.3.9 with a genuine \code{OVSBridge}, run in a privileged container (\Lthreeovs):
+\begin{itemize}
+\item a fiber-cut run: recovery \NOvsMttrAfter\,s, outage \NOvsOutageAfter\,s;
+\item a school run with the \code{linux-htb} backend: no false failover after the congestion fix, validation 93.
+\end{itemize}
+\honest{Only a handful of runs. The 340-run matrix used Linux bridges.}
+\end{qa}

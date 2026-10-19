@@ -1,184 +1,150 @@
-# Context Aware Rural Service Slice Framework
+# CARS-SF — Context-Aware Rural Service Slicing Framework
 
-### AI-Driven Context-Aware Rural Service Slicing Framework for Resilient 5G Private Networks
+**AI-driven, context-aware rural service slicing with autonomous self-healing for private 5G networks.**
 
-**AI-Driven Context-Aware Rural Service Slicing and Autonomous Self-Healing Framework for Private 5G Networks**
+Rural networks share one scarce uplink among socially critical services. CARS-SF
+slices by *service* (Healthcare, Education, Agriculture, General Internet), not by
+technology (eMBB/URLLC/mMTC). It decides *how much* each slice gets from the
+operating context (school hours, harvest, disaster …) and measured demand,
+enforces the decision in the network, monitors per-slice SLAs, heals backhaul and
+core failures on its own, and learns: RL policies for priorities, and a traffic
+classifier (SliceNet) that slices multi-service devices.
 
-## Vision
+* Architecture as built: [ARCHITECTURE.md](ARCHITECTURE.md). The original vision is in [architecture.md](architecture.md).
+* Research questions, hypotheses and method: [docs/thesis/research_design.md](docs/thesis/research_design.md)
+* Measured results and hypothesis verdicts: [docs/thesis/results.md](docs/thesis/results.md)
+* Evaluation report: [docs/EVALUATION_REPORT.md](docs/EVALUATION_REPORT.md) · implementation audit and acceptance checklist: [docs/AUDIT.md](docs/AUDIT.md)
+* Every command: [docs/EXECUTION_GUIDE.md](docs/EXECUTION_GUIDE.md) · RL state/action/reward: [RL_DESIGN.md](RL_DESIGN.md)
 
-An end-to-end AI-native private 5G control plane that dynamically allocates scarce rural bandwidth across socially meaningful service classes: **Healthcare**, **Education**, **Agriculture**, and **General Internet**.
-
-## Quick Start
-
-```bash
-pip install -r requirements.txt
-python3 demo.py
-```
-
-## Experiments
-
-### 1. Rule-Based Allocation (no Mininet)
-
-```bash
-# Single context demo
-python3 demo.py
-
-# All scenarios → results/allocation_results.csv
-python3 experiments/run_all_contexts.py
-
-# Extended reproducible batch with metadata
-python3 experiments/run_reproducible.py
-```
-
-### 2. Mininet Network Simulation (requires sudo)
-
-All live experiments run inside Mininet. Each experiment captures PCAP, OVS/tc telemetry, and extracts the full **89-column** feature schema.
+## Quick start
 
 ```bash
-# Single scenario (30 seconds)
-sudo python3 run_experiment.py --scenario normal --duration 30
-
-# School hours with QoS enforcement
-sudo python3 run_experiment.py --scenario school --duration 60 --apply-qos
-
-# Disaster scenario with HTB bandwidth shaping
-sudo python3 run_experiment.py --scenario disaster --duration 45 --apply-qos
-
-# Available scenarios: normal, school, harvest, disaster, medical_emergency, fiber_cut
+make setup          # venv (system site-packages expose Mininet) + requirements
+make data models    # RSNSD v1 synthetic dataset; SliceNet baseline + RL policies
+make test           # unit tests
+make integration    # end-to-end runs on an emulated network — no sudo needed
+.venv/bin/python run_pipeline.py --mode full   # everything, reproducibly, with a manifest (modes: unit, synthetic, mininet, rl, full)
 ```
 
-Output: `generated/datasets/cars_sf_dataset.csv` + `generated/datasets/validation_report.txt`
+PyTorch is installed from the CPU wheel index:
+`.venv/bin/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu`.
 
-### 3. SliceNet Training Pipeline
+System packages: `mininet`, `openvswitch-switch`, `tcpdump`, `iproute2`, `bridge-utils`.
 
-The training workflow follows a **baseline → Mininet → compare** methodology:
+## Running experiments
 
-```
-Step 1: Train baseline on RSNSD v1 synthetic dataset (108K rows, 89 features)
-           ↓
-Step 2: Collect Mininet-measured data across all scenarios (PCAP/OVS/tc)
-           ↓
-Step 3: Train SliceNet on Mininet empirical dataset
-           ↓
-Step 4: Compare synthetic baseline vs Mininet-trained model
-```
+**Without sudo.** The pipeline runs unchanged inside a user and network namespace, with
+Linux bridges standing in for OVS:
 
 ```bash
-# Full pipeline (baseline + Mininet collection + train + compare + plots)
-sudo python3 experiments/run_slicenet_pipeline.py
-
-# Without Mininet (uses mock schema data for steps 2-3)
-python3 experiments/run_slicenet_pipeline.py --skip-collect
-
-# Step 1 only: synthetic baseline metrics
-python3 experiments/run_slicenet_pipeline.py --baseline-only
-
-# Step 4 only: compare existing results
-python3 experiments/run_slicenet_pipeline.py --compare-only
-
-# Individual steps
-python3 classification/train.py                                          # baseline on RSNSD v1
-sudo python3 run_experiment.py --scenario school --duration 60           # collect Mininet data
-python3 classification/train.py --mininet                                  # train on Mininet data
-python3 experiments/plots/plot_slicenet_evaluation.py                      # generate comparison plots
+.venv/bin/python -m tests.integration.harness fiber_cut 45 apply_qos=true
+.venv/bin/python -m tests.integration.harness school 40 apply_qos=true scheduler=tgpp
+.venv/bin/python -m tests.integration.harness normal 40 apply_qos=true timeline=rural_day
 ```
 
-**Pipeline outputs:**
-
-| File | Description |
-|------|-------------|
-| `classification/models/slicenet_baseline.pkl` | Model trained on RSNSD v1 synthetic |
-| `classification/models/slicenet_mininet.pkl` | Model trained on Mininet-measured data |
-| `results/slicenet_baseline_metrics.json` | Baseline F1 scores |
-| `results/slicenet_mininet_metrics.json` | Mininet F1 scores |
-| `results/slicenet_comparison.json` | Side-by-side comparison with per-class F1 |
-| `generated/datasets/mininet_full_dataset.csv` | Merged Mininet data (all scenarios) |
-| `docs/figures/slicenet_*.png` | Comparison plots |
-
-### 4. RL Scheduler
+**Real Open vSwitch (root).** Always use the venv interpreter: plain `sudo python3`
+is the system Python, which lacks the dependencies.
 
 ```bash
-# Train RL agent (50-200 episodes)
-python3 scheduler/train.py --episodes 200
-
-# Rule-based baseline is always available via scheduler/baseline.py
+sudo .venv/bin/python run_experiment.py --scenario fiber_cut --duration 45 --apply-qos
+sudo .venv/bin/python run_experiment.py --timeline rural_day --duration 40 --apply-qos
+sudo .venv/bin/python run_experiment.py --scenario disaster --apply-qos --scheduler rl_ppo
+sudo .venv/bin/python run_experiment.py --scenario school --apply-qos --mixed-ue --classification slicenet
+make clean-net      # `sudo mn -c` after an aborted run
 ```
 
-### 5. Self-Healing and Monitoring
+| Option | Values |
+|---|---|
+| Scenarios | normal, school, harvest, disaster, medical_emergency, fiber_cut, backhaul_degradation, core_switch_failure |
+| Timelines | rural_day, school_week, medical_night, admin_override |
+| Schedulers | proposed, rl_cem, rl_ppo, no_surplus, proportional, static_equal, tgpp, no_slicing |
 
-Monitoring and failure detection are integrated into the Mininet experiment loop. Fault injection activates automatically on `fiber_cut` scenarios.
+Each run writes `results/runs/<run_id>/`:
+
+| File | Contents |
+|---|---|
+| `summary.json` | Allocations, per-slice KPIs, SLA monitoring, failures, healing actions, MTTD/MTTR/outage, SliceNet accuracy |
+| `dataset.csv` + `sequences.npz` | Measured flow windows and packet sequences |
+| `feedback.csv` | Per-tick allocation, demand, throughput, RTT and reward |
+| `slice_monitor.csv` | Per-tick, per-slice SLA records |
+| `validation_report.txt` | Dataset validation score |
+
+## The thesis study
 
 ```bash
-sudo python3 run_experiment.py --scenario fiber_cut --duration 45 --apply-qos
+.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3  # 365 runs (configs/experiments/thesis.yaml)
+.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study online_rl
+.venv/bin/python experiments/aggregate.py                           # tables, 95 % CIs, Wilcoxon tests
+.venv/bin/python experiments/plots/plot_thesis.py                   # docs/figures/thesis/
+.venv/bin/python experiments/report.py                              # docs/thesis/results.md
 ```
 
-### 6. Generate Report Figures
+The matrix is resumable. Completed runs made with the current code and models are
+skipped; stale ones are reported, or archived and re-run with `--rerun-stale`. The
+studies are:
+
+* main (8 schedulers × 5 contexts × 5 seeds);
+* ablation;
+* capacity and load sensitivity;
+* scalability;
+* resilience;
+* timeline;
+* in-loop SliceNet;
+* online RL.
+
+### SliceNet
 
 ```bash
-python3 experiments/plots/plot_dataset_analysis.py
-python3 experiments/plots/plot_simulation_performance.py
-python3 experiments/plots/plot_slicenet_evaluation.py
-python3 experiments/plots/generate_tables.py
+.venv/bin/python experiments/run_matrix.py --config configs/experiments/dataset.yaml   # measured dataset
+.venv/bin/python experiments/collect_dataset.py --merge-only
+.venv/bin/python experiments/run_slicenet_pipeline.py    # synthetic baseline, RF + 1D-CNN, transfer study
 ```
 
-## Architecture
+### Learning engine
 
-```
-Network (Mininet) → Telemetry → Feature Extraction (89 cols) → Dataset
-                                ↓
-                           SliceNet (Classification)
-                                ↓
-              Context Engine → RL Scheduler → Allocation → QoS → Network
-                                ↓
-                         Monitoring → Self-Healing
+```bash
+.venv/bin/python scheduler/calibrate.py                  # calibrate the simulator from run feedback
+.venv/bin/python scheduler/train.py --algo all           # CEM (bandit) + PPO (sequential environment)
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for full system design.
+## Real 5G core
 
-## Repository Structure
+[Open5GS](https://open5gs.org) 5GC + [UERANSIM](https://github.com/aligungr/UERANSIM)
+gNB, with one UE per service slice, each slice having its own S-NSSAI, DNN and address
+pool. The CARS-SF controller enforces slices on the UPF.
 
-```
-CARS-SF/
-├── core/              # Orchestrator and shared interfaces
-├── registries/        # Applications, scenarios, feature schema (YAML)
-├── topology/          # Canonical rural 5G Mininet topology
-├── traffic/           # Profile-driven traffic generation
-├── telemetry/         # OVS, tc, PCAP, psutil collectors
-├── features/          # PCAP → 89-column schema extraction
-├── dataset/           # Time-aligned dataset builder
-├── validation/        # Statistical dataset validation
-├── slicing/           # Context, priority, allocation, QoS
-├── classification/    # SliceNet training pipeline
-├── scheduler/         # RL agent and Gym environment
-├── monitoring/        # SLA violation detection
-├── self_healing/      # Failure detection and recovery
-├── deployment/        # Edge server configs
-├── experiments/       # Experiment runners and plots
-├── RSNSD/             # FROZEN: v1 synthetic bootstrap dataset
-└── run_experiment.py  # Main Mininet entry point
+```bash
+docker compose -f deployment/5g/docker-compose.yml up -d     # ~60 s until PDU sessions are up
+.venv/bin/python deployment/5g/run_5g.py --scenario disaster --capacity 10 --mode both --seeds 0 1 2
+docker compose -f deployment/5g/docker-compose.yml down
 ```
 
-## RSNSD v1 Freeze Policy
+## Repository layout
 
-`RSNSD/` is **frozen** as a synthetic bootstrap dataset. It provides baseline metrics for SliceNet architecture validation. All production training uses Mininet-measured data. Do not extend RSNSD v1 synthetic generation.
+```
+core/            orchestrator, closed-loop controller, stage interfaces, config
+registries/      applications, scenarios, slices, timelines, schedulers, feature schema (YAML)
+topology/        rural Mininet topology
+traffic/         traffic models, generator, sink, orchestration
+telemetry/       counters, HTB stats, RTT probes, link watcher, endpoint captures
+context/         context inference engine
+slicing/         demand estimation, priority engine, allocators, QoS enforcement
+monitoring/      per-slice SLA monitoring
+self_healing/    detection (reactive + predictive), injection, healing engine
+scheduler/       RL environments, CEM / PPO agents, calibration
+features/        packet matching, flow windows, shape features, schema
+classification/  SliceNet (RF, 1D-CNN), training pipeline, in-loop classifier
+validation/      dataset validator
+analysis/        KPIs, fairness, outage
+experiments/     matrix runner, aggregation, report, plots, dataset collection
+deployment/5g/   Open5GS + UERANSIM deployment and driver
+tests/           unit tests; integration/ = emulated-network end-to-end tests
+RSNSD/           v1 synthetic dataset generator (frozen)
+```
 
-## Legacy Components (Deprecated)
+`MininetSims/` and `RSNSDv2/` are deprecated predecessors, merged into the root
+pipeline and excluded from tests.
 
-| Component | Status |
-|-----------|--------|
-| `MininetSims/` | Merged into `topology/`, `traffic/`, `telemetry/` |
-| `RSNSDv2/` | Merged into `core/orchestrator.py` |
-| `traffic_models/` | Preserved for demand tables |
+## Licence
 
-## Documentation
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture
-- [DATASET_DESIGN.md](DATASET_DESIGN.md) — Dataset philosophy and 89-column schema
-- [RL_DESIGN.md](RL_DESIGN.md) — RL scheduler design
-- [tracker.md](tracker.md) — Implementation progress
-
-## Requirements
-
-- Python 3.10+
-- Mininet + Open vSwitch (for live experiments)
-- Root privileges (for Mininet experiments)
+MIT. See [LICENSE](LICENSE).

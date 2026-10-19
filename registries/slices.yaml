@@ -1,0 +1,32 @@
+# Slice Registry
+# Service-centric slices (the CARS-SF proposal) and the technology-centric
+# 3GPP slices used as an evaluation baseline.
+
+service_slices:
+  healthcare:
+    class_id: "1:10"
+    htb_prio: 1
+    min_mbps: 5          # guaranteed floor in every context
+    sla: {latency_ms: 50, jitter_ms: 10, loss_pct: 1.0, min_satisfaction: 0.95}
+  education:
+    class_id: "1:20"
+    htb_prio: 2
+    min_mbps: 2
+    sla: {latency_ms: 150, jitter_ms: 30, loss_pct: 2.0, min_satisfaction: 0.8}
+  agriculture:
+    class_id: "1:30"
+    htb_prio: 3
+    min_mbps: 1
+    sla: {latency_ms: 250, jitter_ms: 50, loss_pct: 2.0, min_satisfaction: 0.8}
+  general:
+    class_id: "1:40"
+    htb_prio: 4
+    min_mbps: 1
+    sla: {latency_ms: 500, jitter_ms: 200, loss_pct: 5.0, min_satisfaction: 0.5}
+
+# Baseline: technology-centric 3GPP slicing with fixed shares of capacity,
+# applications mapped by their slice_type in registries/applications.yaml.
+tgpp_slices:
+  URLLC: {class_id: "1:10", htb_prio: 1, share: 0.20}
+  eMBB:  {class_id: "1:20", htb_prio: 2, share: 0.70}
+  mMTC:  {class_id: "1:30", htb_prio: 3, share: 0.10}

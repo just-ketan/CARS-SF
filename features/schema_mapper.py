@@ -41,16 +41,39 @@ SCHEMA_COLUMNS = [
     "allocated_slice", "sla_satisfied", "reward_score",
 ]
 
-EXCLUDED_FROM_ML = {
+# Measured columns carried alongside the 89-column RSNSD schema when the
+# extractor provides them (telemetry required by registries/features.yaml,
+# tail latency, and bookkeeping used for leakage-free train/test splits).
+TELEMETRY_COLUMNS = ["queue_drops", "ovs_bytes", "active_flows", "host_cpu_pct", "host_mem_pct"]
+EXTRA_COLUMNS = TELEMETRY_COLUMNS + ["p95_latency_ms", "window_index", "ue_host", "data_source"]
+
+# Labels and identifiers.
+LABEL_AND_ID_COLUMNS = {
     "service_type", "application_name", "slice_type", "service_priority",
     "service_class", "application_id", "slice_type_label", "priority_level",
-    "allocated_slice", "flow_id",
-    "device_type", "mobility_state", "time_of_day", "network_slice_id",
+    "allocated_slice", "flow_id", "network_slice_id", "sla_satisfied", "reward_score",
+    "qos_satisfaction_score", "ue_host", "window_index", "data_source",
+}
+# Injected by the scenario, not measured in Mininet (no radio layer exists):
+# using them as features would let a model learn the scenario, not the traffic.
+CONTEXT_INJECTED_COLUMNS = {
+    "network_load_pct", "cell_load_pct", "active_users", "device_type", "mobility_state",
+    "time_of_day", "signal_strength_dbm", "sinr_db", "rsrp_dbm", "rsrq_db", "cqi",
+    "slice_resource_utilization_pct", "radio_resource_blocks_used", "handover_in_progress",
+}
+# Fixed per application in the registry (ports, DSCP marking) or absolute
+# timestamps: a classifier would memorise them instead of learning behaviour.
+SHORTCUT_COLUMNS = {
+    "source_port", "destination_port", "dscp", "flow_start_time", "flow_end_time",
+    "transport_protocol", "ttl", "hop_limit", "ip_version", "ether_type",
 }
 
-ML_FEATURE_COLUMNS = [c for c in SCHEMA_COLUMNS if c not in EXCLUDED_FROM_ML and c not in {
-    "sla_satisfied", "reward_score",
-}]
+EXCLUDED_FROM_ML = LABEL_AND_ID_COLUMNS | CONTEXT_INJECTED_COLUMNS | SHORTCUT_COLUMNS
+
+ML_FEATURE_COLUMNS = [
+    c for c in SCHEMA_COLUMNS + ["p95_latency_ms", "queue_drops", "active_flows"]
+    if c not in EXCLUDED_FROM_ML
+]
 
 
 def map_to_schema(
@@ -64,10 +87,11 @@ def map_to_schema(
     byte_count = partial.get("byte_count", 0)
     lengths = partial.get("_packet_lengths", [byte_count // max(pkt_count, 1)] * pkt_count)
 
-    fwd_pkts = int(pkt_count * 0.6)
-    bwd_pkts = pkt_count - fwd_pkts
-    fwd_bytes = int(byte_count * 0.6)
-    bwd_bytes = byte_count - fwd_bytes
+    # Measured split when the extractor provides it; otherwise unknown (all forward).
+    fwd_pkts = partial.get("forward_packet_count", pkt_count)
+    bwd_pkts = partial.get("backward_packet_count", pkt_count - fwd_pkts)
+    fwd_bytes = partial.get("forward_byte_count", byte_count)
+    bwd_bytes = partial.get("backward_byte_count", byte_count - fwd_bytes)
 
     arr = np.array(lengths) if lengths else np.array([0.0])
     mean_ps = float(np.mean(arr))
@@ -115,7 +139,7 @@ def map_to_schema(
         "tcp_fin_count": partial.get("tcp_fin_count", 0),
         "tcp_rst_count": partial.get("tcp_rst_count", 0),
         "tcp_window_size": partial.get("tcp_window_size", 65535),
-        "tcp_retransmissions": partial.get("tcp_retransmissions", int(pkt_count * loss / 100)),
+        "tcp_retransmissions": partial.get("tcp_retransmissions", 0),
         "udp_packet_count": partial.get("udp_packet_count", 0),
         "mean_iat_ms": mean_iat,
         "std_iat_ms": std_iat,
@@ -141,10 +165,10 @@ def map_to_schema(
         "throughput_mbps": throughput,
         "goodput_mbps": partial.get("goodput_mbps", throughput * (1 - loss / 100)),
         "bandwidth_utilization_pct": partial.get("link_utilization_pct", 0),
-        "queueing_delay_ms": partial.get("queue_drops", 0) * 0.1,
-        "retransmission_rate": loss / 100,
+        "queueing_delay_ms": partial.get("queueing_delay_ms", 0.0),
+        "retransmission_rate": partial.get("retransmission_rate", 0.0),
         "link_utilization_pct": partial.get("link_utilization_pct", 0),
-        "qos_satisfaction_score": partial.get("reward_score", 80),
+        "qos_satisfaction_score": partial.get("qos_satisfaction_score", partial.get("reward_score", 80)),
         "network_load_pct": ctx.get("network_load_pct", partial.get("network_load_pct", 50)),
         "cell_load_pct": ctx.get("network_load_pct", 50) * 0.95,
         "active_users": ctx.get("active_users", 100),
@@ -168,6 +192,12 @@ def map_to_schema(
         "sla_satisfied": partial.get("sla_satisfied", latency < 100),
         "reward_score": partial.get("reward_score", 80),
     }
+    for column in EXTRA_COLUMNS:
+        if column in partial:
+            record[column] = partial[column]
+    for column, value in partial.items():
+        if column.startswith("shape_"):
+            record[column] = value
     return record
 
 
