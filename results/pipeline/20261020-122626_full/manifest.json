@@ -1,0 +1,267 @@
+{
+  "created_unix": 1792506744.791672,
+  "code_fingerprint": "450ce479becf1ae9",
+  "model_fingerprint": "80b39f27a236b453",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "2.5.1",
+      "pandas": "3.0.3",
+      "sklearn": "1.9.0",
+      "torch": "2.14.1+cpu",
+      "stable_baselines3": "2.9.0",
+      "mininet": "unknown",
+      "dpkt": "1.9.8"
+    }
+  },
+  "pipeline_id": "20261020-122626_full",
+  "mode": "full",
+  "seed": 42,
+  "root": false,
+  "code_fingerprint_at_start": "450ce479becf1ae9",
+  "model_fingerprint_at_start": "6559786e0bba064d",
+  "git": {
+    "commit": "e455337faa41b8c5512a392f9ccda12f07d150c7",
+    "uncommitted_diff_sha256": "6e4436437b30c19e7f984f4d83990ebdab43a5bfc0d0f75ce2bae3b5c270e4bd",
+    "uncommitted_files": 189
+  },
+  "stages": [
+    {
+      "stage": "unit_tests",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python -m pytest -q tests",
+      "log": "results/pipeline/20261020-122626_full/00_unit_tests.log",
+      "exit_code": 0,
+      "duration_s": 10.6,
+      "status": "ok"
+    },
+    {
+      "stage": "rsnsd_generate_validate",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python -m dataset.rsnsd --per-scenario 6000 --seed 42",
+      "log": "results/pipeline/20261020-122626_full/01_rsnsd_generate_validate.log",
+      "exit_code": 0,
+      "duration_s": 18.0,
+      "status": "ok"
+    },
+    {
+      "stage": "slicenet_synthetic_baseline",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_slicenet_pipeline.py --baseline-only",
+      "log": "results/pipeline/20261020-122626_full/02_slicenet_synthetic_baseline.log",
+      "exit_code": 0,
+      "duration_s": 5.6,
+      "status": "ok"
+    },
+    {
+      "stage": "mininet_collect",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/collect_dataset.py --seeds 0 1 2",
+      "log": "results/pipeline/20261020-122626_full/03_mininet_collect.log",
+      "exit_code": 0,
+      "duration_s": 1102.5,
+      "status": "ok"
+    },
+    {
+      "stage": "slicenet_mininet_and_transfer",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_slicenet_pipeline.py",
+      "log": "results/pipeline/20261020-122626_full/04_slicenet_mininet_and_transfer.log",
+      "exit_code": 0,
+      "duration_s": 21.9,
+      "status": "ok"
+    },
+    {
+      "stage": "rl_train_cem_ppo",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --algo all --seeds 0 1 2",
+      "log": "results/pipeline/20261020-122626_full/05_rl_train_cem_ppo.log",
+      "exit_code": 0,
+      "duration_s": 130.6,
+      "status": "ok"
+    },
+    {
+      "stage": "rl_simulator_evaluation",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --evaluate-only",
+      "log": "results/pipeline/20261020-122626_full/06_rl_simulator_evaluation.log",
+      "exit_code": 0,
+      "duration_s": 3.4,
+      "status": "ok"
+    },
+    {
+      "stage": "calibration_runs",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study calibration_emergency calibration_timeline",
+      "log": "results/pipeline/20261020-122626_full/07_calibration_runs.log",
+      "exit_code": 0,
+      "duration_s": 383.1,
+      "status": "ok"
+    },
+    {
+      "stage": "calibrate_bursts",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python -m scheduler.calibrate_bursts results/runs/calibration_*/feedback.csv",
+      "log": "results/pipeline/20261020-122626_full/08_calibrate_bursts.log",
+      "exit_code": 0,
+      "duration_s": 74.6,
+      "status": "ok"
+    },
+    {
+      "stage": "rl_train_residual",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --algo residual --timesteps 300000 --seeds 0 1 2",
+      "log": "results/pipeline/20261020-122626_full/09_rl_train_residual.log",
+      "exit_code": 0,
+      "duration_s": 1169.5,
+      "status": "ok"
+    },
+    {
+      "stage": "rl_residual_sensitivity_sla_x2",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --algo residual --variant sla_x2 --timesteps 300000 --seeds 0 1 2",
+      "log": "results/pipeline/20261020-122626_full/10_rl_residual_sensitivity_sla_x2.log",
+      "exit_code": 0,
+      "duration_s": 1244.5,
+      "status": "ok"
+    },
+    {
+      "stage": "rl_residual_sensitivity_loss_x4",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --algo residual --variant loss_x4 --timesteps 300000 --seeds 0 1 2",
+      "log": "results/pipeline/20261020-122626_full/11_rl_residual_sensitivity_loss_x4.log",
+      "exit_code": 0,
+      "duration_s": 1296.4,
+      "status": "ok"
+    },
+    {
+      "stage": "mininet_integration",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python -m pytest -q -m integration tests/integration",
+      "log": "results/pipeline/20261020-122626_full/12_mininet_integration.log",
+      "exit_code": 0,
+      "duration_s": 515.7,
+      "status": "ok"
+    },
+    {
+      "stage": "matrix",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study main ablation sensitivity_capacity sensitivity_load scalability resilience timeline slicenet_inloop",
+      "log": "results/pipeline/20261020-122626_full/13_matrix.log",
+      "exit_code": 0,
+      "duration_s": 7028.0,
+      "status": "ok"
+    },
+    {
+      "stage": "matrix_online_rl",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study online_rl",
+      "log": "results/pipeline/20261020-122626_full/14_matrix_online_rl.log",
+      "exit_code": 0,
+      "duration_s": 806.6,
+      "status": "ok"
+    },
+    {
+      "stage": "matrix_final",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study final_contended_emergency final_contended_capacity final_contended_load final_contended_timelines final_feasible final_prediction final_slicenet",
+      "log": "results/pipeline/20261020-122626_full/15_matrix_final.log",
+      "exit_code": 0,
+      "duration_s": 9740.7,
+      "status": "ok"
+    },
+    {
+      "stage": "matrix_final_rl_online",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study final_rl_online",
+      "log": "results/pipeline/20261020-122626_full/16_matrix_final_rl_online.log",
+      "exit_code": 0,
+      "duration_s": 823.0,
+      "status": "ok"
+    },
+    {
+      "stage": "matrix_final_rl_online_nolearn",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study final_rl_online_nolearn",
+      "log": "results/pipeline/20261020-122626_full/17_matrix_final_rl_online_nolearn.log",
+      "exit_code": 0,
+      "duration_s": 817.9,
+      "status": "ok"
+    },
+    {
+      "stage": "ovs_validation",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/ovs_validation.py",
+      "log": "results/pipeline/20261020-122626_full/18_ovs_validation.log",
+      "exit_code": 0,
+      "duration_s": 2127.4,
+      "status": "ok"
+    },
+    {
+      "stage": "aggregate",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/aggregate.py",
+      "log": "results/pipeline/20261020-122626_full/19_aggregate.log",
+      "exit_code": 0,
+      "duration_s": 30.5,
+      "status": "ok"
+    },
+    {
+      "stage": "forecast_quality",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/forecast_eval.py results/runs/final_prediction__*",
+      "log": "results/pipeline/20261020-122626_full/20_forecast_quality.log",
+      "exit_code": 0,
+      "duration_s": 0.3,
+      "status": "ok"
+    },
+    {
+      "stage": "final_analysis",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/final_analysis.py",
+      "log": "results/pipeline/20261020-122626_full/21_final_analysis.log",
+      "exit_code": 0,
+      "duration_s": 0.9,
+      "status": "ok"
+    },
+    {
+      "stage": "plots",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/plots/plot_thesis.py",
+      "log": "results/pipeline/20261020-122626_full/22_plots.log",
+      "exit_code": 0,
+      "duration_s": 2.8,
+      "status": "ok"
+    },
+    {
+      "stage": "plots_final",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/plots/plot_final.py",
+      "log": "results/pipeline/20261020-122626_full/23_plots_final.log",
+      "exit_code": 0,
+      "duration_s": 0.8,
+      "status": "ok"
+    },
+    {
+      "stage": "report",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/report.py",
+      "log": "results/pipeline/20261020-122626_full/24_report.log",
+      "exit_code": 0,
+      "duration_s": 0.7,
+      "status": "ok"
+    }
+  ],
+  "status": "ok",
+  "environment_check": {
+    "ok": true,
+    "problems": []
+  },
+  "artifacts": {
+    "rsnsd": {
+      "schema_version": "rsnsd-contract-2.0",
+      "provenance_source": "synthetic_rsnsd",
+      "seed": 42,
+      "seeds": null,
+      "rows": 108000,
+      "sha256": "6421db4c8e849716be5ae81787e24a8a3001225448d3bde74d6ef54699e5e4ea",
+      "code_fingerprint": "450ce479becf1ae9"
+    },
+    "mininet_dataset": {
+      "schema_version": "rsnsd-contract-2.0",
+      "provenance_source": "mininet_measured",
+      "seed": null,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "rows": 4697,
+      "sha256": "4af6865fce7de5e4d49c8db7c153af6aebc7e3feb76d24e8079fff0a36885b4f",
+      "code_fingerprint": "450ce479becf1ae9"
+    },
+    "models": {
+      "scheduler/models/rl_agent.pkl": "77548bab6b6567305806ef0713ae85f71b0117cac73eff8a1726549ee24628cd",
+      "scheduler/models/ppo_slicing.zip": "c2b109a21cbb0a355f3928605772e7017125136adec74a00b9e9ee892ec9d6f9",
+      "classification/models/slicenet_baseline.pkl": "8ebe667e50e8037ee94de259478141f2c2d190912aa3aff72e36a427889a7b0a",
+      "classification/models/slicenet_mininet.pkl": "a1bd5a6b4aacae6d1633563a23e8dbf0df1d1a686292c84d8e6762554fb2c29e",
+      "classification/models/slicenet_cnn.pt": "7456c1b14872eba58e8ce2609014145c4e40e7ae38f27da6f6b9ddbb5458eeb2"
+    }
+  }
+}

@@ -405,7 +405,9 @@ median zero across (scenario, seed) pairs (Wilcoxon signed-rank).
 
 \begin{qa}{50}{State the alternative hypothesis.}
 $H_1$: the median paired difference is positive (proposed better). It was pre-registered as H1a.
-\textbf{Result: not supported.} No baseline difference in weighted utility is significant (smallest $p=\NUtilPMin$).
+\textbf{Result: not supported.} The proposed scheduler is not significantly better than any baseline in weighted
+utility. The only nominally significant difference ($p=\NUtilPMin$) is in the other direction (PPO marginally ahead; see the RL part),
+and none survives Bonferroni correction.
 \end{qa}
 
 \begin{qa}{51}{What is your independent variable?}
@@ -450,7 +452,8 @@ rules suffice and SliceNet \emph{is} unnecessary. Its value is confined to multi
 
 \begin{qa}{57}{What would count as a negative result, and how would you report it?}
 Any pre-registered hypothesis whose test fails. The report generator marks verdicts mechanically
-(\code{experiments/report.py}). H1a, H1b, H3, H5b, H7 and H9 are reported as \emph{not supported} in
+(\code{experiments/report.py}). In the final predeclared evaluation (Part~\ref{part:final}), C1, C2, C3b and C5--C8
+are \emph{unsupported}; earlier, H1a, H1b, H5b, H7, H9 and H11--H13 were reported as \emph{not supported} in
 \code{docs/thesis/results.md}, next to the supported ones.
 \end{qa}
 
@@ -465,7 +468,12 @@ Any pre-registered hypothesis whose test fails. The report generator marks verdi
   \item self-healing reduces core-bound outage against no healing (H10, added during the audit, not pre-registered);
   \item 5G-core benefit under contention (H8 is marked supported by its directional criterion, but only the disaster effect is substantive: the school difference is about 1\,ms with $n=3$ and changed sign between the pre- and post-audit runs).
   \end{itemize}
-\item \textbf{Not supported}: H1a, H1b, H3, H5b, H7, H9 (context-aware vs context-unaware: +0.002 utility, $p=0.054$).
+\item \textbf{Not supported}: H1a, H1b, H5b, H7, H9 (context-aware vs context-unaware); H11 on its stated mean metric,
+  H12 (residual RL vs heuristic) and H13 (prediction adds to B), see \S\ref{sec:qoseval}.
+\item \textbf{Marginal}: H3 (PPO $>$ proposed by \NPpoDelta{} in utility, $p=\NPpoP$ in the final run). It is not
+  Bonferroni-significant and was not reproduced in the three earlier full runs, so it is not claimed.
+\item \textbf{Supported after the audit}: H10 (self-healing vs none), H14 (SliceNet on every flow, non-inferior),
+  and healthcare SLA gains of the QoS-targeted control (Q721).
 \item \textbf{Implementation goals only}: OVS QoS backend at scale, load balancing (absent), multi-site.
 \end{itemize}
 \end{qa}

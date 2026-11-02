@@ -14,7 +14,9 @@ Classification (which traffic belongs to which class)
   app      registry knowledge of each application's server/port (oracle; also
            how 3GPP slices map applications by slice type)
   slicenet host rules plus per-flow rules installed at runtime from SliceNet
-           predictions (``classify_flow``)
+           predictions (``classify_flow``) for the mixed-service UE
+  slicenet_all  no address rules: every UE flow is classified by SliceNet at runtime
+           (flower rules, replaceable on reclassification)
 """
 
 from __future__ import annotations
@@ -59,9 +61,13 @@ class QoSEnforcer:
         work_conserving: bool = True,
         backend: str = "tc",
         aqm: bool = True,
+        queue_profile: str = "default",
     ):
         self.net = net
         self.aqm = aqm
+        # "default": fq_codel defaults (target 5 ms, interval 100 ms) for every slice.
+        # "sla": per-slice CoDel parameters from the slice's delay budget (slices.yaml `queue`).
+        self.queue_profile = queue_profile
         self.bottleneck_intf = bottleneck_intf
         self.downlink_intf = downlink_intf
         self.class_mode = class_mode            # service | tgpp | none
@@ -76,6 +82,8 @@ class QoSEnforcer:
         self.capacity = 100.0
         self._configured = False
         self.flow_rules: dict[tuple, str] = {}
+        self._flow_handles: dict[tuple, int] = {}
+        self._flower: bool | None = None        # unknown until the first per-flow rule
         self.applied: list[dict[str, float]] = []
         self._last_rc_known: list[bool] = []
 
@@ -100,12 +108,13 @@ class QoSEnforcer:
             switch.cmd(f"tc qdisc del dev {iface} root 2>/dev/null")
             if self.class_mode == "none":
                 # Traditional single FIFO (tail drop) shaped to link capacity.
-                switch.cmd(f"tc qdisc add dev {iface} root handle 1: htb default 1 r2q 100")
+                switch.cmd(f"tc qdisc add dev {iface} root handle 1: {self._root_prefix(iface)}htb default 1 r2q 100")
                 switch.cmd(f"tc class add dev {iface} parent 1: classid 1:1 htb rate {cap}mbit ceil {cap}mbit quantum 1514")
                 switch.cmd(f"tc qdisc add dev {iface} parent 1:1 handle 2: pfifo limit 1000")
                 continue
             default_minor = self.class_ids[self.default_class].split(":")[1]
-            switch.cmd(f"tc qdisc add dev {iface} root handle 1: htb default {default_minor} r2q 100")
+            switch.cmd(f"tc qdisc add dev {iface} root handle 1: {self._root_prefix(iface)}htb "
+                       f"default {default_minor} r2q 100")
             switch.cmd(
                 f"tc class add dev {iface} parent 1: classid 1:1 htb rate {cap}mbit ceil {cap}mbit quantum 1514"
             )
@@ -118,18 +127,30 @@ class QoSEnforcer:
                 # fq_codel leaf keeps per-slice queueing delay bounded; HTB's
                 # default FIFO leaf would buffer ~1000 packets (bufferbloat).
                 handle = classid.split(":")[1]
-                leaf = "fq_codel" if self.aqm else "pfifo limit 1000"
+                leaf = self._leaf_qdisc(cfg) if self.aqm else "pfifo limit 1000"
                 switch.cmd(f"tc qdisc add dev {iface} parent {classid} handle {handle}: {leaf}")
         if self.class_mode != "none":
             self._install_filters(spawns or [])
         self._configured = True
         info(f"*** QoS ({self.backend}/{self.class_mode}/{self.classification}) configured ***\n")
 
+    def _root_prefix(self, iface: str) -> str:
+        """Extra options of the root qdisc (backends may adjust how packets are accounted)."""
+        return ""
+
+    def _leaf_qdisc(self, cfg: dict) -> str:
+        queue = cfg.get("queue") if self.queue_profile == "sla" else None
+        if not queue:
+            return "fq_codel"
+        return f"fq_codel target {queue['target_ms']}ms interval {queue['interval_ms']}ms"
+
     def _install_filters(self, spawns: list[dict]):
         if self.class_mode == "tgpp" or self.classification == "app":
             for spawn in spawns:
                 self._app_filters(spawn)
-        if self.class_mode == "service":
+        if self.class_mode == "service" and self.classification != "slicenet_all":
+            # slicenet_all: no address rules at all; every UE flow starts in the default
+            # (best-effort) class until SliceNet classifies it.
             for service in SERVICE_IP_BASE:
                 for i in range(1, 10):
                     self._host_filter(ue_ip(service, i), self.class_ids[service])
@@ -158,20 +179,50 @@ class QoSEnforcer:
                 f"match ip {field} {address}/32 flowid {classid}"
             )
 
-    def classify_flow(self, flow: tuple, class_name: str) -> bool:
-        """Install a per-flow rule (ue_ip, peer_ip, proto, ue_port, peer_port) → class."""
+    def classify_flow(self, flow: tuple, class_name: str, replace: bool = False) -> bool:
+        """Steer one flow (ue_ip, peer_ip, proto, ue_port, peer_port) into a class.
+
+        Rules are tc ``flower`` exact matches (hash lookup, so many flows stay cheap)
+        with a handle per flow, so a later SliceNet decision can *replace* the rule
+        (``replace=True``). Kernels without flower fall back to append-only u32 rules.
+        """
         if self.net is None or class_name not in self.class_ids or self.flow_rules.get(flow) == class_name:
             return False
-        if flow in self.flow_rules:
-            return False  # u32 rules are append-only here; first decision sticks
-        ue, peer, _, ue_port, peer_port = flow
+        if flow in self.flow_rules and not (replace and self._flower is not False):
+            return False
+        ue, peer, proto, ue_port, peer_port = flow
         classid = self.class_ids[class_name]
+        if self._flower is not False:
+            verb = "replace" if flow in self._flow_handles else "add"
+            handle = self._flow_handles.setdefault(flow, len(self._flow_handles) + 1)
+            proto_name = {6: "tcp", 17: "udp"}.get(int(proto))
+            ok = proto_name is not None
+            for direction, switch, iface in self._directions() if ok else ():
+                src, dst, sport, dport = (
+                    (ue, peer, ue_port, peer_port) if direction == UPLINK else (peer, ue, peer_port, ue_port)
+                )
+                rc = self._run(
+                    switch,
+                    f"tc filter {verb} dev {iface} protocol ip parent 1: prio {FLOW_PRIO} handle {handle} "
+                    f"flower src_ip {src} dst_ip {dst} ip_proto {proto_name} "
+                    f"src_port {sport} dst_port {dport} classid {classid}",
+                )
+                ok = ok and rc in (0, None)
+            if ok:
+                self._flower = True
+                self.flow_rules[flow] = class_name
+                return True
+            if self._flower is None and verb == "add":
+                self._flower = False                # kernel without flower: use u32 from now on
+                self._flow_handles.pop(flow, None)
+            else:
+                return False
         for direction, switch, iface in self._directions():
             src, dst, sport, dport = (
                 (ue, peer, ue_port, peer_port) if direction == UPLINK else (peer, ue, peer_port, ue_port)
             )
             switch.cmd(
-                f"tc filter add dev {iface} protocol ip parent 1: prio {FLOW_PRIO} u32 "
+                f"tc filter add dev {iface} protocol ip parent 1: prio {FLOW_PRIO + 1} u32 "
                 f"match ip src {src}/32 match ip dst {dst}/32 "
                 f"match ip sport {sport} 0xffff match ip dport {dport} 0xffff flowid {classid}"
             )
@@ -181,12 +232,15 @@ class QoSEnforcer:
     # ------------------------------------------------------------- allocation
 
     def apply_allocation(
-        self, allocation: dict[str, float], ceilings: dict[str, float] | None = None
+        self, allocation: dict[str, float], ceilings: dict[str, float] | None = None,
+        directional: dict[str, dict[str, float]] | None = None,
     ) -> dict[str, Any]:
         """Apply bandwidth allocation to HTB classes (both directions) and verify it.
 
         ``ceilings`` overrides the borrowing limit per class (e.g. core-bound
-        slices while the smaller backup backhaul is in use).
+        slices while the smaller backup backhaul is in use). ``directional``
+        gives separate uplink/downlink rates (direction-aware schedulers);
+        otherwise the same rate is applied in both directions.
 
         Returns an enforcement record: every command's exit status is checked
         and the classes are read back from the kernel and compared with the
@@ -197,22 +251,28 @@ class QoSEnforcer:
         ceilings = ceilings or {}
         self._last_rc_known = []
         result: dict[str, Any] = {"allocation": dict(allocation), "failures": [], "mismatches": [], "verified": None}
+        if directional:
+            result["directional"] = {d: dict(v) for d, v in directional.items()}
         if self.net is None:
             self._print_commands(allocation)
             return result
         if not self._configured:
-            self.setup_htb(total_bandwidth_mbps=max(sum(allocation.values()), 100))
+            self.setup_htb(total_bandwidth_mbps=self.capacity)
         if self.class_mode == "none":
             result["verified"] = True
             return result
         self.applied.append(dict(allocation))
         if self.backend == "ovs":
-            self._apply_ovs(allocation)
+            failures, mismatches, observed = self._apply_ovs(allocation, directional)
+            result["failures"], result["mismatches"] = failures, mismatches
+            result["verified"] = False if (failures or mismatches) else (True if observed else None)
+            info(f"*** OVS QoS applied: {directional or allocation} (verified={result['verified']}) ***\n")
             return result
         cap = int(self.capacity)
         intended: dict[tuple[str, str], tuple[int, int]] = {}
         for direction, switch, iface in self._directions():
-            for name, bandwidth in allocation.items():
+            rates = directional[direction] if directional else allocation
+            for name, bandwidth in rates.items():
                 classid = self.class_ids.get(name)
                 if not classid:
                     continue
@@ -234,7 +294,8 @@ class QoSEnforcer:
             result["verified"] = False
         elif observed:
             result["verified"] = True
-        info(f"*** QoS allocation applied: {allocation} (verified={result['verified']}) ***\n")
+        shown = directional if directional else allocation
+        info(f"*** QoS allocation applied: {shown} (verified={result['verified']}) ***\n")
         return result
 
     def _run(self, switch, command: str) -> int | None:
@@ -326,18 +387,32 @@ class QoSEnforcer:
         self._configured = True
         info("*** QoS (ovs linux-htb) configured ***\n")
 
-    def _apply_ovs(self, allocation: dict[str, float]):
+    def _apply_ovs(self, allocation: dict[str, float], directional: dict | None = None):
+        """Set each OVS linux-htb queue's min/max rate per direction, then read the queue
+        records back from the OVS database. Returns (failures, mismatches, observed)."""
         cap_bps = int(self.capacity * 1e6)
-        for _, switch, iface in self._directions():
-            for name, bandwidth in allocation.items():
+        failures, mismatches, observed = [], [], False
+        self._last_rc_known = []
+        for direction, switch, iface in self._directions():
+            rates = directional[direction] if directional else allocation
+            for name, bandwidth in rates.items():
                 if name not in self._ovs_queue:
                     continue
                 rate = max(int(bandwidth * 1e6), 1_000_000)
                 ceil = cap_bps if self.work_conserving else rate
-                switch.cmd(
-                    f"ovs-vsctl set queue $(ovs-vsctl get qos $(ovs-vsctl get port {iface} qos) "
-                    f"queues:{self._ovs_queue[name]}) other-config:min-rate={rate} other-config:max-rate={ceil}"
-                )
+                queue = f"$(ovs-vsctl get qos $(ovs-vsctl get port {iface} qos) queues:{self._ovs_queue[name]})"
+                rc = self._run(switch, f"ovs-vsctl set queue {queue} other-config:min-rate={rate} "
+                                       f"other-config:max-rate={ceil}")
+                if rc not in (0, None):
+                    failures.append({"direction": direction, "class": name, "rc": rc})
+                readback = switch.cmd(f"ovs-vsctl get queue {queue} other-config") or ""
+                found = dict(re.findall(r'(min-rate|max-rate)="?(\d+)"?', readback))
+                if found:
+                    observed = True
+                    if int(found.get("min-rate", -1)) != rate or int(found.get("max-rate", -1)) != ceil:
+                        mismatches.append({"iface": iface, "class": name, "expected": (rate, ceil),
+                                           "actual": (found.get("min-rate"), found.get("max-rate"))})
+        return failures, mismatches, observed
 
     def _print_commands(self, allocation: dict[str, float]):
         print("\nGenerated QoS Commands (no Mininet net attached)")

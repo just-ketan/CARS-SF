@@ -1,10 +1,13 @@
 # Scenario Registry
+# degradation: the declared policy for rationing an over-committed direction
+# (priority = life-critical slices first; proportional = every slice loses the same fraction).
 # Context definitions for rural network operating conditions.
 
 scenarios:
   - id: normal
     name: Normal Day
     description: Balanced allocation across all service classes.
+    degradation: proportional      # when demand does not fit (QoSAwareAllocator): equal fraction of every shortfall
     priority_weights:
       healthcare: 5
       education: 4
@@ -21,6 +24,7 @@ scenarios:
   - id: school
     name: School Hours
     description: Education receives higher priority during school hours.
+    degradation: proportional      # when demand does not fit (QoSAwareAllocator): equal fraction of every shortfall
     priority_weights:
       healthcare: 5
       education: 5
@@ -37,6 +41,7 @@ scenarios:
   - id: harvest
     name: Harvest Season
     description: Agriculture receives higher priority during harvest.
+    degradation: proportional      # when demand does not fit (QoSAwareAllocator): equal fraction of every shortfall
     priority_weights:
       healthcare: 5
       education: 3
@@ -53,6 +58,7 @@ scenarios:
   - id: disaster
     name: Disaster
     description: Healthcare maximum priority; general traffic throttled.
+    degradation: priority      # when demand does not fit (QoSAwareAllocator): critical slices first
     priority_weights:
       healthcare: 10
       education: 1
@@ -69,6 +75,7 @@ scenarios:
   - id: medical_emergency
     name: Medical Emergency
     description: Critical healthcare traffic protected above all else.
+    degradation: priority      # when demand does not fit (QoSAwareAllocator): critical slices first
     priority_weights:
       healthcare: 15
       education: 1
@@ -85,6 +92,7 @@ scenarios:
   - id: fiber_cut
     name: Fiber Cut
     description: Backhaul failure with degraded capacity.
+    degradation: priority      # when demand does not fit (QoSAwareAllocator): critical slices first
     priority_weights:
       healthcare: 10
       education: 2
@@ -100,9 +108,29 @@ scenarios:
     failure: {type: fiber_cut, at: 0.33, repair_at: 0.66}
     duration_ticks: 45
 
+  - id: repeated_fiber_cut
+    name: Repeated Fiber Cut
+    description: Two backhaul cuts in one run (recovery after recovery, no failover loops).
+    degradation: priority      # when demand does not fit (QoSAwareAllocator): critical slices first
+    priority_weights:
+      healthcare: 10
+      education: 2
+      agriculture: 2
+      general: 1
+    demand_mbps:
+      healthcare: 40
+      education: 15
+      agriculture: 15
+      general: 30
+    network_load_pct: 90
+    backhaul_degraded: true
+    failure: {type: repeated_fiber_cut, cycles: [[0.15, 0.35], [0.6, 0.8]]}
+    duration_ticks: 60
+
   - id: backhaul_degradation
     name: Backhaul Degradation
     description: Fiber backhaul degrades (rising delay and loss) before failing outright.
+    degradation: priority      # when demand does not fit (QoSAwareAllocator): critical slices first
     priority_weights:
       healthcare: 10
       education: 2
@@ -120,6 +148,7 @@ scenarios:
   - id: core_switch_failure
     name: Core Switch Failure
     description: The core aggregation switch fails; core-hosted services are unreachable.
+    degradation: priority      # when demand does not fit (QoSAwareAllocator): critical slices first
     priority_weights:
       healthcare: 10
       education: 2

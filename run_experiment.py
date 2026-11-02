@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--duration", type=int, default=30)
     parser.add_argument("--apply-qos", action="store_true", help="enforce slices (HTB + fq_codel)")
     parser.add_argument("--scheduler", default="proposed", choices=schedulers)
-    parser.add_argument("--classification", default="host", choices=["host", "app", "slicenet"])
+    parser.add_argument("--classification", default="host", choices=["host", "app", "slicenet", "slicenet_all"])
     parser.add_argument("--mixed-ue", action="store_true", help="add a UE running every service")
     parser.add_argument("--strict-caps", action="store_true", help="disable HTB borrowing")
     parser.add_argument("--oracle-demand", action="store_true", help="use design demand, not measured")

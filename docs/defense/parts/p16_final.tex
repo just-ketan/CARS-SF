@@ -1,0 +1,190 @@
+\part{Final evaluation: closing the research objective}\label{part:final}
+
+\begin{keybox}{What this part is}
+The last round of work audited the real runtime path, froze and reproduced the previous evaluation, fixed the gaps
+it found, and then ran one \textbf{predeclared} evaluation (\code{docs/thesis/final_evaluation_plan.md}):
+\begin{itemize}
+\item fresh seeds 20--24;
+\item \NFRuns{} runs on the final code plus \NOvsRuns{} runs on real Open vSwitch;
+\item paired tests with 95\,\% CIs, rank-biserial effect sizes and Holm correction over the primary claims.
+\end{itemize}
+Everything below comes from that evaluation's artefacts. It supersedes Part~\ref{sec:qoseval}'s v4 numbers, which
+are preserved and were reproduced before any change (Q802).
+\end{keybox}
+
+\section{Audit and baseline}
+
+\begin{qa}{801}{What did tracing the real runtime path find?}
+The audit (\code{docs/RUNTIME_PATH.md}) traced each stage, Monitor $\rightarrow$ Telemetry $\rightarrow$ Classification
+$\rightarrow$ Context $\rightarrow$ Demand/prediction $\rightarrow$ Allocation $\rightarrow$ Safety $\rightarrow$
+Actuation $\rightarrow$ Verification $\rightarrow$ Learning, to its call site. It found eight gaps:
+\begin{itemize}
+\item SliceNet decisions did not reach uplink demand estimation;
+\item monitoring output fed no decision;
+\item there was no validator on the final allocation before actuation;
+\item ``feasible'' ignored burst requirements;
+\item prediction had never been tested against ramps or an upper bound;
+\item there was no truly context-blind control, and controllers were given the workload's actual load scale;
+\item RL had no safe hybrid, no learning-disabled control and no sensitivity tests;
+\item real OVS had never been executed.
+\end{itemize}
+Each was fixed or documented (\code{RUNTIME_PATH.md} \S3).
+\end{qa}
+
+\begin{qa}{802}{How do you know the earlier results were not an accident?}
+Before any behavioural change, the frozen v4 evaluation was re-run on the same seeds under new run IDs: 240/240 runs.
+Every per-condition difference was below the seed-to-seed spread, and the headline contrasts reproduced in size and
+significance (\code{results/evidence/baseline_v4/BASELINE.json}).
+\end{qa}
+
+\section{Claims, tested once}
+
+\begin{table}[!htbp]\centering\footnotesize
+\begin{tabular}{@{}l p{4.6cm} r r@{\,}l r r l@{}}
+\toprule
+& claim (comparison) & $n$ & $\Delta$ & [95\,\% CI] & $r$ & $p_{\text{Holm}}$ & verdict\\
+\midrule
+C1 & critical class protected (qos\_adaptive vs proposed, healthcare SLA) & \NFCOneN & \NFCOneDiff & [\NFCOneLo, \NFCOneHi] & \NFCOneR & \NFCOnePHolm & \NFCOneVerdict\\
+C2 & worst class not hurt (same, worst-class SLA; margin $-$0.01) & \NFCTwoN & \NFCTwoDiff & [\NFCTwoLo, \NFCTwoHi] & \NFCTwoR & -- & \NFCTwoVerdict\\
+C3a & context helps the critical class (aware vs blind) & \NFCThreeaN & \NFCThreeaDiff & [\NFCThreeaLo, \NFCThreeaHi] & \NFCThreeaR & \NFCThreeaPHolm & \NFCThreeaVerdict\\
+C3b & context helps after changes (transient SLA) & \NFCThreebN & \NFCThreebDiff & [\NFCThreebLo, \NFCThreebHi] & \NFCThreebR & \NFCThreebPHolm & \NFCThreebVerdict\\
+C4 & context redundant when demand fits (equivalence $\pm$0.01) & \NFCFourN & \NFCFourDiff & [\NFCFourLo, \NFCFourHi] & \NFCFourR & -- & \NFCFourVerdict\\
+C5 & reaction helps after changes & \NFCFiveN & \NFCFiveDiff & [\NFCFiveLo, \NFCFiveHi] & \NFCFiveR & \NFCFivePHolm & \NFCFiveVerdict\\
+C6a & prediction helps after changes & \NFCSixaN & \NFCSixaDiff & [\NFCSixaLo, \NFCSixaHi] & \NFCSixaR & \NFCSixaPHolm & \NFCSixaVerdict\\
+C6b & prediction helps overall & \NFCSixbN & \NFCSixbDiff & [\NFCSixbLo, \NFCSixbHi] & \NFCSixbR & \NFCSixbPHolm & \NFCSixbVerdict\\
+C7 & residual RL beats the heuristic & \NFCSevenN & \NFCSevenDiff & [\NFCSevenLo, \NFCSevenHi] & \NFCSevenR & \NFCSevenPHolm & \NFCSevenVerdict\\
+C8 & safe RL hybrid beats the heuristic & \NFCEightN & \NFCEightDiff & [\NFCEightLo, \NFCEightHi] & \NFCEightR & \NFCEightPHolm & \NFCEightVerdict\\
+C9 & online learning beats learning-disabled & \NFCNineN & \NFCNineDiff & [\NFCNineLo, \NFCNineHi] & \NFCNineR & \NFCNinePHolm & \NFCNineVerdict$^{*}$\\
+C10 & SliceNet everywhere non-inferior (margin $-$0.02) & \NFCOneZeroN & \NFCOneZeroDiff & [\NFCOneZeroLo, \NFCOneZeroHi] & \NFCOneZeroR & -- & \NFCOneZeroVerdict\\
+C11 & self-healing cuts core outage (s) & \NFCOneOneN & \NFCOneOneDiff & [\NFCOneOneLo, \NFCOneOneHi] & \NFCOneOneR & \NFCOneOnePHolm & \NFCOneOneVerdict\\
+\bottomrule
+\end{tabular}
+\caption{Predeclared claims (\capcode{results/tables/final_claims.csv}). $^{*}$See Q807 for a confound and its
+replication.}
+\label{tab:finalclaims}
+\end{table}
+
+\begin{qa}{803}{Do the requirements hold?}
+\begin{itemize}
+\item \textbf{R1, feasible SLAs: \NFROnePass.} All four classes reach $\ge$0.95 SLA share in every verified-feasible run
+(\NFROneChecked{} runs, \NFROneFailures{} failures).
+\honest{The plan listed school and harvest as ``feasible'', but school's downlink demand (130\,Mb/s) exceeds
+100\,Mb/s. R1's own rule (count only runs whose every decision was SLA-feasible) excluded them, so R1 rests on the
+normal-context runs.}
+\item \textbf{R2, safety: \NFRTwoPass.} No failed verification, no planned capacity or protected-minimum violation and
+no validator rejection in \NFRTwoChecked{} runs.
+\item \textbf{R3, no starvation: \NFRThreePass} (\NFRThreeChecked{} contended runs of the QoS-targeted schedulers).
+\end{itemize}
+\end{qa}
+
+\begin{qa}{804}{Why did C1 fail when the earlier evaluations showed a strong healthcare gain?}
+Because of the everyday degradation policy introduced in this round, which was declared before the evaluation and
+then not tuned after it. In everyday contexts it rations shortfalls \emph{proportionally}. On the 50\,Mb/s harvest
+uplink, agriculture's 80\,Mb/s and healthcare's 5\,Mb/s compete, so healthcare loses the same fraction as
+agriculture: its SLA share falls to \NFCHarvestFiveZeromAdHc{} (proposed \NFCHarvestFiveZeromPropHc).
+
+Under the emergency policy (\emph{priority}) the gains are intact:
+\begin{itemize}
+\item disaster: \NFCDisasterPropHc{} $\rightarrow$ \NFCDisasterAdHc;
+\item medical emergency: \NFCMedicalEmergencyPropHc{} $\rightarrow$ \NFCMedicalEmergencyAdHc;
+\item night alert: \NFCMedicalNightPropHc{} $\rightarrow$ \NFCMedicalNightAdHc.
+\end{itemize}
+\honest{A protected minimum for the critical class under proportional rationing would likely fix harvest@50. It is an
+algorithm change and therefore needs a new recorded evaluation. It was not made after seeing this result.}
+\end{qa}
+
+\begin{qa}{805}{Does context help?}
+Where it carries information, yes, for the critical class. Context-aware vs context-blind raises healthcare SLA share
+by \NFCThreeaDiff{} ($p_{\text{Holm}}=\NFCThreeaPHolm$) in the emergencies and timelines. It does not improve QoS in
+the 10\,s after a change (C3b), and where demand fits it is redundant, as predicted (C4, equivalent within $\pm$0.01).
+\trade{The blind controller rations proportionally everywhere, so agriculture fares better in emergencies (disaster
+\NFCDisasterBlindAg{} vs \NFCDisasterAdAg) while healthcare fares worse. Context decides \emph{who} gets the scarce
+capacity; it does not create capacity.}
+\end{qa}
+
+\begin{qa}{806}{Does prediction help?}
+No. Reacting within a second (C5) and predicting ramps, queue growth and clock-driven context changes (C6) give no
+measurable gain on gradual ramps, abrupt surges or context changes. Even the oracle, which reads the scripted timeline,
+does not beat reactive control, so there is little left for a forecaster to win.
+\begin{itemize}
+\item Forecast quality: the reactive mean has the lowest error (MAE \NFqReactiveMae\,Mb/s vs Holt \NFqHoltMae{} and
+ramp \NFqRampMae).
+\item Ramp extrapolation lowers under-provisioning for surges but raises it for gradual ramps.
+\end{itemize}
+Prediction is \textbf{not} claimed as a contribution.
+\end{qa}
+
+\begin{qa}{807}{Does RL work?}
+\begin{itemize}
+\item \textbf{In simulation, yes.} The residual PPO beats its heuristic by +\NResDefaultRelMin--\NResDefaultRelMax\,\%
+on held-out test seeds, for all three seeds. It holds under a heavier workload (1.3$\times$:
++\NResDefaultLoadMin--\NResDefaultLoadMax\,\%), but not on the held-out medical-emergency context
+(\NResDefaultCtxMin{} to \NResDefaultCtxMax\,\%). Doubling the SLA weight raises the in-distribution gain but still
+loses on the held-out context; quadrupling the loss weight behaves like the default.
+\item \textbf{On the network, no.} \code{rl_residual} and the safe hybrid are statistically indistinguishable from the
+heuristic (C7, C8).
+\item \textbf{Online learning (C9) is supported against its learning-disabled control:} the same exploration without
+updates costs \NFCNineDiff{} mean class SLA. But the predeclared run started from a checkpoint that already held
+$\approx$500 samples per context from 40 earlier live runs (older code). A post-hoc replication from an empty
+checkpoint gives \NPostFreshDiff{} [\NPostFreshLo, \NPostFreshHi] ($p=\NPostFreshP$, $n=\NPostFreshN$) against the same
+control.
+\end{itemize}
+\honest{C9 compares learning with noisy exploration. It does not show that online RL beats the heuristic; that
+comparison was not predeclared, and the run durations differ (60 vs 40\,s).}
+\end{qa}
+
+\section{Real Open vSwitch}
+
+\begin{qa}{808}{Do the configured queues change real traffic outcomes?}
+Yes, on real OVS bridges (privileged project image, Open vSwitch 3.3), seeds 30--32:
+\begin{itemize}
+\item disaster healthcare SLA share: \NOvsDisasterNoneHc{} without slicing, \NOvsDisasterStatHc{} static,
+\NOvsDisasterAdHc{} QoS-targeted (agriculture \NOvsDisasterNoneAg{} $\rightarrow$ \NOvsDisasterAdAg);
+\item school worst-class SLA: \NOvsSchoolNoneMin{} $\rightarrow$ \NOvsSchoolStatMin{} $\rightarrow$ \NOvsSchoolAdMin.
+\end{itemize}
+The OVS-native queue backend verified \NOvsBackendChanges{} of \NOvsBackendChanges{} rate changes by reading the OVS
+queue database back (\NOvsBackendFailed{} failures).
+\end{qa}
+
+\begin{qa}{809}{Does self-healing work on real OVS?}
+\begin{itemize}
+\item Fiber cut: \NOvsFiberCutOutage\,s outage.
+\item Repeated cuts: \NOvsRepeatedFiberCutOutage\,s, with \NOvsRepeatedFiberCutVerified{} verified recoveries per
+run.
+\item Backhaul degradation: switched before the cut, \NOvsBackhaulDegradationOutage\,s.
+\item Core-switch failure: escalated, not healed (\NOvsCoreSwitchFailureOutage\,s).
+\item No false failovers in \NOvsNoFaultRuns{} fault-free runs.
+\end{itemize}
+In emulation, self-healing cuts core-bound outage by \NFCOneOneDiff\,s against none (C11).
+\honest{No radio-resource slicing and no live 5G RAN is claimed. The 5G study uses Open5GS with a simulated RAN
+(UERANSIM), and the evaluation here is Mininet emulation plus real OVS switching.}
+\end{qa}
+
+\section{Verdict}
+
+\begin{qa}{810}{Claim by claim, what can you say to the panel?}
+\begin{description}
+\item[Supported]
+  \begin{itemize}
+  \item Safe, verified actuation (R2).
+  \item Starvation-free degradation (R3).
+  \item All four classes meet SLAs in verified-feasible conditions (R1, narrow).
+  \item Context protects the critical class where informative (C3a) and is redundant where demand fits (C4).
+  \item Online learning beats learning-disabled exploration (C9, see Q807).
+  \item SliceNet on every flow is non-inferior (C10).
+  \item Self-healing (C11; real OVS).
+  \end{itemize}
+\item[Partially supported]
+  \begin{itemize}
+  \item QoS-targeted allocation protects the critical class in emergencies but not in everyday overload (C1).
+  \item The worst-off class is not hurt within the stated margin only in some conditions (C2 inconclusive).
+  \end{itemize}
+\item[Unsupported]
+  \begin{itemize}
+  \item Context after changes (C3b).
+  \item Reaction and prediction (C5, C6).
+  \item Offline RL and the safe hybrid on the network (C7, C8).
+  \end{itemize}
+\item[Not evaluated] Radio-resource slicing; live 5G RAN.
+\end{description}
+\end{qa}

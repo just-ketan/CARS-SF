@@ -188,6 +188,7 @@ class PredictiveDetector:
 
     CONGESTION_UTILISATION_PCT = 90
     CONGESTION_BACKLOG_BYTES = 30_000    # ≈ 2.4 ms of queue at 100 Mbps
+    CONGESTION_QUEUE_MS = 10.0           # core-bound slice queueing delay that explains an RTT rise
 
     def local_congestion(self, telemetry: dict[str, Any]) -> bool:
         """Evidence that rising RTT comes from the local bottleneck, not the backhaul.
@@ -195,13 +196,27 @@ class PredictiveDetector:
         Congestion grows a queue (and drops packets) at the rural uplink;
         backhaul degradation adds delay beyond it with the local queues empty.
         """
-        if telemetry.get("tc_drops", 0) > 0:
+        slice_qos = telemetry.get("slice_qos")
+        if slice_qos is not None:
+            # A standing local queue on the core-bound slices explains rising RTT;
+            # drops alone do not (TCP's sawtooth makes CoDel drop steadily on any
+            # saturated TCP slice, and drops on edge-bound slices are irrelevant).
+            if any((slice_qos.get(s) or {}).get("queue_delay_ms", 0.0) > self.CONGESTION_QUEUE_MS
+                   for s in CORE_SERVICES):
+                return True
+        elif telemetry.get("tc_drops", 0) > 0:
             return True
         if telemetry.get("link_utilization_pct", 0) >= self.CONGESTION_UTILISATION_PCT:
             return True
         backlog = telemetry.get("queue_bytes") or {}
         core = [backlog.get(s, 0) for s in CORE_SERVICES] or [backlog.get("aggregate", 0)]
         return max(core + [backlog.get("aggregate", 0)]) > self.CONGESTION_BACKLOG_BYTES
+
+    def _persistently_congested(self) -> bool:
+        """Local congestion explains a sustained RTT trend only if it is itself sustained:
+        isolated single-tick queue spikes (TCP bursts) must not mask a backhaul trend."""
+        window = self.recent_congestion
+        return bool(window) and sum(window) >= len(window) / 2
 
     def observe(self, telemetry: dict[str, Any]) -> list[dict[str, Any]]:
         tick = telemetry.get("tick", 0)
@@ -226,7 +241,7 @@ class PredictiveDetector:
         strictest = min(self.thresholds.get(s, 150) for s in CORE_SERVICES)
         if all(core) and all(slope >= self.min_slope for slope, _ in core) and (
             max(value for _, value in core) >= strictest
-        ) and all(e is None or e[0] < self.min_slope for e in edge) and not any(self.recent_congestion):
+        ) and all(e is None or e[0] < self.min_slope for e in edge) and not self._persistently_congested():
             predictions.append({
                 "type": "predicted_backhaul_degradation",
                 "severity": "warning",

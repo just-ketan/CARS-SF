@@ -106,3 +106,25 @@ def frame_from_matched(packets: pd.DataFrame) -> pd.DataFrame:
 
 def _mean_iat(ts: np.ndarray) -> float:
     return float(np.mean(np.diff(ts)) * 1000) if len(ts) > 1 else 0.0
+
+
+# Features that grow with observation time; scaled to a full window for early decisions.
+_EXTENSIVE = ("packet_count", "byte_count", "forward_packet_count", "backward_packet_count",
+              "forward_byte_count", "backward_byte_count", "flow_active_time_ms", "flow_idle_time_ms",
+              "burst_count", "tcp_syn_count", "tcp_fin_count", "tcp_rst_count")
+
+
+def early_shape_features(group: pd.DataFrame, observed_s: float, window_s: float = 5.0) -> dict[str, float]:
+    """Shape features of a flow seen for only ``observed_s`` (< one window), expressed as
+    a full ``window_s`` window: rates use the observed span, time-extensive counts are
+    scaled by window/observed. Lets the in-loop classifier decide after ~1 s; the
+    decision is revisited with real full-window features later (reclassification)."""
+    observed = max(observed_s, 0.2)
+    if observed >= window_s:
+        return shape_features(group, observed)
+    features = shape_features(group, observed)
+    scale = min(window_s / observed, 25.0)
+    for key in _EXTENSIVE:
+        if key in features:
+            features[key] *= scale
+    return features

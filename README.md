@@ -13,6 +13,7 @@ classifier (SliceNet) that slices multi-service devices.
 * Architecture as built: [ARCHITECTURE.md](ARCHITECTURE.md). The original vision is in [architecture.md](architecture.md).
 * Research questions, hypotheses and method: [docs/thesis/research_design.md](docs/thesis/research_design.md)
 * Measured results and hypothesis verdicts: [docs/thesis/results.md](docs/thesis/results.md)
+* **Final predeclared evaluation:** [docs/thesis/final_evaluation_plan.md](docs/thesis/final_evaluation_plan.md) · claim traceability: [docs/TRACEABILITY.md](docs/TRACEABILITY.md) · runtime-path audit: [docs/RUNTIME_PATH.md](docs/RUNTIME_PATH.md)
 * Evaluation report: [docs/EVALUATION_REPORT.md](docs/EVALUATION_REPORT.md) · implementation audit and acceptance checklist: [docs/AUDIT.md](docs/AUDIT.md)
 * Every command: [docs/EXECUTION_GUIDE.md](docs/EXECUTION_GUIDE.md) · RL state/action/reward: [RL_DESIGN.md](RL_DESIGN.md)
 

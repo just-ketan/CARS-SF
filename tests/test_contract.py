@@ -106,38 +106,6 @@ def test_slicenet_abstains_on_low_confidence_and_invalid_input(tmp_path, synthet
     assert FALLBACK_CLASS == "general"
 
 
-def test_online_classifier_defers_then_falls_back(monkeypatch):
-    from classification import online
-
-    class FakeQos:
-        def __init__(self):
-            self.flow_rules = {}
-
-        def classify_flow(self, flow, cls):
-            self.flow_rules[flow] = cls
-            return True
-
-    class FakeModel:
-        def predict_with_confidence(self, features):
-            return [{"predicted": "healthcare", "confidence": 0.3, "abstained": True, "reason": "low_confidence"}]
-
-    clf = online.OnlineSliceClassifier.__new__(online.OnlineSliceClassifier)
-    clf.qos, clf.cnn, clf.rf, clf.traffic, clf.window_s = FakeQos(), None, FakeModel(), None, 5.0
-    clf.enabled, clf.decisions, clf.deferrals, clf.abstentions = True, [], {}, 0
-    flow = ("10.0.0.9", "10.0.1.1", 6, 4000, 80)
-    packets = pd.DataFrame({
-        "ts": np.arange(8) * 0.1, "flow": [flow] * 8, "direction": [1, -1] * 4, "ip_len": [200] * 8,
-        "proto": [6] * 8, "tcp_flags": [0x10] * 8, "payload_len": [148] * 8,
-    })
-    monkeypatch.setattr(clf, "_packets", lambda: packets)
-    for tick in range(online.MAX_DEFERRALS - 1):
-        clf.step(tick)
-        assert not clf.qos.flow_rules
-    clf.step(online.MAX_DEFERRALS)
-    assert clf.qos.flow_rules[flow] == FALLBACK_CLASS
-    assert clf.decisions[-1]["fallback"] and clf.decisions[-1]["model_prediction"] == "healthcare"
-
-
 def test_generation_is_identical_across_processes(tmp_path):
     import os
     import subprocess

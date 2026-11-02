@@ -59,45 +59,113 @@ def parse_capture(point: CapturePoint) -> list[tuple]:
         decode = _link_decoder(reader.datalink())
         try:
             for ts, buf in reader:
-                try:
-                    ip = decode(buf)
-                except (dpkt.dpkt.NeedData, dpkt.dpkt.UnpackError):
-                    continue
-                if not isinstance(ip, dpkt.ip.IP):
-                    continue
-                src, dst = _ip_str(ip.src), _ip_str(ip.dst)
-                if src == point.host_ip:
-                    direction = "tx"
-                elif dst == point.host_ip:
-                    direction = "rx"
-                else:
-                    continue
-                sport = dport = seq = ack = win = flags = 0
-                payload_len, head = 0, b""
-                l4 = ip.data
-                if isinstance(l4, dpkt.tcp.TCP):
-                    sport, dport, seq, ack = l4.sport, l4.dport, l4.seq, l4.ack
-                    win, flags = l4.win, l4.flags
-                    payload_len = ip.len - ip.hl * 4 - l4.off * 4
-                    head = bytes(l4.data[:16])
-                elif isinstance(l4, dpkt.udp.UDP):
-                    sport, dport = l4.sport, l4.dport
-                    payload_len = l4.ulen - 8
-                    head = bytes(l4.data[:18])
-                elif isinstance(l4, dpkt.icmp.ICMP):
-                    head = bytes(l4.data)[:8]
-                    payload_len = ip.len - ip.hl * 4 - 8
-                else:
-                    continue
-                fingerprint = (src, dst, ip.p, sport, dport, ip.id, seq, ack, payload_len, head)
-                rows.append((
-                    float(ts), direction, fingerprint,
-                    (src, dst, ip.p, sport, dport, ip.len, ip.ttl, ip.tos >> 2,
-                     flags, win, seq, payload_len),
-                ))
+                row = _decode_record(ts, buf, decode, point.host_ip)
+                if row is not None:
+                    rows.append(row)
         except (dpkt.dpkt.NeedData, ValueError):
             pass  # truncated final record of a capture that was still being written
     return rows
+
+
+def _decode_record(ts, buf: bytes, decode, host_ip: str):
+    """(ts, direction, fingerprint, fields) for one captured frame, or None."""
+    try:
+        ip = decode(buf)
+    except (dpkt.dpkt.NeedData, dpkt.dpkt.UnpackError):
+        return None
+    if not isinstance(ip, dpkt.ip.IP):
+        return None
+    src, dst = _ip_str(ip.src), _ip_str(ip.dst)
+    if src == host_ip:
+        direction = "tx"
+    elif dst == host_ip:
+        direction = "rx"
+    else:
+        return None
+    sport = dport = seq = ack = win = flags = 0
+    payload_len, head = 0, b""
+    l4 = ip.data
+    if isinstance(l4, dpkt.tcp.TCP):
+        sport, dport, seq, ack = l4.sport, l4.dport, l4.seq, l4.ack
+        win, flags = l4.win, l4.flags
+        payload_len = ip.len - ip.hl * 4 - l4.off * 4
+        head = bytes(l4.data[:16])
+    elif isinstance(l4, dpkt.udp.UDP):
+        sport, dport = l4.sport, l4.dport
+        payload_len = l4.ulen - 8
+        head = bytes(l4.data[:18])
+    elif isinstance(l4, dpkt.icmp.ICMP):
+        head = bytes(l4.data)[:8]
+        payload_len = ip.len - ip.hl * 4 - 8
+    else:
+        return None
+    fingerprint = (src, dst, ip.p, sport, dport, ip.id, seq, ack, payload_len, head)
+    return (
+        float(ts), direction, fingerprint,
+        (src, dst, ip.p, sport, dport, ip.len, ip.ttl, ip.tos >> 2, flags, win, seq, payload_len),
+    )
+
+
+class IncrementalCaptureReader:
+    """Reads only the records appended to a live pcap since the previous call.
+
+    The in-loop classifier polls every UE's capture every tick; re-parsing whole
+    files would grow quadratically with run length. A partially written record
+    at the end of the file is left for the next call.
+    """
+
+    def __init__(self, point: CapturePoint):
+        self.point = point
+        self.offset = 0
+        self.decode = None
+        self.endian = "<"
+        self.nano = False
+
+    def _header(self, handle) -> bool:
+        import struct
+
+        head = handle.read(24)
+        if len(head) < 24:
+            return False
+        magic = head[:4]
+        if magic in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1"):
+            self.endian = "<"
+        elif magic in (b"\xa1\xb2\xc3\xd4", b"\xa1\xb2\x3c\x4d"):
+            self.endian = ">"
+        else:
+            raise ValueError(f"not a pcap file: {self.point.path}")
+        self.nano = magic in (b"\x4d\x3c\xb2\xa1", b"\xa1\xb2\x3c\x4d")
+        linktype = struct.unpack(self.endian + "I", head[20:24])[0]
+        self.decode = _link_decoder(linktype)
+        self.offset = 24
+        return True
+
+    def read_new(self) -> list[tuple]:
+        import struct
+
+        rows = []
+        try:
+            handle = open(self.point.path, "rb")
+        except OSError:
+            return rows
+        with handle:
+            if self.decode is None and not self._header(handle):
+                return rows
+            handle.seek(self.offset)
+            divisor = 1e9 if self.nano else 1e6
+            while True:
+                header = handle.read(16)
+                if len(header) < 16:
+                    break
+                sec, frac, incl, _ = struct.unpack(self.endian + "IIII", header)
+                buf = handle.read(incl)
+                if len(buf) < incl:
+                    break                       # record still being written
+                self.offset = handle.tell()
+                row = _decode_record(sec + frac / divisor, buf, self.decode, self.point.host_ip)
+                if row is not None:
+                    rows.append(row)
+        return rows
 
 
 def match_packets(points: list[CapturePoint], ue_ips: set[str]) -> pd.DataFrame:

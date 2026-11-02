@@ -106,6 +106,20 @@ class FaultInjector:
                 self.restore_link("s_core", FAR_END_INTF)
                 self._record("repair", tick)
 
+        elif kind == "repeated_fiber_cut":
+            # cycles: [[cut, repair], ...] as fractions of the run (tests recovery after recovery).
+            for index, (cut_at, repair_at) in enumerate(self.spec.get("cycles", [])):
+                cut = max(1, int(round(cut_at * self.duration)))
+                repair = max(1, int(round(repair_at * self.duration)))
+                if tick == cut:
+                    self.inject_fiber_cut()
+                    if self.injection_tick is None:
+                        self.injection_tick = tick
+                    self._record("fiber_cut", tick, cycle=index)
+                elif tick == repair:
+                    self.restore_link("s_core", FAR_END_INTF)
+                    self._record("repair", tick, cycle=index)
+
         elif kind == "backhaul_degradation":
             cut = self._tick_of("cut_at")
             if tick >= start and (cut is None or tick < cut):

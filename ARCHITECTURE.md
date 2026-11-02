@@ -140,9 +140,12 @@ columns are retained for RSNSD schema compatibility but are tagged
   * `host` (default): UE address → its service, which is realistic for single-institution UEs;
   * `app`: registry server/port, an oracle, also used for 3GPP;
   * `slicenet`: per-flow rules from the in-loop classifier.
-* **Schedulers** (`registries/schedulers.yaml`): proposed, context_unaware (proposed with
-  the normal-context matrix throughout), rl_cem, rl_ppo, rl_online, no_surplus,
-  proportional, static_equal, tgpp, no_slicing.
+* **Schedulers** (`registries/schedulers.yaml`):
+  * proposed;
+  * qos_aware, qos_adaptive, rl_residual, rl_residual_online (§8a);
+  * context_unaware (proposed with the normal-context matrix throughout);
+  * rl_cem, rl_ppo, rl_online;
+  * no_surplus, proportional, static_equal, tgpp, no_slicing.
 
 ## 7. Self-healing
 
@@ -200,6 +203,27 @@ The full specification (state, action, reward, timing, seeds) is in [RL_DESIGN.m
   always apply. Every live decision is logged as an (s, a, r, s′) transition in the
   simulator's observation and action spaces. `rl_online` (online CEM) learns from the
   transitions whose enforcement was verified, with a checkpoint that carries across runs.
+
+## 8a. QoS-targeted control (modules A–E)
+
+Schedulers `qos_aware`, `qos_adaptive`, `rl_residual` and `rl_residual_online`
+(`registries/schedulers.yaml`) add these to the audited loop. The audited schedulers are unchanged, so they remain
+valid baselines.
+
+| Module | What | Code |
+|---|---|---|
+| A — QoS visibility | Per-slice interval loss (HTB + fq_codel leaf drops), queueing delay and delivered rate in every snapshot (`slice_qos`). A loss above the SLA target is an SLA violation in the shared reward. | `telemetry/collector.py`, `scheduler/reward.py` |
+| B — QoS-targeted allocation | Per-direction demand and allocation (each direction of the full-duplex uplink is capacity C). Demands first, with explicit priority-order degradation when they do not fit. Burst headroom raised while a slice's loss exceeds its SLA. Per-slice CoDel targets from the SLA delay budget. Elastic probe-up only for TCP. | `slicing/directions.py`, `slicing/allocators.py` (`QoSAwareAllocator`), `slicing/demand_estimator.py`, `slicing/qos_enforcer.py` |
+| C — Reactive / predictive | Re-plan on the next tick when a slice breaches its loss SLA or half its delay budget (2-tick hold-down; degraded and TCP-queue cases excluded). Demand-ramp extrapolation; rising-queue prediction; pre-provisioning of clock-driven context changes (never scripted alerts). | `core/controller.py`, `context/engine.py` (`forecast`) |
+| D — Residual RL | ±30 % per-slice rate corrections on the QoS-aware allocation, from state v2 (measured loss and delay included). Trained on the calibrated direction-aware simulator; online CEM variant. | `scheduler/residual.py`, `scheduler/env_dir.py`, `scheduler/calibrate_bursts.py`, `scheduler/agent.py` |
+| E — SliceNet everywhere | `classification=slicenet_all`: no address rules. Every UE flow is decided after ~1 s, with confident disagreements confirmed and replaced at 5 s. Incremental capture reading; replaceable `tc flower` rules. | `classification/online.py`, `features/packet_capture.py`, `features/shape.py` |
+| F — Evaluation | Contended regimes only: emergencies, 50 Mb/s, 1.5× load, timelines. Paired against `qos_adaptive`. | `configs/experiments/thesis.yaml` (`qos_*`), `experiments/aggregate.py` |
+
+Outcome (confirmatory run, `docs/EVALUATION_REPORT.md`):
+
+* B raises the critical class's SLA share in the contended regimes; lower-priority slices pay in the emergencies.
+* C, D and the context matrix add no measurable live benefit.
+* E (SliceNet on every flow) is non-inferior to address rules.
 
 ## 9. SliceNet
 

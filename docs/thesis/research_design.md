@@ -18,6 +18,28 @@ This document fixes the research questions, hypotheses, method and analysis plan
 | RQ8 | Does the control plane carry over to a real 5G core? | **H8:** on Open5GS + UERANSIM, CARS-SF enforcement on the UPF lowers critical-slice delay compared with no slicing. | 5G deployment | healthcare p95; SLA share |
 | RQ9 | Does context awareness itself help, against service-aware slicing that ignores context? | **H9:** `proposed` exceeds `context_unaware` (same scheduler, normal-context priority matrix throughout) on weighted utility. | main | weighted utility; healthcare SLA share |
 | RQ10 | Does self-healing reduce service interruption? | **H10:** full self-healing gives lower core-bound outage than `no_healing` on the same failures (paired by scenario and seed). | resilience | outage (s) |
+| RQ11 | Can QoS-targeted, direction-aware control meet per-class SLAs where slices compete? | **H11:** `qos_adaptive` raises the mean per-class SLA-met share over `proposed` in contended regimes. | qos_* | mean / worst class SLA share |
+| RQ12 | Does residual RL improve on the QoS-targeted heuristic? | **H12:** `rl_residual` exceeds `qos_adaptive` on mean class SLA share. | qos_* | mean class SLA share |
+| RQ13 | Do reactive and predictive triggers add to QoS-targeted allocation? | **H13:** `qos_adaptive` exceeds `qos_aware`. | qos_* | mean class SLA share |
+| RQ14 | Can SliceNet replace address rules for every flow? | **H14:** with `slicenet_all`, mean class SLA share is at most 0.02 below address-based classification and not significantly lower. | qos_slicenet | mean class SLA share |
+
+
+H11–H14 were formulated after the post-audit diagnosis (healthcare missed its SLA only on loss, in emergencies),
+before the contended-regime runs were made. They are not part of the original pre-registration.
+
+Four evaluations exist; each later one uses fresh seeds, so a fix is never validated on the seeds that revealed
+the defect.
+
+* **v1** (seeds 0–4): H11–H14 not supported. Exposed best-effort starvation under overload and burst headroom
+  ignored under overload.
+* **v2** (seeds 5–9), after those fixes: H14 supported, H11–H13 not. Exposed an elastic-demand death spiral that
+  defeated the starvation guard.
+* **v3** (seeds 10–14): starvation fixed for the heuristic (worst-class SLA significantly better than `proposed`),
+  H14 supported. Exposed that the residual RL could override the starvation guard.
+* **v4** (seeds 15–19) is the confirmatory run after that fix, with residual RL retrained.
+
+All four are reported (`results/evidence/qos_eval_v1/` … `qos_eval_v3/`, and the current tables). Agriculture's
+degradation in the emergencies was judged a declared-priority trade-off, not a defect, and was not changed.
 
 H9 and H10 were added during the engineering audit (October 2026), after a first
 evaluation in which context awareness was tested only as a two-scenario ablation.
@@ -86,3 +108,19 @@ re-run of the matrix with the audited code, and reported whichever way they come
     throughout.
   * The learned policies are trained in a simulator calibrated from the emulation,
     not trained on the emulation itself.
+
+
+## Final evaluation
+
+The final evaluation is predeclared in [final_evaluation_plan.md](final_evaluation_plan.md): claims C1–C11 and
+requirements R1–R3, fresh seeds 20–24, Holm correction. It supersedes H11–H14 and the contended-regime rounds v1–v4,
+which are kept as history.
+
+Two deviations were found after the run and are reported, not hidden:
+
+1. The plan listed school as a feasible condition, but its downlink demand exceeds capacity. R1's own
+   verified-feasible rule excluded it.
+2. The online learner's checkpoint carried state from earlier rounds. A post-hoc fresh-checkpoint replication is
+   reported separately.
+
+One analysis-only fix: the transient windows now include load changes, as the plan defines.

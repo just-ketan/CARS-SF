@@ -301,6 +301,49 @@ class OnlineCEMPolicy:
         }
 
 
+class OnlineResidualCEM(OnlineCEMPolicy):
+    """Online CEM over the residual action (module D): starts at 0 (the QoS-aware
+    heuristic itself) and learns per context from verified live transitions."""
+
+    kind = "residual"
+    ONLINE_PATH = os.path.join(MODEL_DIR, "cem_residual_online.json")
+
+    def __init__(self, path: str | None = None, population: int = 4, elite: int = 2,
+                 init_std: float = 0.3, min_std: float = 0.05, seed: int = 0, learning: bool = True):
+        super().__init__(path=path or os.environ.get("CARS_SF_CEM_ONLINE_PATH") or self.ONLINE_PATH,
+                         population=population, elite=elite, init_std=init_std, min_std=min_std, seed=seed)
+        # learning=False: the same exploration (samples around a = 0) with updates disabled and
+        # no checkpoint written: the control that isolates the effect of learning.
+        self.learning = learning
+        if not learning:
+            self.state = {}
+
+    def learn(self, context_id: str, action: list[float], reward: float):
+        if self.learning:
+            super().learn(context_id, action, reward)
+        else:
+            self.samples_this_run += 1
+
+    def save(self):
+        if self.learning:
+            super().save()
+
+    def _context(self, context_id: str) -> dict[str, Any]:
+        if context_id not in self.state:
+            self.state[context_id] = {"mean": [0.0] * 4, "std": [self.init_std] * 4,
+                                      "batch": [], "updates": 0, "samples": 0}
+        return self.state[context_id]
+
+    def residual(self, context_id: str, obs) -> list[float]:
+        ctx = self._context(context_id)
+        return [float(a) for a in np.clip(self.rng.normal(ctx["mean"], ctx["std"]), -1.0, 1.0)]
+
+    def learning_summary(self) -> dict[str, Any]:
+        return {**super().learning_summary(), "learning": self.learning,
+                "algorithm": "online CEM on residual actions (live transitions)"
+                + ("" if self.learning else " — learning disabled")}
+
+
 def train_ppo(timesteps: int = 200_000, seed: int = 0, model_path: str = PPO_MODEL_PATH,
               eval_every: int = 20_000, run_dir: str | None = None) -> dict[str, Any]:
     """Train PPO on the sequential env with a learning curve and checkpoints.
@@ -378,6 +421,178 @@ def train_ppo_seeds(seeds: list[int], timesteps: int) -> dict[str, Any]:
         "rl_cem_test_reward": runs[0]["comparison"].get("rl_cem", {}).get("mean_reward"),
         "runs": runs,
     }
+
+
+# --------------------------------------------------------------------------
+# Residual policy (module D): corrections on top of the QoS-aware allocation
+# --------------------------------------------------------------------------
+
+RESIDUAL_MODEL_PATH = os.path.join(MODEL_DIR, "ppo_residual.zip")
+
+
+# Held-out generalisation for the residual policy: medical_emergency is never seen in training,
+# and evaluation also runs under a heavier workload than trained on.
+RESIDUAL_TRAIN_CONTEXTS = ["normal", "school", "harvest", "disaster"]
+RESIDUAL_HELDOUT = {"context": {"contexts": ["medical_emergency"]}, "load_1.3x": {"load_scale": 1.3}}
+REWARD_VARIANTS = {"default": None, "sla_x2": {"sla": 20.0}, "loss_x4": {"loss": 2.0}}
+
+
+def train_residual_ppo(timesteps: int = 300_000, seed: int = 0, eval_every: int = 25_000,
+                       run_dir: str | None = None, env_kwargs: dict | None = None) -> dict[str, Any]:
+    """PPO on DirectionalSlicingEnv; best checkpoint by validation reward (seeds 2000…)."""
+    import csv
+
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.callbacks import BaseCallback
+    from stable_baselines3.common.env_util import make_vec_env
+
+    from scheduler.env_dir import DirectionalSlicingEnv, evaluate_residual
+
+    run_dir = run_dir or os.path.join(MODEL_DIR, "ppo_residual_runs", f"seed{seed}")
+    os.makedirs(run_dir, exist_ok=True)
+    best_path, curve = os.path.join(run_dir, "best.zip"), []
+
+    class Curve(BaseCallback):
+        def __init__(self):
+            super().__init__()
+            self.next_eval, self.best = eval_every, -float("inf")
+
+        def _on_step(self) -> bool:
+            if self.num_timesteps >= self.next_eval:
+                self.next_eval += eval_every
+                score = evaluate_residual(lambda o, e: self.model.predict(o, deterministic=True)[0],
+                                          episodes=5, seed=RLAgent.VALIDATION_SEED, **(env_kwargs or {}))
+                curve.append({"timesteps": self.num_timesteps,
+                              **{k: v for k, v in score.items() if k not in ("episode_rewards", "mean_loss_pct")}})
+                self.model.save(os.path.join(run_dir, f"checkpoint_{self.num_timesteps}.zip"))
+                if score["mean_reward"] > self.best:
+                    self.best = score["mean_reward"]
+                    self.model.save(best_path)
+            return True
+
+    vec_env = make_vec_env(lambda: DirectionalSlicingEnv(**(env_kwargs or {})), n_envs=8, seed=seed)
+    model = PPO("MlpPolicy", vec_env, seed=seed, verbose=0, device="cpu",
+                n_steps=256, batch_size=512, learning_rate=3e-4, gamma=0.9, ent_coef=0.0)
+    model.learn(total_timesteps=timesteps, callback=Curve())
+    if curve:
+        with open(os.path.join(run_dir, "learning_curve.csv"), "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(curve[0]))
+            writer.writeheader()
+            writer.writerows(curve)
+    final = os.path.join(run_dir, "final.zip")
+    (PPO.load(best_path, device="cpu") if os.path.exists(best_path) else model).save(final)
+    return {"seed": seed, "timesteps": timesteps, "model_path": final, "learning_curve": curve,
+            "best_validation_reward": max((c["mean_reward"] for c in curve), default=None)}
+
+
+def compare_residual(model=None, episodes: int = 30, env_kwargs: dict | None = None) -> dict[str, Any]:
+    """Heuristic (zero residual) vs the residual PPO on held-out test seeds, paired."""
+    import numpy as np
+
+    from scheduler.env_dir import evaluate_residual
+
+    kw = env_kwargs or {}
+    results = {"qos_heuristic": evaluate_residual(lambda o, e: np.zeros(4), episodes, **kw)}
+    if model is not None:
+        results["rl_residual"] = evaluate_residual(lambda o, e: model.predict(o, deterministic=True)[0], episodes, **kw)
+        results["paired_vs_heuristic"] = paired_difference(results["rl_residual"]["episode_rewards"],
+                                                           results["qos_heuristic"]["episode_rewards"])
+    return results
+
+
+def train_residual_seeds(seeds: list[int], timesteps: int, variant: str = "default") -> dict[str, Any]:
+    """Train one residual PPO per seed on the training contexts with the variant's reward weights;
+    evaluate on held-out test seeds, the held-out context and a heavier workload. Only the
+    default variant is deployed."""
+    import shutil
+
+    from stable_baselines3 import PPO
+
+    weights = REWARD_VARIANTS[variant]
+    train_kwargs = {"contexts": RESIDUAL_TRAIN_CONTEXTS, "reward_weights": weights}
+    root = os.path.join(MODEL_DIR, "ppo_residual_runs" if variant == "default" else f"ppo_residual_{variant}_runs")
+    runs = [train_residual_ppo(timesteps, seed=s, run_dir=os.path.join(root, f"seed{s}"), env_kwargs=train_kwargs)
+            for s in seeds]
+    for run in runs:
+        model = PPO.load(run["model_path"], device="cpu")
+        run["comparison"] = compare_residual(model, env_kwargs=train_kwargs)
+        run["heldout"] = {name: compare_residual(model, env_kwargs={**kw, "reward_weights": weights})
+                          for name, kw in RESIDUAL_HELDOUT.items()}
+    best = max(runs, key=lambda r: r["best_validation_reward"] or -float("inf"))
+    if variant == "default":
+        shutil.copy(best["model_path"], RESIDUAL_MODEL_PATH)
+    test = [r["comparison"]["rl_residual"]["mean_reward"] for r in runs]
+    return {
+        "variant": variant, "reward_weights": weights, "train_contexts": RESIDUAL_TRAIN_CONTEXTS,
+        "heldout_paired": {name: {r["seed"]: r["heldout"][name]["paired_vs_heuristic"] for r in runs}
+                           for name in RESIDUAL_HELDOUT},
+        "seeds": seeds, "deployed_seed": best["seed"],
+        "deployed_model": RESIDUAL_MODEL_PATH if variant == "default" else None,
+        "test_reward_per_seed": dict(zip(seeds, test)),
+        "heuristic_test_reward": runs[0]["comparison"]["qos_heuristic"]["mean_reward"],
+        "paired_per_seed": {r["seed"]: r["comparison"]["paired_vs_heuristic"] for r in runs},
+        "runs": runs,
+    }
+
+
+class ResidualPPOPolicy:
+    """Live residual policy: PPO action on state v2, applied by the controller."""
+
+    kind = "residual"
+
+    def __init__(self, model_path: str = RESIDUAL_MODEL_PATH):
+        self.model = None
+        if os.path.exists(model_path):
+            from stable_baselines3 import PPO
+            self.model = PPO.load(model_path, device="cpu")
+
+    @property
+    def available(self) -> bool:
+        return self.model is not None
+
+    def residual(self, context_id: str, obs) -> list[float]:
+        action, _ = self.model.predict(obs, deterministic=True)
+        return [float(a) for a in action]
+
+
+class ClosedLoopResidualPolicy(OnlineResidualCEM):
+    """The closed loop's agent: the simulator-trained PPO proposes a correction from the
+    current state; an online CEM layer adds a per-context offset learned from verified live
+    transitions. ``state`` is the observation the deployed PPO was trained on."""
+
+    ONLINE_PATH = os.path.join(MODEL_DIR, "closed_loop_online.json")
+    MODEL_PATH = os.path.join(MODEL_DIR, "ppo_closed_loop.zip")
+    METADATA_PATH = os.path.join(MODEL_DIR, "ppo_closed_loop.json")
+
+    def __init__(self, path: str | None = None, seed: int = 0, learning: bool = True):
+        super().__init__(path=path or os.environ.get("CARS_SF_CEM_ONLINE_PATH") or self.ONLINE_PATH,
+                         init_std=0.15, seed=seed, learning=learning)
+        self.model = None
+        self.state_version = "v2"
+        if os.path.exists(self.MODEL_PATH):
+            import json
+
+            from stable_baselines3 import PPO
+            self.model = PPO.load(self.MODEL_PATH, device="cpu")
+            with open(self.METADATA_PATH, encoding="utf-8") as handle:
+                self.state_version = json.load(handle)["state"]
+        self._offsets: dict[tuple, list[float]] = {}
+
+    @property
+    def available(self) -> bool:
+        return self.model is not None
+
+    def residual(self, context_id: str, obs) -> list[float]:
+        offset = super().residual(context_id, obs)
+        base, _ = self.model.predict(obs, deterministic=True)
+        action = [float(a) for a in np.clip(np.asarray(base) + np.asarray(offset), -1.0, 1.0)]
+        self._offsets[tuple(round(a, 4) for a in action)] = offset      # transitions log rounded actions
+        return action
+
+    def learn(self, context_id: str, action: list[float], reward: float):
+        offset = self._offsets.pop(tuple(round(a, 4) for a in action), None)
+        if offset is not None:
+            super().learn(context_id, offset, reward)
 
 
 def compare_policies(model=None, episodes: int = 30) -> dict[str, Any]:

@@ -56,7 +56,7 @@ studies:
     description: Failure scenarios with full, reactive-only and no self-healing.
     base: {duration: 45}
     grid:
-      scenario: [fiber_cut, backhaul_degradation, core_switch_failure]
+      scenario: [fiber_cut, repeated_fiber_cut, backhaul_degradation, core_switch_failure]
       seed: [0, 1, 2]
       variant:
         - {name: full}
@@ -87,3 +87,97 @@ studies:
     grid:
       scenario: [school, disaster]
       seed: [0, 1, 2, 3, 4]
+
+  # The contended-regime studies qos_* (evaluations v1–v4) are superseded by the final_*
+  # studies below; their results are preserved in results/evidence/qos_eval_v1..v3 and
+  # results/evidence/baseline_v4 (reproduced in configs/experiments/reproduce_baseline.yaml).
+
+  # Live runs used to calibrate the direction-aware simulator's burstiness
+  # (scheduler/calibrate_bursts.py). Same design as the development runs the
+  # shipped calibration was fitted on (devB / devC).
+  calibration_emergency:
+    description: Emergencies, weighted vs QoS-aware allocation (simulator calibration data).
+    grid:
+      scenario: [disaster, medical_emergency]
+      scheduler: [proposed, qos_aware]
+      seed: [0, 1]
+
+  calibration_timeline:
+    description: Context timelines (simulator calibration data).
+    base: {duration: 40}
+    grid:
+      timeline: [rural_day, medical_night]
+      scheduler: [proposed, qos_aware, qos_adaptive]
+      seed: [0, 1]
+
+  # ------------------------------------------------------------------------------
+  # FINAL EVALUATION — predeclared in docs/thesis/final_evaluation_plan.md.
+  # Fresh seeds 20–24 (never used for development or tuning).
+  # ------------------------------------------------------------------------------
+  final_contended_emergency:
+    description: Emergencies at 100 Mb/s.
+    grid:
+      scenario: [disaster, medical_emergency]
+      scheduler: &final_schedulers [static_equal, proportional, proposed, qos_blind, qos_aware, qos_reactive, qos_adaptive, rl_residual, rl_residual_safe]
+      seed: &final_seeds [20, 21, 22, 23, 24]
+
+  final_contended_capacity:
+    description: Everyday contexts on a 50 Mb/s uplink.
+    grid:
+      scenario: [school, harvest]
+      topo_bottleneck_mbps: [50]
+      scheduler: *final_schedulers
+      seed: *final_seeds
+
+  final_contended_load:
+    description: 1.5x offered load at 100 Mb/s.
+    grid:
+      scenario: [school, disaster]
+      load_scale: [1.5]
+      scheduler: *final_schedulers
+      seed: *final_seeds
+
+  final_contended_timelines:
+    description: Context changes mid-run.
+    base: {duration: 40}
+    grid:
+      timeline: [rural_day, medical_night]
+      scheduler: *final_schedulers
+      seed: *final_seeds
+
+  final_feasible:
+    description: Contexts whose demand fits at 100 Mb/s (requirement R1, claim C4).
+    grid:
+      scenario: [normal, school, harvest]
+      scheduler: [static_equal, proposed, qos_blind, qos_adaptive]
+      seed: *final_seeds
+
+  final_prediction:
+    description: Gradual ramps, an abrupt surge and context changes (claims C5, C6; oracle = upper bound).
+    base: {duration: 40}
+    grid:
+      timeline: [load_ramp, load_surge, emergency_ramp, rural_day]
+      scheduler: [qos_aware, qos_reactive, qos_adaptive, qos_oracle]
+      seed: *final_seeds
+
+  final_slicenet:
+    description: SliceNet on every flow vs address rules (claim C10).
+    grid:
+      scenario: [school, disaster]
+      scheduler: [qos_adaptive]
+      classification: [host, slicenet_all]
+      seed: *final_seeds
+
+  final_rl_online:
+    description: Online residual RL across consecutive live runs (claim C9). Run with --workers 1.
+    base: {duration: 60, scheduler: rl_residual_online}
+    grid:
+      scenario: [disaster, medical_emergency]
+      seed: *final_seeds
+
+  final_rl_online_nolearn:
+    description: The same exploration with learning disabled (control for C9). Run with --workers 1.
+    base: {duration: 60, scheduler: rl_residual_online_nolearn}
+    grid:
+      scenario: [disaster, medical_emergency]
+      seed: *final_seeds

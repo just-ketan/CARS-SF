@@ -99,6 +99,19 @@ Outputs:
 * `scheduler/models/ppo_runs/seed*/learning_curve.csv` and the checkpoints;
 * the deployed models `scheduler/models/rl_agent.pkl` and `ppo_slicing.zip`.
 
+## 7a. QoS-targeted control and residual RL
+
+```bash
+.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study calibration_emergency calibration_timeline
+.venv/bin/python -m scheduler.calibrate_bursts "results/runs/calibration_*/feedback.csv"   # σ, β → scheduler/models/burst_calibration.json
+.venv/bin/python scheduler/train.py --algo residual --timesteps 300000 --seeds 0 1 2       # residual PPO (~20 min/seed)
+.venv/bin/python -m tests.integration.harness disaster 40 apply_qos=true scheduler=qos_adaptive
+.venv/bin/python -m tests.integration.harness disaster 40 apply_qos=true scheduler=rl_residual
+.venv/bin/python -m tests.integration.harness school 30 apply_qos=true scheduler=qos_adaptive classification=slicenet_all
+.venv/bin/python experiments/qos_compare.py qos_emergency__            # per-class SLA share, loss, p95 per scheduler
+.venv/bin/python experiments/qos_compare.py qos_transitions__ --transient   # only the 10 s after each context change
+```
+
 ## 8. Mininet / OVS (path B, closed loop)
 
 Sudo-free, on Linux bridges in a user + network namespace:
@@ -135,6 +148,8 @@ Each run writes `results/runs/<run_id>/`:
 .venv/bin/python experiments/run_matrix.py --list                         # state of every run: missing / current / stale
 .venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3      # all studies except online_rl
 .venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study online_rl   # sequential: shared online checkpoint
+.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study qos_emergency qos_capacity qos_load qos_transitions qos_slicenet
+.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study qos_online
 .venv/bin/python experiments/aggregate.py                                 # results/tables/*.csv, provenance.json
 .venv/bin/python experiments/plots/plot_thesis.py                         # docs/figures/thesis/
 .venv/bin/python experiments/report.py                                    # docs/thesis/results.md (hypothesis verdicts)

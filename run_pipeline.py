@@ -34,6 +34,7 @@ sys.path.insert(0, str(REPO_ROOT))
 PY = sys.executable
 
 MODES = ("unit", "synthetic", "mininet", "rl", "full")
+MIN_FREE_GB = 20
 
 
 def stages(mode: str, seed: int, matrix_workers: int) -> list[tuple[str, list[str]]]:
@@ -44,6 +45,17 @@ def stages(mode: str, seed: int, matrix_workers: int) -> list[tuple[str, list[st
     ]
     rl_train = [("rl_train_cem_ppo", [PY, "scheduler/train.py", "--algo", "all", "--seeds", "0", "1", "2"])]
     rl_eval = [("rl_simulator_evaluation", [PY, "scheduler/train.py", "--evaluate-only"])]
+    residual = [
+        ("calibration_runs", [PY, "experiments/run_matrix.py", "--rerun-stale", "--workers", str(matrix_workers),
+                              "--study", "calibration_emergency", "calibration_timeline"]),
+        ("calibrate_bursts", [PY, "-m", "scheduler.calibrate_bursts", "results/runs/calibration_*/feedback.csv"]),
+        ("rl_train_residual", [PY, "scheduler/train.py", "--algo", "residual", "--timesteps", "300000",
+                               "--seeds", "0", "1", "2"]),
+        ("rl_residual_sensitivity_sla_x2", [PY, "scheduler/train.py", "--algo", "residual", "--variant", "sla_x2",
+                                            "--timesteps", "300000", "--seeds", "0", "1", "2"]),
+        ("rl_residual_sensitivity_loss_x4", [PY, "scheduler/train.py", "--algo", "residual", "--variant", "loss_x4",
+                                             "--timesteps", "300000", "--seeds", "0", "1", "2"]),
+    ]
     coupled = [("coupled_rl_loop_live", [PY, "-m", "pytest", "-q", "-m", "integration",
                                          "tests/integration/test_pipeline.py", "-k", "coupled"])]
     integration = [("mininet_integration", [PY, "-m", "pytest", "-q", "-m", "integration", "tests/integration"])]
@@ -57,16 +69,28 @@ def stages(mode: str, seed: int, matrix_workers: int) -> list[tuple[str, list[st
                     "scalability", "resilience", "timeline", "slicenet_inloop"]),
         ("matrix_online_rl", [PY, "experiments/run_matrix.py", "--rerun-stale", "--workers", "1",
                               "--study", "online_rl"]),
+        # FINAL EVALUATION (docs/thesis/final_evaluation_plan.md), fresh seeds 20–24
+        ("matrix_final", [PY, "experiments/run_matrix.py", "--rerun-stale", "--workers", str(matrix_workers),
+                          "--study", "final_contended_emergency", "final_contended_capacity", "final_contended_load",
+                          "final_contended_timelines", "final_feasible", "final_prediction", "final_slicenet"]),
+        ("matrix_final_rl_online", [PY, "experiments/run_matrix.py", "--rerun-stale", "--workers", "1",
+                                    "--study", "final_rl_online"]),
+        ("matrix_final_rl_online_nolearn", [PY, "experiments/run_matrix.py", "--rerun-stale", "--workers", "1",
+                                            "--study", "final_rl_online_nolearn"]),
+        ("ovs_validation", [PY, "experiments/ovs_validation.py"]),
         ("aggregate", [PY, "experiments/aggregate.py"]),
+        ("forecast_quality", [PY, "experiments/forecast_eval.py", "results/runs/final_prediction__*"]),
+        ("final_analysis", [PY, "experiments/final_analysis.py"]),
         ("plots", [PY, "experiments/plots/plot_thesis.py"]),
+        ("plots_final", [PY, "experiments/plots/plot_final.py"]),
         ("report", [PY, "experiments/report.py"]),
     ]
     return {
         "unit": unit,
         "synthetic": unit + synthetic + rl_train + rl_eval,
         "mininet": unit + integration,
-        "rl": unit + rl_train + rl_eval + coupled,
-        "full": unit + synthetic + collect + rl_train + rl_eval + integration + matrix,
+        "rl": unit + rl_train + rl_eval + residual + coupled,
+        "full": unit + synthetic + collect + rl_train + rl_eval + residual + integration + matrix,
     }[mode]
 
 
@@ -84,9 +108,14 @@ def check_environment(mode: str) -> list[str]:
         except Exception as exc:
             problems.append(f"python module {module!r} unavailable in {PY}: {exc}")
     if mode in ("mininet", "rl", "full"):
+        free_gb = shutil.disk_usage(REPO_ROOT).free / 1e9
+        if free_gb < MIN_FREE_GB:
+            problems.append(f"only {free_gb:.1f} GB free on the results disk (need ≥ {MIN_FREE_GB} GB for captures)")
         for tool in ("tc", "ip", "tcpdump", "mnexec"):
             if shutil.which(tool) is None and not Path(f"/usr/sbin/{tool}").exists():
                 problems.append(f"command {tool!r} not found")
+        if mode == "full" and shutil.which("docker") is None:
+            problems.append("docker not found: the real-OVS validation stage needs the cars-sf image")
         if os.geteuid() != 0:
             from tests.integration.harness import userns_available
             if not userns_available():
@@ -104,6 +133,7 @@ def run(mode: str, seed: int, matrix_workers: int, dry_run: bool) -> int:
     manifest = {
         "pipeline_id": pipeline_id, "mode": mode, "seed": seed, "root": os.geteuid() == 0,
         "code_fingerprint_at_start": code_fingerprint(), "model_fingerprint_at_start": model_fingerprint(),
+        "git": _git_state(),
         "stages": [], "status": "running",
     }
     problems = check_environment(mode)
@@ -142,6 +172,19 @@ def run(mode: str, seed: int, matrix_workers: int, dry_run: bool) -> int:
     write_manifest(out / "manifest.json", manifest)
     print(f"Pipeline {mode}: {manifest['status']} → {out / 'manifest.json'}")
     return 0
+
+
+def _git_state() -> dict:
+    """Commit plus a hash of every uncommitted change, so the exact evaluated tree is identifiable."""
+    import hashlib
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True).stdout
+    diff = git("diff", "HEAD")
+    untracked = git("ls-files", "--others", "--exclude-standard")
+    return {"commit": git("rev-parse", "HEAD").decode().strip(),
+            "uncommitted_diff_sha256": hashlib.sha256(diff + untracked).hexdigest(),
+            "uncommitted_files": len(git("status", "--porcelain").splitlines())}
 
 
 def _artifacts() -> dict:

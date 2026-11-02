@@ -34,6 +34,11 @@ _CLASS_STATS_RE = re.compile(
     r"class htb (\d+:\d+).*?Sent (\d+) bytes (\d+) pkt \(dropped (\d+).*?backlog (\d+)b",
     re.S,
 )
+# Leaf qdiscs under each HTB class (fq_codel / pfifo): CoDel and overflow drops
+# happen here, *not* in the HTB class counters.
+_LEAF_STATS_RE = re.compile(
+    r"qdisc \S+ \w+: parent (\d+:\d+)[^\n]*\n\s*Sent (\d+) bytes (\d+) pkt \(dropped (\d+)[^\n]*\n\s*backlog (\d+)b",
+)
 _QDISC_STATS_RE = re.compile(r"Sent (\d+) bytes (\d+) pkt \(dropped (\d+).*?backlog (\d+)b", re.S)
 _RTT_RE = re.compile(r"time=([\d.]+) ms")
 
@@ -251,6 +256,7 @@ class TelemetryCollector:
             "backhaul_up": self._link_up(BACKHAUL_INTF),
             "backup_backhaul_up": self._link_up(BACKUP_BACKHAUL_INTFS[0]),
             "service_rtt_ms": rtt,
+            "slice_qos": self._slice_qos(class_stats, downlink_stats, service_tput, service_down, dt),
             "host_cpu_pct": self._poll_host_cpu(),
             "host_mem_pct": self._poll_host_mem(),
             "active_flows": flow_entries,
@@ -310,9 +316,17 @@ class TelemetryCollector:
                 }
                 for m in _CLASS_STATS_RE.finditer(output)
             }
+            leaves = {
+                m.group(1): {"leaf_dropped": int(m.group(4)), "leaf_backlog_bytes": int(m.group(5))}
+                for m in _LEAF_STATS_RE.finditer(switch.cmd(f"tc -s qdisc show dev {intf} 2>/dev/null"))
+            }
             for name, classid in self.class_ids.items():
                 if classid in by_class:
-                    stats[name] = by_class[classid]
+                    # "dropped" = all queue drops of the slice: HTB class + its leaf qdisc.
+                    leaf = leaves.get(classid, {"leaf_dropped": 0, "leaf_backlog_bytes": 0})
+                    stats[name] = {**by_class[classid], **leaf,
+                                   "htb_dropped": by_class[classid]["dropped"],
+                                   "dropped": by_class[classid]["dropped"] + leaf["leaf_dropped"]}
             if not stats:
                 output = switch.cmd(f"tc -s qdisc show dev {intf} 2>/dev/null")
                 match = _QDISC_STATS_RE.search(output)
@@ -327,6 +341,40 @@ class TelemetryCollector:
             self._tc_ok = False
             info(f"*** telemetry: tc stats unavailable on {intf}: {exc} ***\n")
         return stats
+
+    def _slice_qos(self, up_stats, down_stats, tput_up, tput_down, dt) -> dict[str, dict[str, Any]]:
+        """Per-slice QoS of the interval that just ended, from the bottleneck's own counters.
+
+        loss_pct          queue drops / (sent + drops) on the slice's classes, both directions
+                          (HTB class + leaf qdisc; the only contention point in the topology)
+        queue_delay_ms    standing queue / the slice's service rate (the larger direction)
+        delivered_mbps    uplink + downlink interface throughput of the slice's hosts
+        """
+        prev = self.snapshots[-1] if self.snapshots else None
+        out = {}
+        for service in self.class_ids:
+            sent = drops = 0
+            delay = 0.0
+            for key, stats in (("tc_class_stats", up_stats), ("tc_downlink_class_stats", down_stats)):
+                cur = stats.get(service)
+                if not cur:
+                    continue
+                before = ((prev or {}).get(key) or {}).get(service) or {"sent_packets": 0, "dropped": 0, "sent_bytes": 0}
+                d_sent = max(cur["sent_packets"] - before["sent_packets"], 0)
+                d_drop = max(cur["dropped"] - before["dropped"], 0)
+                sent, drops = sent + d_sent, drops + d_drop
+                rate_bps = max(cur["sent_bytes"] - before.get("sent_bytes", 0), 0) * 8 / max(dt, 1e-3)
+                # An HTB leaf class reports its leaf qdisc's backlog; take the larger, never the sum.
+                backlog_bits = max(cur.get("backlog_bytes", 0), cur.get("leaf_backlog_bytes", 0)) * 8
+                if backlog_bits and rate_bps > 0:
+                    delay = max(delay, backlog_bits / rate_bps * 1000)
+            out[service] = {
+                "loss_pct": round(100.0 * drops / (sent + drops), 3) if sent + drops else 0.0,
+                "drops": drops,
+                "queue_delay_ms": round(delay, 3),
+                "delivered_mbps": round(tput_up.get(service, 0.0) + tput_down.get(service, 0.0), 3),
+            }
+        return out
 
     # -------------------------------------------------------------------- probes
 

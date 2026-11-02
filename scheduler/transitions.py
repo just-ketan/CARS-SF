@@ -43,12 +43,12 @@ class TransitionLog:
         self._enforcement_of = lookup
 
     def decision(self, tick: int, obs: np.ndarray, action: list[float], context: str,
-                 allocation: dict[str, float], history_index: int, applied: bool):
+                 allocation: dict[str, float], history_index: int, applied: bool, learner_action: bool = True):
         self._close(tick, obs, done=False)
         self._pending = {
             "tick": tick, "context": context, "obs": [round(float(v), 5) for v in obs],
             "action": action, "allocation": dict(allocation), "history_index": history_index,
-            "allocation_changed": applied,
+            "allocation_changed": applied, "learner_action": learner_action,
         }
         self._rewards = []
 
@@ -82,7 +82,9 @@ class TransitionLog:
             "learnable": verified is not False,
         }
         self.records.append(record)
-        if self.learner is not None and record["learnable"]:
+        # Decisions the rules made alone (RL not triggered, or its proposal rejected) are not
+        # evidence about any learned action.
+        if self.learner is not None and record["learnable"] and record["learner_action"]:
             self.learner(record["context"], record["action"], record["reward"])
 
     def write(self, path: str | Path):

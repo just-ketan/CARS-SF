@@ -95,3 +95,12 @@ def test_live_outcomes_use_counter_deltas_and_flag_missing_probes():
     assert out["education"].delay_ms is None                 # no probe → counted as an SLA violation
     first = outcomes_from_snapshot(snap(10, 0, None), None, {"healthcare": 5.0}, None, {"healthcare": 6.0})
     assert first["healthcare"].previous_allocation_mbps is None and first["healthcare"].delay_ms is None
+
+
+def test_loss_above_sla_target_is_a_violation():
+    from scheduler.reward import SliceOutcome, compute_reward
+
+    o = {"healthcare": SliceOutcome(10, 10, 5.0, 3.0, 10)}
+    _, without = compute_reward(o, {"healthcare": 1}, {"healthcare": 50}, 100)
+    _, with_loss = compute_reward(o, {"healthcare": 1}, {"healthcare": 50}, 100, {"healthcare": 1.0})
+    assert without["sla_violations"] == [] and with_loss["sla_violations"] == ["healthcare"]

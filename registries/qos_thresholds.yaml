@@ -1,0 +1,12 @@
+# QoS thresholds per class and scenario (32 combinations for the 8 evaluated scenarios).
+#
+# The baseline of every class is its SLA in slices.yaml (`sla`). `overrides` may only
+# TIGHTEN a threshold for a scenario (monitoring/qos_monitor.py rejects anything else):
+# a hard scenario must never pass because its target was relaxed.
+#
+# scenario → class → metric: value  (metrics: latency_ms, jitter_ms, loss_pct, min_satisfaction)
+overrides:
+  disaster:
+    healthcare: {latency_ms: 40}          # emergency telemedicine: stricter than everyday care
+  medical_emergency:
+    healthcare: {latency_ms: 40}

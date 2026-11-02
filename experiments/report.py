@@ -309,6 +309,124 @@ def online_rl_section(lines, verdicts):
                                "weighted_utility", "enforcement_failed"]].round(3)), ""]
 
 
+def qos_section(lines, verdicts):
+    """Contended-regime evaluation of the QoS-targeted control (modules A–F)."""
+    summary, stats = load("qos_summary.csv"), load("qos_stats.csv")
+    if summary is None or stats is None:
+        return
+    lines += ["## QoS-targeted control in contended regimes (modules A–F)", "",
+              "Emergencies at 100 Mb/s, school/harvest at 50 Mb/s, school/disaster at 1.5× load and two context "
+              "timelines; 5 seeds; paired by (condition, seed). *Mean class SLA* = mean over the four slices of the "
+              "share of flow windows meeting the application's SLA; *worst class SLA* = the lowest of the four.", ""]
+    rows = []
+    for scheduler, group in summary.groupby("scheduler"):
+        row = {"scheduler": scheduler}
+        for metric, label in (("mean_class_sla", "mean class SLA"), ("min_class_sla", "worst class SLA"),
+                              ("healthcare_sla_satisfied_share", "healthcare SLA"),
+                              ("agriculture_sla_satisfied_share", "agriculture SLA"),
+                              ("healthcare_loss_pct", "healthcare loss %"), ("weighted_utility", "weighted utility"),
+                              ("decisions_applied", "allocation changes")):
+            if f"{metric}_mean" in group:
+                row[label] = fmt(group[f"{metric}_mean"].mean(), None, 3)
+        rows.append(row)
+    lines += ["Mean over the eight conditions (per-condition values with 95 % CIs: `results/tables/qos_summary.csv`):",
+              "", md_table(pd.DataFrame(rows)), ""]
+    per_condition = summary.pivot_table(index="condition", columns="scheduler", values="mean_class_sla_mean").round(3)
+    lines += ["Mean class SLA per condition:", "", md_table(per_condition.reset_index()), ""]
+    show = stats[stats["metric"].isin(["mean_class_sla", "min_class_sla", "healthcare_sla_satisfied_share",
+                                       "transient_mean_class_sla"])]
+    show = show[["baseline", "metric", "pairs", "proposed_mean", "baseline_mean", "mean_difference", "wilcoxon_p",
+                 "significant_0.05", "significant_bonferroni"]].rename(columns={"proposed_mean": "qos_adaptive_mean"})
+    lines += ["Paired Wilcoxon tests, `qos_adaptive` vs each scheduler (positive difference = qos_adaptive higher):",
+              "", md_table(show), ""]
+
+    def row(baseline, metric):
+        r = stats[(stats["baseline"] == baseline) & (stats["metric"] == metric)]
+        return None if r.empty else r.iloc[0]
+
+    def text(r):
+        return f"{r['mean_difference']:+.4f} (p = {r['wilcoxon_p']:.4f}, n = {r['pairs']})"
+
+    mean_p, min_p = row("proposed", "mean_class_sla"), row("proposed", "min_class_sla")
+    if mean_p is not None and min_p is not None:
+        verdicts["H11"] = (bool(mean_p["mean_difference"] > 0 and mean_p["significant_0.05"]),
+                           f"qos_adaptive − proposed: mean class SLA {text(mean_p)}; worst class SLA {text(min_p)}")
+    res = row("rl_residual", "mean_class_sla")
+    if res is not None:
+        verdicts["H12"] = (bool(res["mean_difference"] < 0 and res["significant_0.05"]),
+                           f"qos_adaptive − rl_residual: mean class SLA {text(res)} (negative = RL higher)")
+    aware = row("qos_aware", "mean_class_sla")
+    if aware is not None:
+        verdicts["H13"] = (bool(aware["mean_difference"] > 0 and aware["significant_0.05"]),
+                           f"qos_adaptive − qos_aware: mean class SLA {text(aware)}")
+    sn = load("qos_slicenet_stats.csv")
+    if sn is not None and not sn.empty:
+        r = sn[sn["metric"] == "mean_class_sla"]
+        if not r.empty:
+            r = r.iloc[0]
+            # host − slicenet_all; non-inferior if SliceNet is at most 0.02 lower and not significantly lower.
+            ok = bool(r["mean_difference"] <= 0.02 and not (r["mean_difference"] > 0 and r["significant_0.05"]))
+            verdicts["H14"] = (ok, f"host − slicenet_all mean class SLA {text(r)}; margin 0.02")
+        lines += ["SliceNet classifying every flow vs address rules (same `qos_adaptive` controller):", "",
+                  md_table(sn[["baseline", "metric", "pairs", "proposed_mean", "baseline_mean", "mean_difference",
+                               "wilcoxon_p"]].rename(columns={"baseline": "classification", "proposed_mean": "host_mean",
+                                                              "baseline_mean": "slicenet_all_mean"})), ""]
+    for tag, seeds in (("v1", "0–4"), ("v2", "5–9"), ("v3", "10–14")):
+        folder = RESULTS_DIR / "evidence" / f"qos_eval_{tag}"
+        if not (folder / "qos_stats.csv").exists():
+            continue
+        meta = json.loads((folder / "README.json").read_text())
+        earlier = pd.read_csv(folder / "qos_stats.csv")
+        earlier = earlier[earlier["metric"].isin(["mean_class_sla", "min_class_sla"])][
+            ["baseline", "metric", "pairs", "mean_difference", "wilcoxon_p"]]
+        lines += [f"### Earlier evaluation {tag} (seeds {seeds}) and what it exposed", "",
+                  f"{meta.get('evaluation', '')}. Defects found and fixed (with regression tests) before the next "
+                  "run on fresh seeds:", ""]
+        lines += [f"* {d}" for d in meta.get("defects_found", [])]
+        lines += [f"* not changed: {d}" for d in meta.get("not_a_defect", [])] + [""]
+        lines += [f"{tag} paired tests (qos_adaptive − baseline):", "", md_table(earlier.round(4)), ""]
+    runs = load("runs.csv")
+    if runs is not None:
+        online = runs[runs["study"] == "qos_online"].sort_values(["condition", "seed"])
+        if not online.empty:
+            lines += ["Online residual RL across consecutive live runs (shared checkpoint):", "",
+                      md_table(online[["condition", "seed", "rl_transitions", "rl_transition_mean_reward",
+                                       "mean_class_sla", "min_class_sla", "enforcement_failed"]].round(3)), ""]
+
+
+def final_section(lines, verdicts):
+    """The predeclared final evaluation (docs/thesis/final_evaluation_plan.md)."""
+    claims, reqs, summary = load("final_claims.csv"), load("final_requirements.csv"), load("final_summary.csv")
+    if claims is None:
+        return
+    lines += ["## Final evaluation (predeclared; fresh seeds 20–24)", "",
+              "Plan: [final_evaluation_plan.md](final_evaluation_plan.md). Paired by (condition, seed); "
+              "two-sided Wilcoxon, mean difference with 95 % CI, matched-pairs rank-biserial r; Holm correction over "
+              "the primary family.", "",
+              md_table(claims[["claim", "statement", "comparison", "metric", "n", "mean_diff", "ci_low", "ci_high",
+                               "rank_biserial", "p", "p_holm", "verdict"]]), ""]
+    if reqs is not None:
+        lines += ["Requirements:", "", md_table(reqs), ""]
+    if summary is not None:
+        cont = summary[summary["study"].str.startswith("final_contended")]
+        if not cont.empty:
+            cols = ["condition", "scheduler", "n"] + [c for c in (
+                "healthcare_sla_satisfied_share_mean", "education_sla_satisfied_share_mean",
+                "agriculture_sla_satisfied_share_mean", "general_sla_satisfied_share_mean", "mean_class_sla_mean",
+                "min_class_sla_mean") if c in cont.columns]
+            lines += ["Per-class SLA share in the contended conditions (mean of 5 seeds):", "",
+                      md_table(cont[cols].round(3)), ""]
+    fq = load("forecast_quality.csv")
+    if fq is not None:
+        lines += ["Forecast quality on the prediction workloads (`experiments/forecast_eval.py`; oracle = upper "
+                  "bound):", "", md_table(fq), ""]
+    for _, r in claims.iterrows():
+        verdicts[f"F{r['claim']}"] = (
+            {"supported": True, "unsupported": False}.get(r["verdict"]),
+            f"{r['comparison']} on {r['metric']}: Δ {r['mean_diff']} [{r['ci_low']}, {r['ci_high']}], "
+            f"r = {r['rank_biserial']}, p_holm = {r['p_holm']}")
+
+
 def g5_section(lines, verdicts):
     path = RESULTS_DIR / "5g"
     if not path.exists():
@@ -339,7 +457,7 @@ def main():
              "Every number is measured on the emulated network unless stated otherwise.", ""]
     verdicts: dict[str, tuple] = {}
     for section in (main_section, ablation_section, sensitivity_section, resilience_section,
-                    slicenet_section, rl_section, online_rl_section, g5_section):
+                    slicenet_section, rl_section, online_rl_section, qos_section, final_section, g5_section):
         section(lines, verdicts)
     runs = load("runs.csv")
     header = ["## Hypotheses", ""]
@@ -351,7 +469,8 @@ def main():
                    f"packet-level measurements; median validation score "
                    f"{runs['validation_score'].median():.0f}/100.", ""]
     header += ["| Hypothesis | Verdict | Evidence |", "|---|---|---|"]
-    for key in ("H1a", "H1b", "H2", "H3", "H4a", "H4b", "H5a", "H5b", "H6", "H7", "H8", "H9", "H10"):
+    for key in ("H1a", "H1b", "H2", "H3", "H4a", "H4b", "H5a", "H5b", "H6", "H7", "H8", "H9", "H10",
+                "H11", "H12", "H13", "H14") + tuple(k for k in verdicts if k.startswith("FC")):
         if key in verdicts:
             ok, evidence = verdicts[key]
             header.append(f"| {key} | {verdict(ok)} | {evidence} |")

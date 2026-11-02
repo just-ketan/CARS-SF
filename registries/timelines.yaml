@@ -39,3 +39,37 @@ timelines:
     events:
       - {tick: 3, admin: disaster}
       - {tick: 20, admin: null}
+
+  # Workloads for the prediction study (offered-load changes inside one context).
+  # `load_scale` events re-spawn traffic at the new scale; real controllers do not see
+  # them in advance (only the labelled oracle scheduler does).
+  load_ramp:
+    description: School morning; offered load ramps up gradually.
+    start: "2026-06-15T09:00"
+    minutes_per_tick: 1
+    events:
+      - {tick: 0, load_scale: 0.6}
+      - {tick: 8, load_scale: 0.8}
+      - {tick: 14, load_scale: 1.0}
+      - {tick: 20, load_scale: 1.2}
+      - {tick: 26, load_scale: 1.4}
+
+  load_surge:
+    description: School morning; abrupt surge, then back down.
+    start: "2026-06-15T09:00"
+    minutes_per_tick: 1
+    events:
+      - {tick: 0, load_scale: 0.6}
+      - {tick: 14, load_scale: 1.5}
+      - {tick: 30, load_scale: 0.7}
+
+  emergency_ramp:
+    description: Disaster (administrative override); uplink-heavy load ramps up gradually.
+    start: "2026-06-15T09:00"
+    minutes_per_tick: 1
+    events:
+      - {tick: 0, admin: disaster, load_scale: 0.6}
+      - {tick: 8, load_scale: 0.8}
+      - {tick: 14, load_scale: 1.0}
+      - {tick: 20, load_scale: 1.15}
+      - {tick: 26, load_scale: 1.3}

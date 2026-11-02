@@ -1,0 +1,245 @@
+\part{QoS-targeted control: making the slices meet their SLAs on the go}
+
+\begin{keybox}{Goal of this part}
+After the engineering audit, the goal was restated as: \emph{SliceNet and RL should slice the network so that the four
+classes each get the bandwidth they need to meet their QoS requirements, adapting on the fly, predictively or
+reactively, but effectively.} This part records what stood in the way, the six modules built to close the gap
+(A–F, Figure~\ref{fig:qosloop}), and what the measurements say. Every module was regression-tested on the emulated
+network before the next one started. Development numbers marked \emph{(dev, $n{=}2$)} come from two-seed checks
+used to steer the design; the verdicts come from the contended-regime evaluation (\S\ref{sec:qoseval}).
+\end{keybox}
+
+\FigQosLoop
+
+\section{Diagnosis: why the audited system could not meet the goal}
+
+\begin{qa}{701}{In the audited system, where did the classes actually miss their SLAs?}
+Only in the emergency contexts, and only on loss. In the main study, healthcare met its SLA in every window in normal,
+school and harvest. In disaster and medical emergency it failed in 22\,\% and 33\,\% of windows. Delay and jitter never
+failed; loss above 1\,\% did, all of it from telemedicine video (3.5–6\,\% loss). ECG and voice lost nothing, because
+fq\_codel's sparse-flow priority already protects small flows inside a slice.
+\ev{\Lthree}{\code{experiments/qos_compare.py} on the main-study runs; per-application loss from the measured datasets.}
+\end{qa}
+
+\begin{qa}{702}{Why could neither the controller nor the RL agent react to that loss?}
+They could not see it. The drops happened in the fq\_codel leaf under each HTB class (CoDel drops at dequeue). The
+collector read only the HTB class counters, which stayed at 0 in every one of those runs. The reward's loss term was
+zero exactly when it mattered.
+\ev{\Lthree}{a 40\,s disaster run with leaf counters reads $\approx$274 drops per tick where the class counters read 0.}
+\end{qa}
+
+\begin{qa}{703}{What else was structurally wrong?}
+Three things.
+\begin{enumerate}
+\item \textbf{Direction.} The link is full duplex and HTB shapes each direction separately, but demand was summed over
+both directions and compared with one direction's capacity. All healthcare applications are uplink (90\,Mb/s in a
+disaster fits the 100\,Mb/s uplink), and education and general are downlink.
+\item \textbf{Queue.} The default CoDel target (5\,ms) trimmed video bursts that healthcare's 50\,ms delay budget could
+easily absorb.
+\item \textbf{RL's lever.} RL only rescaled priority weights, which feed an allocator whose slices borrow idle capacity
+anyway. Live, PPO chose multipliers of about 1.
+\end{enumerate}
+\end{qa}
+
+\section{Module A: QoS visibility}
+
+\begin{qa}{704}{What does the controller now measure per slice, and how?}
+Every tick, per slice and interval:
+\begin{itemize}
+\item loss = queue drops / (sent + drops), over HTB class plus leaf qdisc, both directions;
+\item queueing delay = standing queue / the slice's service rate;
+\item delivered rate.
+\end{itemize}
+The result is \code{slice\_qos} in every snapshot (\code{telemetry/collector.py}). The SLA monitor, the demand
+estimator, the reward, the RL state and the feedback log all read the same numbers.
+\why{The bottleneck is the only contention point in the topology, so its own counters are a direct, cheap and complete
+measurement of slicing-induced loss and delay.}
+\choice{Kernel counters every tick.}
+\alt{Per-flow measurements from live captures are more end-to-end, but cost a capture parse per tick. They remain the
+offline ground truth (dataset KPIs).}
+\trade{The queue estimate is a 1\,s snapshot, not a per-packet sojourn time.}
+\ev{\Ltwo\ \Lthree}{\code{tests/test_telemetry_health.py}; module A regression.}
+\end{qa}
+
+\begin{qa}{705}{Does the reward now punish loss properly?}
+Yes. A slice whose loss exceeds its SLA loss target (healthcare 1\,\%, education and agriculture 2\,\%, general 5\,\%)
+now counts as an SLA violation ($-10$), in addition to the mean-loss term. The same function serves the simulators,
+the live feedback log and the RL transitions.
+\ev{\Ltwo}{\code{tests/test_reward.py::test_loss_above_sla_target_is_a_violation}.}
+\end{qa}
+
+\begin{qa}{706}{Did making loss visible break anything?}
+Yes, and the regression caught it. The predictive backhaul detector treated \emph{any} drop as local congestion and
+suppressed itself. With fq\_codel drops visible, steady TCP sawtooth drops muted it.
+\begin{itemize}
+\item First fix: use the core-bound slices' queueing delay (> 10\,ms) as congestion evidence, not drops. Proactive
+switchover recovered from 1/3 to 3/4 runs.
+\item Second fix: isolated single-tick TCP queue spikes still reset its 6-tick window, so congestion now suppresses
+prediction only when it persists in at least half the window.
+\end{itemize}
+\ev{\Lthree}{switch-over before the cut in 5/5 repeated live runs; \code{test_isolated_queue_spikes_do_not_mask_a_backhaul_trend}.}
+\end{qa}
+
+\section{Module B: allocate for QoS targets, per direction}
+
+\begin{qa}{707}{How does the QoS-aware allocator work?}
+Per direction, with capacity $C$ each (\code{QoSAwareAllocator}):
+\begin{enumerate}
+\item floors (a 0.5\,Mb/s reverse floor in a slice's light direction);
+\item \textbf{demands first}: if $\sum_s\max(f_s,d_s)\le C$ every slice gets its demand; otherwise slices are served in
+descending context priority after reserving the others' floors, and those left short are listed as \emph{degraded};
+\item \textbf{burst headroom} from the spare capacity, up to $d_s(h_s-1)$, first to slices currently failing their
+SLA, then by priority;
+\item leftover capacity to the slices that use this direction.
+\end{enumerate}
+\why{The goal is SLA compliance, not proportional fairness. When demand does not fit, which class degrades is a policy
+decision, and it should be explicit and auditable.}
+\alt{A weighted split (the audited \code{proposed}) degrades every class a little, implicitly.}
+\trade{Strict priority degrades low-priority slices fully when the link is overcommitted.}
+\ev{\Ltwo}{\code{tests/test_qos_aware.py}.}
+\end{qa}
+
+\begin{qa}{708}{What is the headroom loop?}
+Each slice starts with headroom $h_s=1.1$. If its mean loss over the last interval exceeds its SLA loss target,
+$h_s\leftarrow\min(1.6,\,1.15\,h_s)$ and the slice is marked at risk. After three intervals below 25\,\% of its target,
+$h_s\leftarrow\max(1.1,\,0.97\,h_s)$. This is a per-slice AIMD-like loop closed on measured loss.
+\ev{\Ltwo}{\code{test_headroom_rises_with_loss_and_relaxes_when_quiet}.}
+\end{qa}
+
+\begin{qa}{709}{Why derive per-slice CoDel parameters from the SLA?}
+CoDel drops once the standing queue exceeds its target for an interval. Healthcare's one-way budget is 50\,ms, with
+8\,ms of propagation, so a 12\,ms target with a 120\,ms interval trades a few ms of queueing for far fewer burst drops.
+Education and agriculture get 25\,ms / 250\,ms; general keeps the 5\,ms / 100\,ms defaults.
+\trade{Higher queueing delay and jitter inside the budget. The measured healthcare p95 stayed at 8--10\,ms (dev).}
+\end{qa}
+
+\begin{qa}{710}{Which demand does the direction-aware allocator plan for?}
+The mean offered rate over the last control interval, per direction.
+\begin{itemize}
+\item Elastic probe-up (+25\,\%) applies only to directions where the service has TCP traffic, and only when a
+standing queue proves saturation.
+\item The first version followed per-second samples with a trend forecaster. On UDP video it estimated 228\,Mb/s for
+a 95\,Mb/s flow (ramp-up trend plus probe-up on inelastic traffic), squeezed agriculture to its floor, and was replaced.
+\end{itemize}
+\ev{\Ltwo\ \Lthree}{\code{test_directional_estimate_probes_only_elastic_traffic_and_never_overshoots_peak}; development runs.}
+\end{qa}
+
+\begin{qa}{711}{What did module B achieve on the network during development?}
+Healthcare SLA-met share:
+\begin{itemize}
+\item disaster: 0.79 $\rightarrow$ 0.93;
+\item medical emergency: 0.67 $\rightarrow$ 0.87.
+\end{itemize}
+Healthcare loss fell from 0.7--1.4\,\% to $\approx$0.2\,\%, and weighted utility rose in both contexts.
+Agriculture, which shares the uplink, fell from 1.0 to 0.94 and 0.75. Medical emergency offers 100\,Mb/s of VBR uplink
+traffic on 100\,Mb/s, so not every class can be met there: the allocator now degrades agriculture explicitly (context
+priority 15:1) instead of letting healthcare lose implicitly.
+\ev{\Lthree}{\emph{(dev, $n{=}2$)}; confirmed or refuted in \S\ref{sec:qoseval}.}
+\end{qa}
+
+\section{Module C: react within a second, act ahead when possible}
+
+\begin{qa}{712}{What is reactive, and what is predictive?}
+\begin{itemize}
+\item \textbf{Reactive.} A slice breaching its loss SLA, or with queueing delay above half its delay budget, triggers a
+re-plan on the next 1\,s tick instead of waiting up to 5\,s. A 2-tick hold-down prevents oscillation. Explicitly
+degraded slices do not retrigger, because re-planning cannot help them. Queue-based triggers ignore TCP slices: TCP
+fills its own queue by design.
+\item \textbf{Predictive.}
+  \begin{itemize}
+  \item a consistent demand ramp ($R^2\ge0.6$) is extrapolated two ticks ahead, capped at $1.5\times$ the window peak;
+  \item a rising queue projected to cross the limit within two ticks triggers a re-plan;
+  \item context changes predictable from the clock and calendar (the school bell) are pre-provisioned two ticks early.
+  \end{itemize}
+\end{itemize}
+\honest{Alerts are not predictable. The scripted alert times in the timelines are never read: that would be cheating.}
+\ev{\Ltwo\ \Lthree}{\code{tests/test_qos_adaptive.py};
+\code{test_qos_adaptive_preprovisions_before_clock_driven_context_change}.}
+\end{qa}
+
+\begin{qa}{713}{Did module C measurably help in development?}
+Not detectably. The mechanisms fire as designed (pre-provisioning two ticks before the bell, SLA-risk re-plans), but
+on the two timelines \code{qos_adaptive} was within noise of \code{qos_aware} \emph{(dev, $n{=}2$)}. Burst headroom and
+HTB borrowing already absorb most transients at a 5\,s cadence, and context changes are rare. The five-seed evaluation
+decides (\S\ref{sec:qoseval}).
+\end{qa}
+
+\section{Module D: residual reinforcement learning}
+
+\begin{qa}{714}{What does the redesigned RL control, and why that?}
+A residual on the QoS-aware allocation: $a\in[-1,1]^4$ scales each slice's rate in its dominant direction by
+$(1+0.3a_s)$. Each direction is renormalised to $C$, with floors kept.
+\why{RL acts directly on the quantity that decides QoS (rates), and the heuristic is a strong, safe starting point.
+$a{=}0$ \emph{is} the heuristic, so RL only has to learn corrections.}
+\alt{Priority multipliers (the earlier design), whose effect HTB borrowing mostly cancels.}
+\trade{RL replaces the hand-made headroom loop, so \code{rl\_residual} vs \code{qos\_adaptive} is a fair test of
+``learned vs designed adaptation''.}
+\ev{\Ltwo}{\code{tests/test_residual_rl.py} (floors and capacity hold for any action; $a{=}0$ reproduces the heuristic).}
+\end{qa}
+
+\begin{qa}{715}{What does it observe?}
+State v2 (25 values), built by one function in both the simulator and the live controller:
+\begin{itemize}
+\item context one-hot;
+\item per slice in its dominant direction: demand / $C$ and allocation / $C$;
+\item loss / SLA loss target, and queueing delay / SLA delay, measured over the last interval;
+\item the on-backup flag.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{716}{Why a new simulator, and how faithful is it?}
+The old simulator had one pipe, no bursts, no AQM and no TCP behaviour, so it could not express the failure seen live.
+The new one (\code{scheduler/env_dir.py}) models:
+\begin{itemize}
+\item both directions;
+\item 50 sub-steps of 100\,ms per 5\,s step;
+\item lognormal bursts;
+\item HTB borrowing by priority;
+\item CoDel burst tolerance $\approx$ rate $\times$ (target + interval);
+\item TCP backing off instead of dropping.
+\end{itemize}
+Burstiness and HTB's borrowing efficiency were fitted to \NCalTicks{} live ticks with per-slice loss, minimising per-run mean
+loss error: $\sigma_{\mathrm{hc}}{=}\NCalSigmaHc$, $\sigma_{\mathrm{agri}}{=}\NCalSigmaAg$, $\beta{=}\NCalBeta$.
+\honest{The per-run RMSE is still \NCalRmseHc{} (healthcare) and \NCalRmseAg{} (agriculture) percentage points. The simulator guides training; only the network decides (Q725).}
+\end{qa}
+
+\begin{qa}{717}{What did PPO learn in simulation?}
+Three seeds of 300k steps, best checkpoint chosen on validation seeds, evaluated on 30 paired held-out test episodes.
+Reward against the heuristic ($a{=}0$): +\NResRelMin\,\% to +\NResRelMax\,\%, significant for \NResSigSeeds{} of the 3
+seeds. SLA violations fell from
+\NResViolHeuristic{} to \NResViolMin--\NResViolMax{} per episode. Small, and it did not carry over to the network (Q725).
+\ev{\Ltwo}{\code{results/rl_training.json} (\code{residual}).}
+\end{qa}
+
+\begin{qa}{718}{Can it keep learning on the real network?}
+\code{rl\_residual\_online} runs CEM over the residual action. It starts at $a{=}0$ (the heuristic), samples each live
+decision and learns only from transitions whose allocation the kernel confirmed, with a checkpoint carried across runs.
+\ev{\Lthree}{\code{test_residual_online_rl_closed_loop_on_live_network}: state v2 with measured QoS, exploring
+actions, verified enforcement and policy updates from exactly the learnable transitions.}
+\end{qa}
+
+\section{Module E: SliceNet as the classifier for every flow}
+
+\begin{qa}{719}{How does SliceNet classify on the go?}
+In \code{slicenet\_all} mode there are no address rules: every UE flow starts best effort and is classified by SliceNet.
+\begin{itemize}
+\item Captures are read incrementally (only the new records each tick).
+\item A flow is decided once it has been seen for 1\,s and 5 packets. Its features are expressed as a full 5\,s window
+(rates over the observed span; counts scaled up).
+\item Every 5\,s it is re-checked on a real full window. A different class predicted with confidence $\ge0.8$ on two
+consecutive checks replaces the rule.
+\item Rules are \code{tc flower} exact matches (hash lookup) with a handle per flow, so they can be replaced in place.
+\item The confidence gate and best-effort fallback stay in force.
+\end{itemize}
+\ev{\Ltwo\ \Lthree}{\code{tests/test_online_slicenet.py}; \code{test_slicenet_classifies_every_ue_flow_without_address_rules}.
+Development school run: 32 flows, median 1.57\,s to decision, 81\,\% correct at first decision and 87.5\,\% after two
+(correct) reclassifications. Residual errors are education $\leftrightarrow$ general (both web-over-TCP).}
+\end{qa}
+
+\begin{qa}{720}{Why not classify inside a class (telemedicine vs ECG)?}
+The evidence did not call for it. Inside the healthcare slice, fq\_codel already gives sparse flows (ECG, voice)
+priority over bulky ones: their loss was 0\,\% while video lost 3--6\,\%. The fix was capacity and burst tolerance
+for the slice, not a finer class.
+\end{qa}
+
+\input{parts/p15_results}

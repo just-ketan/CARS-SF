@@ -1,0 +1,37 @@
+[unit_tests] /home/ketan/Desktop/CARS-SF/.venv/bin/python -m pytest -q tests
+[unit_tests] ok in 4.2 s  ........................................................................ [ 97%] | ....                                                                     [100%] | 148 passed, 12 deselected in 3.95s
+[rsnsd_generate_validate] /home/ketan/Desktop/CARS-SF/.venv/bin/python -m dataset.rsnsd --per-scenario 6000 --seed 42
+[rsnsd_generate_validate] ok in 16.3 s  108000 rows, 94 columns → /home/ketan/Desktop/CARS-SF/RSNSD/dataset/raw/rsnsd_v1.0.csv | classes {'agriculture': 20651, 'education': 17750, 'general': 33612, 'healthcare': 35987}  sha256 6421db4c8e849716  contract OK | statistical validation 90.77/100 (PASS)
+[slicenet_synthetic_baseline] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_slicenet_pipeline.py --baseline-only
+[slicenet_synthetic_baseline] ok in 5.2 s  STEP 1: baseline on RSNSD v1 synthetic dataset |   F1 macro 0.9456 (group (RSNSD scenario held out))
+[mininet_collect] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/collect_dataset.py --seeds 0 1 2
+[mininet_collect] ok in 1088.0 s  {"run": "collect__fiber_cut__s1", "records": 257, "source": "pcap", "validation": 84} | {"run": "collect__fiber_cut__s2", "records": 265, "source": "pcap", "validation": 84} | merged 4653 records from 18 runs; sequences: (4653, 3, 32)
+[slicenet_mininet_and_transfer] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_slicenet_pipeline.py
+[slicenet_mininet_and_transfer] ok in 16.2 s    }, |   "interpretation": "Baseline: random forest on RSNSD synthetic flows, scored on held-out RSNSD scenarios. Mininet: classifiers on measured traffic shape, scored on held-out runs \u00d7 UEs. The transfer curve shows how much measured data is needed on top of synthetic pre-training." | }
+[rl_train_cem_ppo] /home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --algo all --seeds 0 1 2
+[rl_train_cem_ppo] ok in 129.1 s      ] |   } | }
+[rl_simulator_evaluation] /home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --evaluate-only
+[rl_simulator_evaluation] ok in 3.3 s      ] |   } | }
+[calibration_runs] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study calibration_emergency calibration_timeline
+[calibration_runs] ok in 382.3 s  [18/20] ok       calibration_timeline__qos_aware__timelinemedical_night__s1 54.2 | [19/20] ok       calibration_timeline__qos_adaptive__timelinemedical_night__s0 53.6 | [20/20] ok       calibration_timeline__qos_adaptive__timelinemedical_night__s1 53.8
+[calibrate_bursts] /home/ketan/Desktop/CARS-SF/.venv/bin/python -m scheduler.calibrate_bursts results/runs/calibration_*/feedback.csv
+[calibrate_bursts] ok in 74.4 s    "ticks": 720, |   "runs": 20 | }
+[rl_train_residual] /home/ketan/Desktop/CARS-SF/.venv/bin/python scheduler/train.py --algo residual --timesteps 300000 --seeds 0 1 2
+[rl_train_residual] ok in 1179.3 s      ] |   } | }
+[mininet_integration] /home/ketan/Desktop/CARS-SF/.venv/bin/python -m pytest -q -m integration tests/integration
+[mininet_integration] ok in 429.1 s  ............                                                             [100%] | 12 passed in 428.98s (0:07:08)
+[matrix] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study main ablation sensitivity_capacity sensitivity_load scalability resilience timeline slicenet_inloop
+[matrix] ok in 6791.1 s  [363/365] ok       slicenet_inloop__disaster__classificationslicenet__s0 58.5 | [364/365] ok       slicenet_inloop__disaster__classificationslicenet__s1 58.2 | [365/365] ok       slicenet_inloop__disaster__classificationslicenet__s2 57.1
+[matrix_online_rl] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study online_rl
+[matrix_online_rl] ok in 791.9 s  [8/10] ok       online_rl__disaster__s2 80.2 | [9/10] ok       online_rl__disaster__s3 81.0 | [10/10] ok       online_rl__disaster__s4 80.6
+[matrix_qos] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 3 --study qos_emergency qos_capacity qos_load qos_transitions qos_slicenet
+[matrix_qos] ok in 4850.7 s  [258/260] ok       qos_slicenet__disaster__qos_adaptive__classificationslicenet_all__s12 57.4 | [259/260] ok       qos_slicenet__disaster__qos_adaptive__classificationslicenet_all__s13 57.4 | [260/260] ok       qos_slicenet__disaster__qos_adaptive__classificationslicenet_all__s14 56.6
+[matrix_qos_online] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/run_matrix.py --rerun-stale --workers 1 --study qos_online
+[matrix_qos_online] ok in 800.5 s  [8/10] ok       qos_online__medical_emergency__s12 79.8 | [9/10] ok       qos_online__medical_emergency__s13 80.1 | [10/10] ok       qos_online__medical_emergency__s14 80.1
+[aggregate] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/aggregate.py
+[aggregate] ok in 19.4 s  qos_transitions: 60 runs | qos_slicenet: 20 runs | qos_online: 10 runs
+[plots] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/plots/plot_thesis.py
+[plots] ok in 2.7 s    slicenet_confusion_random_forest |   slicenet_cnn_loss |   slicenet_transfer
+[report] /home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/report.py
+[report] ok in 0.7 s  wrote /home/ketan/Desktop/CARS-SF/docs/thesis/results.md
+Pipeline full: ok → /home/ketan/Desktop/CARS-SF/results/pipeline/20261020-004911_full/manifest.json

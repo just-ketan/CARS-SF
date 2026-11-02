@@ -1,0 +1,157 @@
+\section{Module F: evaluation in contended regimes}\label{sec:qoseval}
+
+\begin{keybox}{Design of the evaluation}
+\begin{itemize}
+\item \textbf{Conditions.} Only conditions in which slices compete: disaster and medical emergency at 100\,Mb/s; school
+and harvest on a 50\,Mb/s uplink; school and disaster at $1.5\times$ load; and the two timelines (a clock-driven school
+bell and unpredictable alerts).
+\item \textbf{Schedulers.} static\_equal, context\_unaware, proposed (the audited heuristic), qos\_aware (B),
+qos\_adaptive (B+C) and rl\_residual (B+C+D), all on host classification.
+\item \textbf{Size.} Five seeds per cell, \NQRuns{} runs, paired by (condition, seed) against \code{qos_adaptive}.
+\item \textbf{Extra studies.} SliceNet everywhere (E) against address rules on the same controller; online residual RL
+across consecutive runs.
+\end{itemize}
+The verdicts below come from the \textbf{confirmatory run v4 (seeds 15--19)}. Earlier rounds found defects; see Q732.
+\end{keybox}
+
+\begin{table}[!htbp]\centering\small
+\begin{tabular}{@{}l ccc ccc ccc@{}}
+\toprule
+& \multicolumn{3}{c}{healthcare SLA share} & \multicolumn{3}{c}{agriculture SLA share} & \multicolumn{3}{c}{general SLA share}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(l){8-10}
+condition & prop. & B+C & RL & prop. & B+C & RL & prop. & B+C & RL\\
+\midrule
+disaster          & \NQCondDisasterProposedHcSla & \NQCondDisasterQosAdaptiveHcSla & \NQCondDisasterResidualHcSla & \NQCondDisasterProposedAgSla & \NQCondDisasterQosAdaptiveAgSla & \NQCondDisasterResidualAgSla & \NQCondDisasterProposedGenSla & \NQCondDisasterQosAdaptiveGenSla & \NQCondDisasterResidualGenSla\\
+medical emergency & \NQCondMedicalEmergencyProposedHcSla & \NQCondMedicalEmergencyQosAdaptiveHcSla & \NQCondMedicalEmergencyResidualHcSla & \NQCondMedicalEmergencyProposedAgSla & \NQCondMedicalEmergencyQosAdaptiveAgSla & \NQCondMedicalEmergencyResidualAgSla & \NQCondMedicalEmergencyProposedGenSla & \NQCondMedicalEmergencyQosAdaptiveGenSla & \NQCondMedicalEmergencyResidualGenSla\\
+disaster $1.5\times$ & \NQCondDisasterOnepFivexProposedHcSla & \NQCondDisasterOnepFivexQosAdaptiveHcSla & \NQCondDisasterOnepFivexResidualHcSla & \NQCondDisasterOnepFivexProposedAgSla & \NQCondDisasterOnepFivexQosAdaptiveAgSla & \NQCondDisasterOnepFivexResidualAgSla & \NQCondDisasterOnepFivexProposedGenSla & \NQCondDisasterOnepFivexQosAdaptiveGenSla & \NQCondDisasterOnepFivexResidualGenSla\\
+harvest 50\,Mb/s  & \NQCondHarvestFiveZeromProposedHcSla & \NQCondHarvestFiveZeromQosAdaptiveHcSla & \NQCondHarvestFiveZeromResidualHcSla & \NQCondHarvestFiveZeromProposedAgSla & \NQCondHarvestFiveZeromQosAdaptiveAgSla & \NQCondHarvestFiveZeromResidualAgSla & \NQCondHarvestFiveZeromProposedGenSla & \NQCondHarvestFiveZeromQosAdaptiveGenSla & \NQCondHarvestFiveZeromResidualGenSla\\
+school 50\,Mb/s   & \NQCondSchoolFiveZeromProposedHcSla & \NQCondSchoolFiveZeromQosAdaptiveHcSla & \NQCondSchoolFiveZeromResidualHcSla & \NQCondSchoolFiveZeromProposedAgSla & \NQCondSchoolFiveZeromQosAdaptiveAgSla & \NQCondSchoolFiveZeromResidualAgSla & \NQCondSchoolFiveZeromProposedGenSla & \NQCondSchoolFiveZeromQosAdaptiveGenSla & \NQCondSchoolFiveZeromResidualGenSla\\
+school $1.5\times$ & \NQCondSchoolOnepFivexProposedHcSla & \NQCondSchoolOnepFivexQosAdaptiveHcSla & \NQCondSchoolOnepFivexResidualHcSla & \NQCondSchoolOnepFivexProposedAgSla & \NQCondSchoolOnepFivexQosAdaptiveAgSla & \NQCondSchoolOnepFivexResidualAgSla & \NQCondSchoolOnepFivexProposedGenSla & \NQCondSchoolOnepFivexQosAdaptiveGenSla & \NQCondSchoolOnepFivexResidualGenSla\\
+rural day (timeline) & \NQCondRuralDayProposedHcSla & \NQCondRuralDayQosAdaptiveHcSla & \NQCondRuralDayResidualHcSla & \NQCondRuralDayProposedAgSla & \NQCondRuralDayQosAdaptiveAgSla & \NQCondRuralDayResidualAgSla & \NQCondRuralDayProposedGenSla & \NQCondRuralDayQosAdaptiveGenSla & \NQCondRuralDayResidualGenSla\\
+medical night (timeline) & \NQCondMedicalNightProposedHcSla & \NQCondMedicalNightQosAdaptiveHcSla & \NQCondMedicalNightResidualHcSla & \NQCondMedicalNightProposedAgSla & \NQCondMedicalNightQosAdaptiveAgSla & \NQCondMedicalNightResidualAgSla & \NQCondMedicalNightProposedGenSla & \NQCondMedicalNightQosAdaptiveGenSla & \NQCondMedicalNightResidualGenSla\\
+\bottomrule
+\end{tabular}
+\caption{Share of flow windows meeting their application's SLA, per class (mean over 5 seeds; confirmatory run v4).
+prop.\ = \capcode{proposed} (audited heuristic), B+C = \capcode{qos_adaptive}, RL = \capcode{rl_residual}. Education met its SLA
+in nearly every window under every scheduler and is omitted. Generated from \capcode{results/tables/qos_summary.csv}.}
+\label{tab:qos}
+\end{table}
+
+\FigQosHealthcare
+
+\begin{qa}{721}{Did the QoS-targeted control make the critical class meet its SLA where it previously did not?}
+Largely yes. Over the 40 paired runs, healthcare's SLA-met share rises by \NQDiffProposedHcSla{} against
+\code{proposed} ($p=\NQPProposedHcSla$, significant after Bonferroni). The healthcare-loss difference (QoS-targeted $-$ proposed) is
+\NQDiffProposedHcLoss{} percentage points.
+\begin{itemize}
+\item Disaster: \NQCondDisasterProposedHcSla{} $\rightarrow$ \NQCondDisasterQosAdaptiveHcSla.
+\item Medical emergency: \NQCondMedicalEmergencyProposedHcSla{} $\rightarrow$ \NQCondMedicalEmergencyQosAdaptiveHcSla.
+\item Night-time medical alert: \NQCondMedicalNightProposedHcSla{} $\rightarrow$ \NQCondMedicalNightQosAdaptiveHcSla.
+\end{itemize}
+It is not a full fix. At $1.5\times$ disaster load (135\,Mb/s of healthcare on a 100\,Mb/s uplink) no allocation can
+meet everyone, and healthcare stays near \NQCondDisasterOnepFivexQosAdaptiveHcSla.
+\ev{\Lthree}{\code{results/tables/qos_stats.csv}.}
+\end{qa}
+
+\begin{qa}{722}{Then why is H11 ``not supported''?}
+H11 was stated on the \emph{unweighted mean} over the four classes, and on that metric \code{qos_adaptive} is
+\NQDiffProposedMeanSla{} below \code{proposed} ($p=\NQPProposedMeanSla$). The gain for healthcare is paid for by
+agriculture, which shares the uplink and has context priority 1 against healthcare's 10--15 in the emergencies:
+\begin{itemize}
+\item disaster: \NQCondDisasterProposedAgSla{} $\rightarrow$ \NQCondDisasterQosAdaptiveAgSla;
+\item medical emergency: \NQCondMedicalEmergencyProposedAgSla{} $\rightarrow$ \NQCondMedicalEmergencyQosAdaptiveAgSla.
+\end{itemize}
+General also gives a little up at 50\,Mb/s. This is the declared priority order working as specified, not a defect;
+it was deliberately \emph{not} tuned away after it was seen. The worst-off class is \NQDiffProposedMinSla{} better
+($p=\NQPProposedMinSla$, not significant), weighted utility is unchanged ($p=\NQPProposedUtil$), and against static
+slicing the worst-off class is \NQDiffStaticMinSla{} better ($p=\NQPStaticMinSla$).
+\honest{Whether that trade is right is a policy question for the operator. The framework makes it explicit and
+measurable; it does not make the trade disappear.}
+\end{qa}
+
+\begin{qa}{723}{Where does the QoS-targeted control clearly win, and where does it not help?}
+\begin{itemize}
+\item \textbf{Clear win: overloaded uplink with a protected critical class.} Harvest on 50\,Mb/s: worst-off class
+\NQCondHarvestFiveZeromProposedMinSla{} $\rightarrow$ \NQCondHarvestFiveZeromQosAdaptiveMinSla, and agriculture
+\NQCondHarvestFiveZeromProposedAgSla{} $\rightarrow$ \NQCondHarvestFiveZeromQosAdaptiveAgSla. Direction-aware
+allocation stops wasting uplink guarantees on downlink services.
+\item \textbf{No help: school.} School is overloaded on the \emph{downlink} by TCP traffic: both education and general
+are elastic, and the weighted heuristic already does about as well.
+\item \textbf{Trade-off: emergencies.} As in Q722.
+\end{itemize}
+\end{qa}
+
+\begin{qa}{724}{Did reacting within a second and predicting help (module C, H13)?}
+No measurable effect: \code{qos_adaptive} vs \code{qos_aware} differs by \NQDiffQosAwareMeanSla{} in mean class SLA
+($p=\NQPQosAwareMeanSla$). The triggers fired \NQReactions{} times across the \NQRuns{} runs and did what they were
+designed to do. At this load and timescale, burst headroom plus HTB borrowing already absorb the transients that a 1\,s
+reaction could catch, and the predictable context changes are few.
+\end{qa}
+
+\begin{qa}{725}{Did residual RL improve on the heuristic on the network (H12)?}
+No. \code{rl_residual} is within \NQDiffResidualMeanSla{} of \code{qos_adaptive} on mean class SLA
+($p=\NQPResidualMeanSla$) and \NQDiffResidualMinSla{} on the worst class ($p=\NQPResidualMinSla$). In simulation it
+gains +\NResRelMin{} to +\NResRelMax\,\% reward (significant for \NResSigSeeds{} of 3 seeds) and cuts SLA violations
+from \NResViolHeuristic{} to \NResViolMin--\NResViolMax{} per episode. That gain does not survive the
+simulation-to-network gap at the size we can measure with 40 paired runs.
+\honest{A learned controller that only matches a well-designed heuristic is a negative result for RL here, not a
+contribution. It is safe, though: it never breaks a floor or the anti-starvation guard (Q732), and \NQEnforcementFailed{}
+of its allocations failed kernel verification.}
+\end{qa}
+
+\begin{qa}{726}{Did the online residual learner work on the real loop?}
+Mechanically yes. Over \NQOnlineRuns{} consecutive live runs it made \NQOnlineTransitions{} verified transitions
+(\NQOnlineTransMin--\NQOnlineTransMax{} per run, \NQOnlineFailed{} enforcement failures) with a checkpoint carried
+across runs, and mean class SLA was \NQOnlineMeanSla.
+\honest{About 25 transitions per run is far too few to show learning. It demonstrates a coupled, safe online loop, not
+convergence.}
+\end{qa}
+
+\begin{qa}{727}{Can SliceNet replace address rules for every flow (H14)?}
+Yes, within the pre-stated margin. With every UE flow classified by SliceNet (no address rules), mean class SLA is
+\NQSnAllMeanSla{} against \NQSnHostMeanSla{} with address rules ($p=\NQSnPMeanSla$; margin 0.02). Decisions take a median
+of \NQSnDecisionS\,s, with \NQSnAccuracy{} accuracy at first decision and \NQSnFinalAccuracy{} after confirmed
+reclassification. The residual errors are education $\leftrightarrow$ general, whose web-over-TCP traffic looks alike.
+\end{qa}
+
+\begin{qa}{728}{Are the control actions actually enforced?}
+Yes. Across the \NQRuns{} contended-regime runs, \NQChangesApplied{} allocation changes were applied per direction and
+read back from the kernel; \NQEnforcementFailed{} failed verification.
+\end{qa}
+
+\section{How the evaluation was kept honest}
+
+\begin{qa}{732}{The QoS schedulers were evaluated four times. Isn't that tuning on the test set?}
+Each round used fresh seeds, and only \emph{defects} were fixed: behaviour that violated a stated design requirement.
+Each fix has a regression test. All rounds are reported (\code{results/evidence/qos_eval_v1}--\code{v3}).
+\begin{description}
+\item[v1 (seeds 0--4)] Strict priority on bare demand starved best-effort TCP (general SLA 0.0 at 50\,Mb/s), and the
+overload branch ignored burst headroom. Fixed: an anti-starvation guard (20\,\% of demand) and headroom applied under
+overload.
+\item[v2 (seeds 5--9)] A starved TCP slice sends less, so its measured demand, and with it the guard, collapsed
+(general SLA 0.05). Fixed: the guard of an elastic slice is anchored on the context's design demand.
+\item[v3 (seeds 10--14)] The residual RL could take capacity from a slice down to its plain floor, overriding the
+guard (general SLA 0.04 under \code{rl_residual}). Fixed: the allocator's protected minimum bounds the residual, live
+and in the simulator.
+\item[v4 (seeds 15--19)] The confirmatory run reported here.
+\end{description}
+What was \emph{not} changed is equally important. Agriculture's degradation in the emergencies follows the declared
+context priority; it was reported, not tuned away.
+\end{qa}
+
+\begin{qa}{733}{So, can SliceNet and RL slice the network so that the four classes meet their QoS on the go?}
+Partly, and the parts are now measured.
+\begin{itemize}
+\item \textbf{SliceNet} can identify every flow on the fly (about 1.5\,s) and drive slicing without address rules, at no
+measurable QoS cost (H14).
+\item \textbf{The QoS-targeted control}, which now sees loss, allocates per direction, keeps burst headroom and never
+starves a class, delivers the critical class its SLA far more often in the emergencies and relieves the worst-off class
+when an uplink is overloaded. Where the link cannot carry everything, it degrades in the declared priority order rather
+than meeting all four classes.
+\item \textbf{RL}, redesigned to act on rates with measured QoS in its state, is safe and live-coupled, but does not
+beat the heuristic it corrects.
+\item \textbf{Prediction} (ramps, queues, clock-driven context) adds nothing measurable here.
+\end{itemize}
+The honest summary for the panel: the gains came from \emph{measuring the right thing and allocating for it}, not from
+learning.
+\end{qa}

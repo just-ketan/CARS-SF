@@ -1,4 +1,4 @@
-# Synthetic path trace (2026-10-19T00:14:35)
+# Synthetic path trace (2026-10-20T10:11:44)
 
 ## 1. Seeded RSNSD generation → contract
 
@@ -27,49 +27,49 @@ Observation layout: 8 context one-hot · 4 demand/C · 4 backlog/(C·0.1 s) · 4
 
 ### step 0
 * s_t demand/C [0.900, 0.050, 0.050, 0.200], backlog [0.000, 0.000, 0.000, 0.000], alloc/C [0.250, 0.250, 0.250, 0.250], on_backup 0
-* a_t [-0.249, 0.080, 0.115, -0.123] → multipliers [0.56, 1.20, 1.30, 0.75]
-* allocation (Mb/s) {"healthcare": 79.1, "education": 5.0, "agriculture": 5.0, "general": 10.9}
-* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 8.0, "general": 128.0}, satisfaction {"healthcare": 0.8788, "education": 1.0, "agriculture": 1.0, "general": 0.5455}
-* r_t = 70.339 = satisfaction +87.179 + sla -10.000 + loss -6.840 + starvation -0.000 + reallocation -0.000 + idle -0.000
-* s_t+1 demand/C [0.857, 0.046, 0.063, 0.259], backlog [0.791, 0.000, 0.000, 0.109], alloc/C [0.791, 0.050, 0.050, 0.109]
+* a_t [-0.533, 0.237, 0.229, -0.025] → multipliers [0.29, 1.73, 1.69, 0.94]
+* allocation (Mb/s) {"healthcare": 70.0, "education": 5.0, "agriculture": 5.0, "general": 20.0}
+* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 8.0, "general": 28.0}, satisfaction {"healthcare": 0.7778, "education": 1.0, "agriculture": 1.0, "general": 1.0}
+* r_t = 70.323 = satisfaction +82.906 + sla -10.000 + loss -2.583 + starvation -0.000 + reallocation -0.000 + idle -0.000
+* s_t+1 demand/C [0.857, 0.046, 0.063, 0.259], backlog [0.700, 0.000, 0.000, 0.000], alloc/C [0.700, 0.050, 0.050, 0.200]
 
 ### step 1
-* s_t demand/C [0.857, 0.046, 0.063, 0.259], backlog [0.791, 0.000, 0.000, 0.109], alloc/C [0.791, 0.050, 0.050, 0.109], on_backup 0
-* a_t [-0.369, 0.134, 0.163, -0.099] → multipliers [0.43, 1.36, 1.46, 0.80]
-* allocation (Mb/s) {"healthcare": 75.0, "education": 4.6, "agriculture": 6.3, "general": 14.1}
-* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 8.0, "general": 128.0}, satisfaction {"healthcare": 0.876, "education": 1.0, "agriculture": 1.0, "general": 0.5426}
-* r_t = 69.258 = satisfaction +86.947 + sla -10.000 + loss -7.248 + starvation -0.000 + reallocation -0.441 + idle -0.000
-* s_t+1 demand/C [0.700, 0.049, 0.059, 0.215], backlog [0.750, 0.000, 0.000, 0.141], alloc/C [0.750, 0.046, 0.063, 0.141]
+* s_t demand/C [0.857, 0.046, 0.063, 0.259], backlog [0.700, 0.000, 0.000, 0.000], alloc/C [0.700, 0.050, 0.050, 0.200], on_backup 0
+* a_t [-0.714, 0.320, 0.305, 0.026] → multipliers [0.19, 2.09, 2.02, 1.06]
+* allocation (Mb/s) {"healthcare": 63.2, "education": 4.6, "agriculture": 6.3, "general": 25.9}
+* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 8.0, "general": 28.2}, satisfaction {"healthcare": 0.7377, "education": 1.0, "agriculture": 1.0, "general": 1.0}
+* r_t = 65.808 = satisfaction +79.824 + sla -10.000 + loss -3.299 + starvation -0.000 + reallocation -0.717 + idle -0.000
+* s_t+1 demand/C [0.700, 0.049, 0.059, 0.215], backlog [0.632, 0.000, 0.000, 0.001], alloc/C [0.632, 0.046, 0.063, 0.259]
 
 ### step 2
-* s_t demand/C [0.700, 0.049, 0.059, 0.215], backlog [0.750, 0.000, 0.000, 0.141], alloc/C [0.750, 0.046, 0.063, 0.141], on_backup 0
-* a_t [-0.346, 0.128, 0.151, -0.094] → multipliers [0.45, 1.34, 1.42, 0.81]
-* allocation (Mb/s) {"healthcare": 70.0, "education": 4.9, "agriculture": 5.9, "general": 19.2}
-* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 10.7, "general": 128.0}, satisfaction {"healthcare": 1.0, "education": 1.0, "agriculture": 0.9995, "general": 0.8933}
-* r_t = 87.343 = satisfaction +99.175 + sla -10.000 + loss -1.291 + starvation -0.000 + reallocation -0.541 + idle -0.000
-* s_t+1 demand/C [0.894, 0.039, 0.063, 0.168], backlog [0.700, 0.000, 0.002, 0.192], alloc/C [0.700, 0.049, 0.059, 0.192]
+* s_t demand/C [0.700, 0.049, 0.059, 0.215], backlog [0.632, 0.000, 0.000, 0.001], alloc/C [0.632, 0.046, 0.063, 0.259], on_backup 0
+* a_t [-0.662, 0.298, 0.281, 0.021] → multipliers [0.22, 1.99, 1.91, 1.05]
+* allocation (Mb/s) {"healthcare": 67.7, "education": 4.9, "agriculture": 5.9, "general": 21.5}
+* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 10.7, "general": 29.1}, satisfaction {"healthcare": 0.9673, "education": 1.0, "agriculture": 0.9995, "general": 0.9998}
+* r_t = 86.609 = satisfaction +97.478 + sla -10.000 + loss -0.393 + starvation -0.000 + reallocation -0.476 + idle -0.000
+* s_t+1 demand/C [0.894, 0.039, 0.063, 0.168], backlog [0.677, 0.000, 0.002, 0.002], alloc/C [0.677, 0.049, 0.059, 0.215]
 
 ### step 3
-* s_t demand/C [0.894, 0.039, 0.063, 0.168], backlog [0.700, 0.000, 0.002, 0.192], alloc/C [0.700, 0.049, 0.059, 0.192], on_backup 0
-* a_t [-0.360, 0.128, 0.157, -0.098] → multipliers [0.44, 1.34, 1.44, 0.80]
-* allocation (Mb/s) {"healthcare": 75.9, "education": 3.9, "agriculture": 6.3, "general": 14.0}
-* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 12.1, "general": 128.0}, satisfaction {"healthcare": 0.8485, "education": 1.0, "agriculture": 0.9997, "general": 0.832}
-* r_t = 72.367 = satisfaction +87.052 + sla -10.000 + loss -4.055 + starvation -0.000 + reallocation -0.629 + idle -0.000
-* s_t+1 demand/C [0.776, 0.037, 0.059, 0.163], backlog [0.759, 0.000, 0.003, 0.140], alloc/C [0.759, 0.039, 0.063, 0.140]
+* s_t demand/C [0.894, 0.039, 0.063, 0.168], backlog [0.677, 0.000, 0.002, 0.002], alloc/C [0.677, 0.049, 0.059, 0.215], on_backup 0
+* a_t [-0.711, 0.315, 0.301, 0.030] → multipliers [0.19, 2.07, 2.00, 1.07]
+* allocation (Mb/s) {"healthcare": 73.1, "education": 3.9, "agriculture": 6.3, "general": 16.8}
+* delay (ms) {"healthcare": 108.0, "education": 28.0, "agriculture": 12.1, "general": 28.4}, satisfaction {"healthcare": 0.817, "education": 1.0, "agriculture": 0.9997, "general": 1.0}
+* r_t = 73.069 = satisfaction +85.918 + sla -10.000 + loss -2.273 + starvation -0.000 + reallocation -0.576 + idle -0.000
+* s_t+1 demand/C [0.776, 0.037, 0.059, 0.163], backlog [0.731, 0.000, 0.003, 0.001], alloc/C [0.731, 0.039, 0.063, 0.168]
 
 ### step 4
-* s_t demand/C [0.776, 0.037, 0.059, 0.163], backlog [0.759, 0.000, 0.003, 0.140], alloc/C [0.759, 0.039, 0.063, 0.140], on_backup 0
-* a_t [-0.356, 0.129, 0.154, -0.092] → multipliers [0.44, 1.35, 1.42, 0.81]
-* allocation (Mb/s) {"healthcare": 76.3, "education": 3.6, "agriculture": 5.9, "general": 14.1}
-* delay (ms) {"healthcare": 108.0, "education": 30.7, "agriculture": 14.3, "general": 128.0}, satisfaction {"healthcare": 0.9834, "education": 0.9995, "agriculture": 0.9996, "general": 0.8654}
-* r_t = 85.733 = satisfaction +97.680 + sla -10.000 + loss -1.886 + starvation -0.000 + reallocation -0.061 + idle -0.000
-* s_t+1 demand/C [0.991, 0.038, 0.060, 0.128], backlog [0.763, 0.001, 0.004, 0.141], alloc/C [0.763, 0.036, 0.059, 0.141]
+* s_t demand/C [0.776, 0.037, 0.059, 0.163], backlog [0.731, 0.000, 0.003, 0.001], alloc/C [0.731, 0.039, 0.063, 0.168], on_backup 0
+* a_t [-0.701, 0.313, 0.296, 0.033] → multipliers [0.20, 2.05, 1.98, 1.08]
+* allocation (Mb/s) {"healthcare": 74.1, "education": 3.6, "agriculture": 5.9, "general": 16.3}
+* delay (ms) {"healthcare": 108.0, "education": 30.3, "agriculture": 14.1, "general": 28.0}, satisfaction {"healthcare": 0.9551, "education": 0.9995, "agriculture": 0.9997, "general": 1.0}
+* r_t = 85.874 = satisfaction +96.538 + sla -10.000 + loss -0.558 + starvation -0.000 + reallocation -0.106 + idle -0.000
+* s_t+1 demand/C [0.991, 0.038, 0.060, 0.128], backlog [0.741, 0.001, 0.004, 0.000], alloc/C [0.741, 0.036, 0.059, 0.163]
 
 ### step 5
-* s_t demand/C [0.991, 0.038, 0.060, 0.128], backlog [0.763, 0.001, 0.004, 0.141], alloc/C [0.763, 0.036, 0.059, 0.141], on_backup 1
-* a_t [-0.389, 0.142, 0.185, -0.119] → multipliers [0.41, 1.39, 1.53, 0.76]
+* s_t demand/C [0.991, 0.038, 0.060, 0.128], backlog [0.741, 0.001, 0.004, 0.000], alloc/C [0.741, 0.036, 0.059, 0.163], on_backup 1
+* a_t [-0.754, 0.323, 0.352, 0.028] → multipliers [0.18, 2.10, 2.25, 1.07]
 * allocation (Mb/s) {"healthcare": 77.4, "education": 3.8, "agriculture": 6.0, "general": 12.8}
-* delay (ms) {"healthcare": 108.0, "education": 31.4, "agriculture": 10.6, "general": 128.0}, satisfaction {"healthcare": 0.7814, "education": 0.9998, "agriculture": 1.0, "general": 1.0}
-* r_t = 70.299 = satisfaction +83.181 + sla -10.000 + loss -2.751 + starvation -0.000 + reallocation -0.131 + idle -0.000
-* s_t+1 demand/C [1.058, 0.043, 0.052, 0.181], backlog [0.774, 0.001, 0.002, 0.128], alloc/C [0.774, 0.038, 0.060, 0.128]
+* delay (ms) {"healthcare": 108.0, "education": 31.1, "agriculture": 10.3, "general": 28.0}, satisfaction {"healthcare": 0.7814, "education": 0.9998, "agriculture": 1.0, "general": 1.0}
+* r_t = 70.106 = satisfaction +83.181 + sla -10.000 + loss -2.725 + starvation -0.000 + reallocation -0.350 + idle -0.000
+* s_t+1 demand/C [1.058, 0.043, 0.052, 0.181], backlog [0.774, 0.001, 0.001, 0.000], alloc/C [0.774, 0.038, 0.060, 0.128]
 

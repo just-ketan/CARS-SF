@@ -3,6 +3,7 @@
 
     python scheduler/train.py --algo cem --episodes 30                     # CEM on the sequential env
     python scheduler/train.py --algo ppo --timesteps 200000 --seeds 0 1 2  # PPO, one run per seed
+    python scheduler/train.py --algo residual --timesteps 300000 --seeds 0 1 2  # residual PPO (DirectionalSlicingEnv)
     python scheduler/train.py --algo all
 
 Both algorithms use SequentialSlicingEnv and the shared reward
@@ -26,10 +27,11 @@ RESULTS_PATH = os.path.join(
 
 def main():
     parser = argparse.ArgumentParser(description="Train RL scheduler policies")
-    parser.add_argument("--algo", choices=["cem", "ppo", "all"], default="all")
+    parser.add_argument("--algo", choices=["cem", "ppo", "residual", "all"], default="all")
     parser.add_argument("--episodes", type=int, default=30, help="CEM iterations per context")
     parser.add_argument("--timesteps", type=int, default=200_000, help="PPO environment steps")
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
+    parser.add_argument("--variant", default="default", help="residual reward-weight variant: default | sla_x2 | loss_x4")
     parser.add_argument("--evaluate-only", action="store_true",
                         help="re-evaluate the deployed CEM and PPO models on the test seeds (no training)")
     args = parser.parse_args()
@@ -37,7 +39,7 @@ def main():
     results = {}
     if os.path.exists(RESULTS_PATH):          # keep the other algorithm's results when training one
         with open(RESULTS_PATH, encoding="utf-8") as handle:
-            results = {k: v for k, v in json.load(handle).items() if k in ("cem", "ppo", "evaluation")}
+            results = {k: v for k, v in json.load(handle).items() if k in ("cem", "ppo", "evaluation", "residual", "residual_variants")}
     if args.evaluate_only:
         from stable_baselines3 import PPO
 
@@ -46,6 +48,13 @@ def main():
         results["evaluation"] = compare_policies(ppo)
     elif args.algo in ("cem", "all"):
         results["cem"] = RLAgent().train(episodes=args.episodes, seed=args.seeds[0])
+    if args.algo == "residual" and not args.evaluate_only:
+        from scheduler.agent import train_residual_seeds
+        out = train_residual_seeds(args.seeds, args.timesteps, variant=args.variant)
+        if args.variant == "default":
+            results["residual"] = out
+        else:
+            results.setdefault("residual_variants", {})[args.variant] = out
     if args.algo in ("ppo", "all") and not args.evaluate_only:
         results["ppo"] = train_ppo_seeds(args.seeds, args.timesteps)
 

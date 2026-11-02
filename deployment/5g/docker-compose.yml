@@ -1,6 +1,18 @@
 # CARS-SF on a real 5G core: Open5GS 5GC + UERANSIM gNB/UEs, one UE per
 # service slice (S-NSSAI + DNN), CARS-SF traffic sidecars sharing each UE's
-# network namespace, and a data-network host behind the UPF (N6).
+# network namespace.
+#
+#   ran     10.79.0/24  simulated radio link (UERANSIM RLS), UE <-> gNB
+#   cell    10.78.0/24  gNB <-> cell-site router
+#   core    10.80.0/24  N2/N3: the 100 Mb/s rural link, cell-site router <-> edge site
+#   n6      10.81.0/24  edge data network (healthcare, agriculture servers)
+#   fiber   10.83.0/24  primary backhaul, UPF <-> core cloud (20 ms)
+#   backup  10.84.0/24  standby backhaul, UPF <-> core cloud (40 ms, 50 Mb/s)
+#
+# cell_site is the router in front of N3: the uplink enforcement point. It is a separate
+# node on purpose: shaping on the gNB's own interface charges queued packets to its UDP
+# socket, which then fails sends after ~20 ms of queue. upf_tap shares the UPF's network
+# namespace: the downlink enforcement and traffic-monitoring point (ogstun).
 #
 #   docker compose -f deployment/5g/docker-compose.yml up -d
 #   python deployment/5g/run_5g.py --scenario disaster --duration 40
@@ -13,6 +25,7 @@ x-ue: &ue
   devices: ["/dev/net/tun"]
   depends_on: [gnb]
   volumes: ["./ueransim:/config:ro"]
+  networks: {ran: {}}
 
 x-tools: &tools
   image: cars-sf-tools:latest
@@ -39,42 +52,69 @@ services:
     networks:
       core: {ipv4_address: 10.80.0.10}
       n6: {ipv4_address: 10.81.0.10}
+      fiber: {ipv4_address: 10.83.0.10}
+      backup: {ipv4_address: 10.84.0.10}
 
   gnb:
     image: gradiant/ueransim:3.2.6
-    entrypoint: ["sh", "-c", "sleep 30 && exec nr-gnb -c /config/gnb.yaml"]
+    entrypoint: ["sh", "-c", "ip route add 10.80.0.0/24 via 10.78.0.2 && sleep 30 && exec nr-gnb -c /config/gnb.yaml"]
     depends_on: [core]
+    cap_add: [NET_ADMIN]
     volumes: ["./ueransim:/config:ro"]
-    networks: {core: {ipv4_address: 10.80.0.20}}
+    networks:
+      ran: {ipv4_address: 10.79.0.20}
+      cell: {ipv4_address: 10.78.0.20}
 
   ue_healthcare:
     <<: *ue
     entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_healthcare.yaml"]
-    networks: {core: {ipv4_address: 10.80.0.31}}
+    networks: {ran: {ipv4_address: 10.79.0.31}}
   ue_education:
     <<: *ue
     entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_education.yaml"]
-    networks: {core: {ipv4_address: 10.80.0.32}}
+    networks: {ran: {ipv4_address: 10.79.0.32}}
   ue_agriculture:
     <<: *ue
     entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_agriculture.yaml"]
-    networks: {core: {ipv4_address: 10.80.0.33}}
+    networks: {ran: {ipv4_address: 10.79.0.33}}
   ue_general:
     <<: *ue
     entrypoint: ["sh", "-c", "sleep 38 && exec nr-ue -c /config/ue_general.yaml"]
-    networks: {core: {ipv4_address: 10.80.0.34}}
+    networks: {ran: {ipv4_address: 10.79.0.34}}
 
   tg_healthcare: {<<: *tools, network_mode: "service:ue_healthcare", depends_on: [ue_healthcare]}
   tg_education: {<<: *tools, network_mode: "service:ue_education", depends_on: [ue_education]}
   tg_agriculture: {<<: *tools, network_mode: "service:ue_agriculture", depends_on: [ue_agriculture]}
   tg_general: {<<: *tools, network_mode: "service:ue_general", depends_on: [ue_general]}
 
+  cell_site:
+    <<: *tools
+    sysctls: {net.ipv4.ip_forward: 1}
+    networks:
+      cell: {ipv4_address: 10.78.0.2}
+      core: {ipv4_address: 10.80.0.2}
+  upf_tap: {<<: *tools, network_mode: "service:core", depends_on: [core]}
+
   dn:
     <<: *tools
     networks: {n6: {ipv4_address: 10.81.0.100}}
 
+  dn_core:
+    <<: *tools
+    networks:
+      fiber: {ipv4_address: 10.83.0.100}
+      backup: {ipv4_address: 10.84.0.100}
+
 networks:
+  cell:
+    ipam: {config: [{subnet: 10.78.0.0/24}]}
+  ran:
+    ipam: {config: [{subnet: 10.79.0.0/24}]}
   core:
     ipam: {config: [{subnet: 10.80.0.0/24}]}
   n6:
     ipam: {config: [{subnet: 10.81.0.0/24}]}
+  fiber:
+    ipam: {config: [{subnet: 10.83.0.0/24}]}
+  backup:
+    ipam: {config: [{subnet: 10.84.0.0/24}]}

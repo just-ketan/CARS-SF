@@ -190,6 +190,11 @@ def rl():
             put(f"Seq{short}Reward", comp[k]["mean_reward"] / 120, 2)
             put(f"Seq{short}Viol", comp[k]["sla_violations_per_episode"], 1)
             put(f"Seq{short}Sat", comp[k]["mean_satisfaction"])
+    for k, short in (("rl_cem", "Cem"), ("rl_ppo", "Ppo")):
+        paired = (comp.get("paired_vs_rule_based") or {}).get(k)
+        if paired:
+            put(f"Seq{short}Rel", paired["relative_pct"], 1)
+            put(f"Seq{short}RelP", paired["wilcoxon_p"], 4)
     cem = r.get("cem", {})
     if cem:
         put("CemImprovement", cem.get("improvement"), 2)
@@ -248,8 +253,177 @@ STATIC = {  # measured once (see the evidence index in the handbook)
 }
 
 
+QOS_NAMES = {"static_equal": "Static", "context_unaware": "Unaware", "proposed": "Proposed", "qos_aware": "QosAware",
+             "qos_adaptive": "QosAdaptive", "rl_residual": "Residual"}
+QOS_METRICS = {"mean_class_sla": "MeanSla", "min_class_sla": "MinSla", "healthcare_sla_satisfied_share": "HcSla",
+               "agriculture_sla_satisfied_share": "AgSla", "healthcare_loss_pct": "HcLoss",
+               "weighted_utility": "Util", "decisions_applied": "Changes", "transient_mean_class_sla": "TransSla"}
+
+
+def qos():
+    """Contended-regime evaluation (modules A–F): NQ<scheduler><metric>, NQCond<cond><scheduler>MeanSla,
+    NQDiff<baseline><metric> / NQP<baseline><metric> (qos_adaptive − baseline, Wilcoxon p)."""
+    summary, stats = table("qos_summary.csv"), table("qos_stats.csv")
+    if not summary.empty:
+        for scheduler, short in QOS_NAMES.items():
+            part = summary[summary["scheduler"] == scheduler]
+            for metric, mshort in QOS_METRICS.items():
+                col = f"{metric}_mean"
+                if col in part and len(part):
+                    put(f"Q{short}{mshort}", float(part[col].mean()), 1 if metric == "decisions_applied" else 3)
+            for _, r in part.iterrows():
+                cond = "".join(w.capitalize() for w in str(r["condition"]).replace("@", "_").replace(".", "p")
+                               .replace("Mbps", "M").split("_"))
+                put(f"QCond{cond}{short}MeanSla", r.get("mean_class_sla_mean"))
+                put(f"QCond{cond}{short}MinSla", r.get("min_class_sla_mean"))
+                for metric, mshort in (("healthcare_sla_satisfied_share", "HcSla"),
+                                       ("agriculture_sla_satisfied_share", "AgSla"),
+                                       ("general_sla_satisfied_share", "GenSla")):
+                    put(f"QCond{cond}{short}{mshort}", r.get(f"{metric}_mean"))
+        put("QConditions", int(summary["condition"].nunique()))
+    if not stats.empty:
+        for _, r in stats.iterrows():
+            short, mshort = QOS_NAMES.get(r["baseline"]), QOS_METRICS.get(r["metric"])
+            if short and mshort:
+                put(f"QDiff{short}{mshort}", float(r["mean_difference"]), 4)
+                put(f"QP{short}{mshort}", float(r["wilcoxon_p"]), 4)
+                put(f"QPairs{short}{mshort}", int(r["pairs"]))
+    sn = table("qos_slicenet_stats.csv")
+    for _, r in sn.iterrows():
+        mshort = QOS_METRICS.get(r["metric"])
+        if mshort:
+            put(f"QSnHost{mshort}", float(r["proposed_mean"]))
+            put(f"QSnAll{mshort}", float(r["baseline_mean"]))
+            put(f"QSnP{mshort}", float(r["wilcoxon_p"]), 4)
+    runs = table("runs.csv")
+    if not runs.empty:
+        qsn = runs[(runs["study"] == "qos_slicenet") & (runs["classification"] == "slicenet_all")]
+        if len(qsn):
+            put("QSnAccuracy", float(qsn["online_accuracy"].mean()))
+            put("QSnFinalAccuracy", float(qsn["online_final_accuracy"].mean()))
+            put("QSnDecisionS", float(qsn["online_time_to_decision_s"].median()), 2)
+        online = runs[runs["study"] == "qos_online"]
+        if len(online):
+            put("QOnlineRuns", int(len(online)))
+            put("QOnlineTransitions", int(online["rl_transitions"].sum()))
+            put("QOnlineFailed", int(online["enforcement_failed"].fillna(0).sum()))
+            put("QOnlineMeanSla", float(online["mean_class_sla"].mean()))
+        put("QOnlineTransMin", int(online["rl_transitions"].min()))
+        put("QOnlineTransMax", int(online["rl_transitions"].max()))
+        qruns = runs[runs["study"].isin(["qos_emergency", "qos_capacity", "qos_load", "qos_transitions"])]
+        if len(qruns):
+            put("QRuns", int(len(qruns)))
+            put("QChangesApplied", int(qruns["decisions_applied"].fillna(0).sum()))
+            put("QEnforcementFailed", int(qruns["enforcement_failed"].fillna(0).sum()))
+            put("QReactions", int(qruns["controller_reactions"].fillna(0).sum()))
+    calib = json.loads((RESULTS_DIR.parent / "scheduler" / "models" / "burst_calibration.json").read_text()) \
+        if (RESULTS_DIR.parent / "scheduler" / "models" / "burst_calibration.json").exists() else {}
+    if calib:
+        put("CalSigmaHc", calib["sigma"]["healthcare"], 2)
+        put("CalSigmaAg", calib["sigma"]["agriculture"], 2)
+        put("CalBeta", calib.get("borrow_efficiency"), 2)
+        put("CalRmseHc", calib["rmse_pct"]["healthcare"], 1)
+        put("CalRmseAg", calib["rmse_pct"]["agriculture"], 1)
+        put("CalTicks", int(calib["ticks"]))
+    residual = jload("rl_training.json").get("residual", {})
+    if residual:
+        put("ResHeuristicReward", residual["heuristic_test_reward"], 1)
+        rewards = list(residual["test_reward_per_seed"].values())
+        put("ResRewardMin", min(rewards), 1)
+        put("ResRewardMax", max(rewards), 1)
+        rel = [p["relative_pct"] for p in residual["paired_per_seed"].values()]
+        put("ResRelMin", min(rel), 1)
+        put("ResRelMax", max(rel), 1)
+        put("ResPMax", max(p["wilcoxon_p"] for p in residual["paired_per_seed"].values()), 3)
+        put("ResSigSeeds", int(sum(p["wilcoxon_p"] < 0.05 for p in residual["paired_per_seed"].values())))
+        viol = [r["comparison"]["rl_residual"]["sla_violations_per_episode"] for r in residual["runs"]]
+        put("ResViolHeuristic", residual["runs"][0]["comparison"]["qos_heuristic"]["sla_violations_per_episode"], 1)
+        put("ResViolMin", min(viol), 1)
+        put("ResViolMax", max(viol), 1)
+        put("ResDeployedSeed", int(residual["deployed_seed"]))
+
+
+def final():
+    """Predeclared final evaluation: claims, requirements, OVS validation, forecasts, RL sensitivity."""
+    claims = table("final_claims.csv")
+    for _, r in claims.iterrows():
+        cid = "F" + r["claim"]
+        for col, short, d in (("mean_diff", "Diff", 3), ("ci_low", "Lo", 3), ("ci_high", "Hi", 3),
+                              ("rank_biserial", "R", 2), ("p", "P", 4), ("p_holm", "PHolm", 4)):
+            v = r.get(col)
+            put(f"{cid}{short}", None if pd.isna(v) else float(v), d)
+        put(f"{cid}N", int(r["n"]))
+        put(f"{cid}Verdict", str(r["verdict"]))
+    reqs = table("final_requirements.csv")
+    for _, r in reqs.iterrows():
+        put(f"F{r['requirement']}Checked", int(r["runs_checked"]))
+        put(f"F{r['requirement']}Failures", int(r["failures"]))
+        put(f"F{r['requirement']}Pass", "pass" if bool(r["pass"]) else "fail")
+    runs = table("runs.csv")
+    if not runs.empty:
+        runs = runs[~runs["stale"]]
+        fin = runs[runs["study"].str.startswith("final_contended")]
+        for cond in fin["condition"].unique():
+            cname = "".join(w.capitalize() for w in str(cond).replace("@", "_").replace(".", "p").replace("Mbps", "M").split("_"))
+            for sched in ("proposed", "qos_blind", "qos_adaptive", "rl_residual", "static_equal"):
+                part = fin[(fin["condition"] == cond) & (fin["scheduler"] == sched)]
+                tag = {"proposed": "Prop", "qos_blind": "Blind", "qos_adaptive": "Ad", "rl_residual": "Rl",
+                       "static_equal": "Stat"}[sched]
+                for metric, m in (("healthcare_sla_satisfied_share", "Hc"), ("agriculture_sla_satisfied_share", "Ag"),
+                                  ("general_sla_satisfied_share", "Gen"), ("min_class_sla", "Min"), ("mean_class_sla", "Mean")):
+                    if len(part):
+                        put(f"FC{cname}{tag}{m}", float(part[metric].mean()))
+        put("FRuns", int(len(runs[runs["study"].str.startswith("final_")])))
+        ovs = runs[runs["run_id"].str.startswith("ovs_")]
+        put("OvsRuns", int(len(ovs)))
+        act = ovs[ovs["run_id"].str.startswith("ovs_actuation")]
+        for (sc, sched), g in act.groupby(["scenario", "scheduler"]):
+            tag = {"no_slicing": "None", "static_equal": "Stat", "qos_adaptive": "Ad"}[sched]
+            put(f"Ovs{sc.capitalize()}{tag}Hc", float(g["healthcare_sla_satisfied_share"].mean()))
+            put(f"Ovs{sc.capitalize()}{tag}Ag", float(g["agriculture_sla_satisfied_share"].mean()))
+            put(f"Ovs{sc.capitalize()}{tag}Min", float(g["min_class_sla"].mean()))
+        back = ovs[ovs["run_id"].str.startswith("ovs_backend")]
+        put("OvsBackendChanges", int(back["decisions_applied"].sum()))
+        put("OvsBackendFailed", int(back["enforcement_failed"].fillna(0).sum()))
+        res = ovs[ovs["run_id"].str.startswith("ovs_resilience")]
+        for sc, g in res.groupby("scenario"):
+            name = "".join(w.capitalize() for w in sc.split("_"))
+            put(f"Ovs{name}Outage", float(g[["education_outage_s", "general_outage_s"]].max(axis=1).mean()), 2)
+            put(f"Ovs{name}Verified", float(g["recovery_verified"].mean()), 1)
+        put("OvsNoFaultRuns", int(len(act) + len(back)))
+    if not runs.empty:
+        fresh = runs[runs["study"] == "posthoc_rl_online_fresh"]
+        nolearn = runs[runs["study"] == "final_rl_online_nolearn"]
+        if len(fresh) and len(nolearn):
+            from experiments.final_analysis import paired as _paired
+            both = pd.concat([fresh.assign(arm="fresh"), nolearn.assign(arm="nolearn")])
+            st = _paired(both, "arm", "fresh", "nolearn", "mean_class_sla")
+            put("PostFreshN", int(st["n"])); put("PostFreshDiff", st["mean_diff"]); put("PostFreshLo", st["ci_low"])
+            put("PostFreshHi", st["ci_high"]); put("PostFreshP", st["p"], 4)
+            put("PostFreshMeanSla", float(fresh["mean_class_sla"].mean()))
+        learner = runs[runs["study"] == "final_rl_online"]
+        if len(learner):
+            put("OnlineLearnerMeanSla", float(learner["mean_class_sla"].mean()))
+            put("OnlineNolearnMeanSla", float(nolearn["mean_class_sla"].mean()) if len(nolearn) else None)
+    fq = table("forecast_quality.csv")
+    for _, r in fq[fq["workload"] == "all"].iterrows():
+        put(f"Fq{r['predictor'].capitalize()}Mae", float(r["mae_mbps"]), 2)
+        put(f"Fq{r['predictor'].capitalize()}Under", float(r["under_provision_share"]), 2)
+    t = jload("rl_training.json")
+    for name, x in [("Default", t.get("residual"))] + [(k.replace("_x", "X").capitalize(), v)
+                                                       for k, v in (t.get("residual_variants") or {}).items()]:
+        if not x:
+            continue
+        rel = [p["relative_pct"] for p in x["paired_per_seed"].values()]
+        ctx = [p["relative_pct"] for p in x["heldout_paired"]["context"].values()]
+        load = [p["relative_pct"] for p in x["heldout_paired"]["load_1.3x"].values()]
+        put(f"Res{name}RelMin", min(rel), 1); put(f"Res{name}RelMax", max(rel), 1)
+        put(f"Res{name}CtxMin", min(ctx), 1); put(f"Res{name}CtxMax", max(ctx), 1)
+        put(f"Res{name}LoadMin", min(load), 1); put(f"Res{name}LoadMax", max(load), 1)
+
+
 def main():
-    main_study(); ablation(); sensitivity(); resilience(); slicenet(); rl(); false_alarms(); fiveg()
+    main_study(); ablation(); sensitivity(); resilience(); slicenet(); rl(); false_alarms(); fiveg(); qos(); final()
     macros.update(STATIC)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as handle:

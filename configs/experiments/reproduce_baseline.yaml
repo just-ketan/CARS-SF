@@ -1,0 +1,90 @@
+# Reproduction of the frozen baseline (results/evidence/baseline_v4): the four contended-regime
+# studies with identical parameters and seeds (15-19) under new run ids, compared within CIs.
+defaults:
+  duration: 40
+  apply_qos: true
+  ues_per_service: 2
+studies:
+  repro_qos_emergency:
+    description: Emergencies at nominal capacity (uplink near or above 100 %).
+    grid:
+      scenario:
+      - disaster
+      - medical_emergency
+      scheduler:
+      - static_equal
+      - context_unaware
+      - proposed
+      - qos_aware
+      - qos_adaptive
+      - rl_residual
+      seed:
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+  repro_qos_capacity:
+    description: Everyday contexts on a 50 Mb/s rural uplink.
+    grid:
+      scenario:
+      - school
+      - harvest
+      topo_bottleneck_mbps:
+      - 50
+      scheduler:
+      - static_equal
+      - context_unaware
+      - proposed
+      - qos_aware
+      - qos_adaptive
+      - rl_residual
+      seed:
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+  repro_qos_load:
+    description: "1.5\xD7 offered load at 100 Mb/s."
+    grid:
+      scenario:
+      - school
+      - disaster
+      load_scale:
+      - 1.5
+      scheduler:
+      - static_equal
+      - context_unaware
+      - proposed
+      - qos_aware
+      - qos_adaptive
+      - rl_residual
+      seed:
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+  repro_qos_transitions:
+    description: Context changes mid-run (clock-driven school bell, unpredictable
+      alerts).
+    base:
+      duration: 40
+    grid:
+      timeline:
+      - rural_day
+      - medical_night
+      scheduler:
+      - static_equal
+      - context_unaware
+      - proposed
+      - qos_aware
+      - qos_adaptive
+      - rl_residual
+      seed:
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19

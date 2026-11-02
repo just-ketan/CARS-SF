@@ -1,0 +1,89 @@
+{
+  "purpose": "Frozen baseline: final evaluation before the 'close the research objective' mandate",
+  "git_commit": "e455337faa41b8c5512a392f9ccda12f07d150c7",
+  "staged_diff_sha256": "ccb3b3a4fc0d9975cd33fe97b10a6ddf914af8b256bcded15bcdac48daa03ade",
+  "staged_files": 164,
+  "code_fingerprint": "32d91b5d244df3b9",
+  "model_fingerprint": "6559786e0bba064d",
+  "pipeline_code_fingerprint": "32d91b5d244df3b9",
+  "models": {
+    "scheduler/models/rl_agent.pkl": "a2bfb4d0bd50b9702b6bae10162e15054ee267f3b82311f97688f4390ff14aa5",
+    "scheduler/models/ppo_slicing.zip": "4fed8b286fe27642c72a0236dde5f512faea9fd669b309e77544a8135e44c2a8",
+    "scheduler/models/calibration.json": "c0f1fcc1586a61a21723002d527142b0ce177e7168d1521b0c448ce790178e1a",
+    "classification/models/slicenet_mininet.pkl": "711ced29892239763ad1027183c0011c7724964997afeb055aff7bd23e55f7f4",
+    "classification/models/slicenet_cnn.pt": "e4947ed0f8adfd41121fe86a316868cde523fdfc65402cd49c748397ce1c84f7",
+    "classification/models/slicenet_baseline.pkl": "8ebe667e50e8037ee94de259478141f2c2d190912aa3aff72e36a427889a7b0a",
+    "scheduler/models/ppo_residual.zip": "c5cd1442801e1eeffe0d3b02ff2a32d243a8873eecb0527809e2a02d7a3e1a3c"
+  },
+  "evaluation_command": ".venv/bin/python run_pipeline.py --mode full",
+  "seeds": {
+    "main/ablation/sensitivity/resilience/timeline/inloop": "0-4 (main) / 0-2 (others)",
+    "qos_* confirmatory v4": "15-19",
+    "rsnsd": 42,
+    "rl": [
+      0,
+      1,
+      2
+    ]
+  },
+  "link": {
+    "rural_uplink_mbps": 100,
+    "duplex": "full (per-direction HTB)",
+    "backhaul": "20 ms fiber + 50 Mb/s standby backup",
+    "contended_capacity_mbps": 50
+  },
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39"
+  },
+  "reproduction": {
+    "config": "configs/experiments/reproduce_baseline.yaml",
+    "runs": 240,
+    "failed": 0,
+    "per_cell_comparison": "results/evidence/baseline_v4/reproduction_comparison.csv",
+    "summary": "mean |repro-orig| per (condition, scheduler) below the seed-to-seed SD for every metric (e.g. mean class SLA 0.003 vs SD 0.011)",
+    "headline_contrasts": {
+      "healthcare SLA qos_adaptive-proposed": {
+        "orig": [
+          0.0695,
+          0.0002
+        ],
+        "repro": [
+          0.0688,
+          0.0003
+        ]
+      },
+      "mean class SLA qos_adaptive-proposed": {
+        "orig": [
+          -0.0155,
+          0.005
+        ],
+        "repro": [
+          -0.0164,
+          0.006
+        ]
+      },
+      "worst class qos_adaptive-static_equal": {
+        "orig": [
+          0.054,
+          0.0005
+        ],
+        "repro": [
+          0.0495,
+          0.0022
+        ]
+      },
+      "mean class SLA qos_adaptive-rl_residual": {
+        "orig": [
+          0.0022,
+          0.199
+        ],
+        "repro": [
+          0.0032,
+          0.055
+        ]
+      }
+    },
+    "verdict": "reproduced"
+  }
+}

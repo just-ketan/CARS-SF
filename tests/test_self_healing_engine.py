@@ -158,3 +158,26 @@ def test_unverified_recovery_escalates():
         engine.verify({"service_rtt_ms": {"education": None, "general": None}, "timestamp": float(t)}, t)
     assert engine.verifications[-1]["verified"] is False
     assert any("not verified" in e["reason"] for e in engine.escalations)
+
+
+def test_edge_slice_drops_do_not_mask_backhaul_degradation():
+    from self_healing.detector import PredictiveDetector
+
+    detector = PredictiveDetector({"education": 150, "general": 500, "healthcare": 50, "agriculture": 250})
+    tcp_sawtooth = {"slice_qos": {"healthcare": {"drops": 300, "queue_delay_ms": 30.0},
+                                  "education": {"drops": 40, "queue_delay_ms": 3.0}, "general": {"drops": 12}}}
+    assert not detector.local_congestion(tcp_sawtooth)      # drops without a standing core-bound queue
+    core_queue = {"slice_qos": {"education": {"drops": 0, "queue_delay_ms": 25.0}}}
+    assert detector.local_congestion(core_queue)
+
+
+def test_isolated_queue_spikes_do_not_mask_a_backhaul_trend():
+    detector = PredictiveDetector({"education": 150, "general": 500, "healthcare": 50, "agriculture": 250},
+                                  window=6, horizon_ticks=5)
+    predictions = []
+    for t in range(1, 12):
+        rtt = {"healthcare": 16.0, "agriculture": 16.0, "education": 56 + 15 * t, "general": 56 + 15 * t}
+        spike = 40.0 if t in (3, 7) else 0.0           # single-tick TCP bursts on a core-bound slice
+        predictions += detector.observe({"tick": t, "service_rtt_ms": rtt, "link_utilization_pct": 55.0,
+                                         "slice_qos": {"general": {"queue_delay_ms": spike}}})
+    assert any(p["type"] == "predicted_backhaul_degradation" for p in predictions)

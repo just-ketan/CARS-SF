@@ -6,6 +6,18 @@ and the self-healing constraints then compute the allocation, which the QoS
 enforcer applies. As a result, no learned policy can break a guaranteed floor or
 oversubscribe the link.
 
+## Two generations of learned policy
+
+| | Priority policies (first design) | Residual policy (current) |
+|---|---|---|
+| Acts on | Priority multipliers fed to the demand-aware allocator | Per-slice rates of the QoS-aware, direction-aware allocation (±30 %) |
+| State | 21 floats: context, demand, backlog, allocation, on-backup | 25 floats (state v2): adds measured loss and queueing delay relative to each SLA |
+| Simulator | `SequentialSlicingEnv`: one pipe, no bursts, no AQM | `DirectionalSlicingEnv`: both directions, 100 ms bursts, HTB borrowing, CoDel tolerance, TCP back-off; calibrated against live loss |
+| Schedulers | `rl_cem`, `rl_ppo`, `rl_online` | `rl_residual`, `rl_residual_online` |
+| Result | Simulation +3–4 % (after module A's reward change); live: marginal PPO edge, not robust | Simulation +0.3–0.5 %; live = heuristic |
+
+The priority-policy sections below are kept because those schedulers remain in the study.
+
 ## Modes
 
 | Mode | Environment | What learns | Code |
@@ -118,3 +130,72 @@ are in `results/rl_training.json` and `docs/thesis/results.md`.
 | `tests/test_reward.py` | Every reward term and edge case; the live snapshot mapping |
 | `tests/test_transitions.py` | Transitions chain (next_obs of t = obs of t+1); interval rewards; failed enforcement never learned; online CEM converges toward a better action and resumes from its checkpoint |
 | `tests/integration/test_pipeline.py::test_coupled_rl_loop_on_live_network` | On a real emulated network: ≥ 5 consecutive transitions, actions in bounds, every changed allocation read back from the kernel with no mismatch, rewards recomputed from `feedback.csv`, and online-CEM updates from exactly the learnable live transitions |
+
+
+## Residual policy (`scheduler/residual.py`, `scheduler/env_dir.py`)
+
+**Why.** Live, priority multipliers barely change the allocation: HTB borrowing redistributes idle capacity anyway, and
+PPO learned near-identity multipliers. The measured failure was loss in the emergency contexts, which the controller
+could not even see before module A. The residual policy acts on rates directly, starting from a strong heuristic:
+`QoSAwareAllocator` allocates demands first, degrades in explicit priority order, and adds burst headroom.
+
+**State v2 (25 floats).**
+
+| Index | Signal |
+|---|---|
+| 0–7 | Context one-hot |
+| 8–11 | Demand in the slice's dominant direction / C |
+| 12–15 | Allocation in that direction / C |
+| 16–19 | Interval loss / SLA loss target, clipped at 5, scaled to [0, 1] |
+| 20–23 | Interval queueing delay / SLA delay, clipped at 2, scaled to [0, 1] |
+| 24 | On backup |
+
+Loss and queueing delay come from the bottleneck's HTB and fq_codel leaf counters (`slice_qos`), averaged since the
+previous decision.
+
+**Action.**
+
+* a ∈ [−1, 1]⁴. Each slice's rate in its dominant direction is scaled by (1 + 0.3 aₛ).
+* Each direction is then renormalised to C. A shortfall is taken from slices that did not ask for more, above their
+  floors; freed capacity goes to slices that asked for more.
+* Floors and Σ ≤ C always hold, and a = 0 is exactly the heuristic.
+
+The residual replaces the hand-made loss→headroom loop, so `rl_residual` (no loop) vs `qos_adaptive` (with loop) is
+a direct test of learned vs designed adaptation.
+
+**Simulator.** Each 5 s step is fifty 100 ms sub-steps. In each sub-step:
+
+* the offered rate is the mean demand × a mean-preserving lognormal factor (σₛ);
+* each slice is served up to its rate;
+* spare capacity is lent in HTB priority order, scaled by a borrowing efficiency β (kernel HTB at ~100 Mb/s does not
+  lend instantly);
+* a queue beyond rate × (CoDel target + interval) is dropped;
+* TCP slices back off instead of dropping.
+
+The base allocation is planned on the previous step's measured offered load, as the live estimator does. σ and β
+were fitted by least squares to per-run mean loss of 720 live ticks (`python -m scheduler.calibrate_bursts`):
+in the final pipeline run σ_healthcare = 0.05, σ_agriculture = 0.15 and β = 0.75, with per-run RMSE 1.7 and
+2.6 percentage points (`scheduler/models/burst_calibration.json`, refitted by every pipeline run from the
+`calibration_*` studies). Failures (on_backup) are not modelled.
+
+**Training.**
+
+* PPO, 300k steps × seeds 0, 1, 2, γ = 0.9.
+* Validation (seeds 2000…) every 25k steps, keeping the best checkpoint.
+* The deployed model is the seed with the best validation score.
+* Test: 30 paired episodes on seeds 1000…, against a = 0.
+
+Simulation result (final run): +0.3 to +0.5 % reward, significant for 2 of 3 seeds; SLA violations per episode
+15.5 → 13.3–14.5. **On the network it equals its heuristic** (mean class SLA Δ 0.002, p = 0.20; H12 not supported).
+`results/rl_training.json` (`residual`), `scheduler/models/ppo_residual_runs/seed*/learning_curve.csv`.
+
+**Live.**
+
+* `rl_residual` queries the deployed PPO at each decision.
+* `rl_residual_online` runs CEM over the residual action, starting at a = 0. It samples each decision and learns only
+  from kernel-verified transitions; its checkpoint (`cem_residual_online.json`) carries across runs.
+* Both log state v2 and the residual action in `rl_transitions.jsonl`.
+
+**Safety.** The residual cannot take a slice below the allocator's *protected* minimum (floor or anti-starvation
+guard). Evaluation v3 showed that, without this bound, the policy learned to starve best-effort TCP, which the
+simulator models as backing off cheaply; live, that slice's SLA collapsed to 0.04.

@@ -96,6 +96,7 @@ class RuralNetworkTopology:
             autoSetMacs=True,
             build=False,
         )
+        self.switch_type = getattr(switch_cls, "__name__", str(switch_cls))
         self.ues_per_service = max(1, min(int(ues_per_service), 9))
         self.mixed_ue = mixed_ue
         if bottleneck_mbps:

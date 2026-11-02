@@ -1,0 +1,11 @@
+# POST-HOC robustness check (not part of the predeclared plan): the predeclared
+# final_rl_online study ran from a checkpoint that already held ~500 samples per context
+# from 40 earlier live runs (evaluations v1-v4, older code). This replicates it from an
+# EMPTY checkpoint (CARS_SF_CEM_ONLINE_PATH points to a new file), same conditions and seeds.
+defaults: {duration: 60, apply_qos: true, ues_per_service: 2}
+studies:
+  posthoc_rl_online_fresh:
+    base: {scheduler: rl_residual_online}
+    grid:
+      scenario: [disaster, medical_emergency]
+      seed: [20, 21, 22, 23, 24]

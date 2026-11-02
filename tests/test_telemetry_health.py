@@ -30,3 +30,20 @@ def test_estimator_skips_snapshots_without_counters():
               "telemetry_health": {"services_without_counters": ["healthcare"]}}
     assert est.observe(broken, {}) == {}
     assert est.estimate()["healthcare"] == before
+
+
+def test_slice_qos_counts_leaf_qdisc_drops_per_interval():
+    from telemetry.collector import TelemetryCollector
+
+    collector = TelemetryCollector.__new__(TelemetryCollector)
+    collector.class_ids = {"healthcare": "1:10"}
+    collector.snapshots = [{
+        "tc_class_stats": {"healthcare": {"sent_packets": 1000, "dropped": 10, "sent_bytes": 1_000_000}},
+        "tc_downlink_class_stats": {},
+    }]
+    up = {"healthcare": {"sent_packets": 1900, "dropped": 110, "sent_bytes": 2_250_000,
+                         "backlog_bytes": 12_500, "leaf_backlog_bytes": 12_500}}
+    qos = collector._slice_qos(up, {}, {"healthcare": 9.0}, {"healthcare": 1.0}, 1.0)["healthcare"]
+    assert qos["drops"] == 100 and qos["loss_pct"] == 10.0            # 100 / (900 + 100)
+    assert qos["queue_delay_ms"] == 10.0                              # 100 kbit backlog at 10 Mb/s
+    assert qos["delivered_mbps"] == 10.0

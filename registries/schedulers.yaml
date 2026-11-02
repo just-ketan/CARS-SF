@@ -2,17 +2,38 @@
 # A scheduler is a combination of independently replaceable components:
 #   allocator   slicing/allocators.py      demand_aware | proportional | static_equal | tgpp | none
 #   policy      Priority Engine policy     none (rule-based) | cem | ppo | cem_online (learns from live transitions)
+#               residual policies (correct the QoS-aware allocation): ppo_residual | cem_residual_online
 #   class_mode  QoS classes                service | tgpp | none
 #   adaptive    re-plan every control interval and on context/healing changes
 #   healing     apply self-healing allocation constraints
 #   context_aware  use the operating context's priority matrix (default true); false keeps
 #                  the "normal" matrix throughout: service-aware but context-unaware slicing
+#   directional    allocate each direction of the full-duplex link separately (default false)
+#   qos_loop       adapt each slice's burst headroom from its measured loss vs SLA (qos_aware allocator)
+#   queue_profile  default (fq_codel defaults) | sla (per-slice CoDel target from slices.yaml)
+#   reactive       re-plan on the next tick when a slice breaches its loss SLA or half its delay budget
+#   predictive     extrapolate demand ramps, react to rising queues, pre-provision clock-driven context changes
+#   context_blind  the controller sees no context at all (no context changes, priorities or design priors)
+#   oracle_forecast  UPPER BOUND ONLY: pre-provisions from the scripted timeline (alerts, load events)
+#   safe_hybrid    a learned residual is used only if the safety gate accepts it (slicing/safety.py)
 
 schedulers:
   proposed:      {allocator: demand_aware, policy: none, class_mode: service, adaptive: true,  healing: true}
   rl_cem:        {allocator: demand_aware, policy: cem,  class_mode: service, adaptive: true,  healing: true}
   rl_ppo:        {allocator: demand_aware, policy: ppo,  class_mode: service, adaptive: true,  healing: true}
   rl_online:     {allocator: demand_aware, policy: cem_online, class_mode: service, adaptive: true, healing: true}
+  qos_aware:     {allocator: qos_aware, policy: none, class_mode: service, adaptive: true, healing: true, directional: true, qos_loop: true, queue_profile: sla}
+  qos_adaptive:  {allocator: qos_aware, policy: none, class_mode: service, adaptive: true, healing: true, directional: true, qos_loop: true, queue_profile: sla, reactive: true, predictive: true}
+  rl_residual:   {allocator: qos_aware, policy: ppo_residual, class_mode: service, adaptive: true, healing: true, directional: true, queue_profile: sla, reactive: true, predictive: true}
+  rl_residual_online: {allocator: qos_aware, policy: cem_residual_online, class_mode: service, adaptive: true, healing: true, directional: true, queue_profile: sla, reactive: true, predictive: true}
+  qos_blind:     {allocator: qos_aware, policy: none, class_mode: service, adaptive: true, healing: true, directional: true, qos_loop: true, queue_profile: sla, context_blind: true}
+  qos_reactive:  {allocator: qos_aware, policy: none, class_mode: service, adaptive: true, healing: true, directional: true, qos_loop: true, queue_profile: sla, reactive: true}
+  qos_oracle:    {allocator: qos_aware, policy: none, class_mode: service, adaptive: true, healing: true, directional: true, qos_loop: true, queue_profile: sla, reactive: true, predictive: true, oracle_forecast: true}
+  rl_residual_safe: {allocator: qos_aware, policy: ppo_residual, class_mode: service, adaptive: true, healing: true, directional: true, queue_profile: sla, reactive: true, predictive: true, safe_hybrid: true}
+  rl_residual_online_nolearn: {allocator: qos_aware, policy: cem_residual_online_frozen, class_mode: service, adaptive: true, healing: true, directional: true, queue_profile: sla, reactive: true, predictive: true}
+  # The closed loop: rules run the network; a persistent QoS violation hands the correction to
+  # the learned policy, behind the safety gate, until QoS is restored.
+  closed_loop: {allocator: qos_aware, policy: closed_loop, class_mode: service, adaptive: true, healing: true, directional: true, qos_loop: true, queue_profile: sla, reactive: true, predictive: true, safe_hybrid: true, triggered: true}
   context_unaware: {allocator: demand_aware, policy: none, class_mode: service, adaptive: true, healing: true, context_aware: false}
   no_surplus:    {allocator: demand_aware_no_surplus, policy: none, class_mode: service, adaptive: true, healing: true}
   proportional:  {allocator: proportional, policy: none, class_mode: service, adaptive: true,  healing: false}

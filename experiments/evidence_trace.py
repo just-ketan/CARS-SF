@@ -78,20 +78,23 @@ def synthetic(steps: int = 6, seed: int = 7) -> str:
     model = PPO.load(PPO_MODEL_PATH, device="cpu")
     env = SequentialSlicingEnv()
     obs, _ = env.reset(seed=1000, options={"context": "disaster"})
+    k = len(env.contexts)
     lines += ["## 3. RL loop in the simulator (deployed PPO, test seed 1000, context disaster)", "",
-              f"Observation layout: 8 context one-hot · 4 demand/C · 4 backlog/(C·0.1 s) · 4 allocation/C · on_backup "
+              f"Observation layout: {len(env.contexts)} context one-hot · 4 demand/C · 4 backlog/(C·0.1 s) · 4 allocation/C · on_backup "
               f"({env.observation_space.shape[0]} floats). Action: log10 priority multipliers in [−1, 1].", ""]
     for t in range(steps):
         action, _ = model.predict(obs, deterministic=True)
         next_obs, reward, _, done, info = env.step(action)
         lines += [f"### step {t}",
-                  f"* s_t demand/C {_r(obs[8:12])}, backlog {_r(obs[12:16])}, alloc/C {_r(obs[16:20])}, on_backup {obs[20]:.0f}",
+                  f"* s_t demand/C {_r(obs[k:k + 4])}, backlog {_r(obs[k + 4:k + 8])}, alloc/C {_r(obs[k + 8:k + 12])}, "
+                  f"on_backup {obs[k + 12]:.0f}",
                   f"* a_t {_r(action)} → multipliers {_r([10 ** float(np.clip(a, -1, 1)) for a in action], 2)}",
                   f"* allocation (Mb/s) {json.dumps({k: round(v, 1) for k, v in info['allocation'].items()})}",
                   f"* delay (ms) {json.dumps({k: float(v) for k, v in info['delay_ms'].items()})}, "
                   f"satisfaction {json.dumps(info['satisfaction'])}",
                   f"* r_t = {reward:.3f} = " + " + ".join(f"{k} {v:+.3f}" for k, v in info["reward_terms"].items()),
-                  f"* s_t+1 demand/C {_r(next_obs[8:12])}, backlog {_r(next_obs[12:16])}, alloc/C {_r(next_obs[16:20])}",
+                  f"* s_t+1 demand/C {_r(next_obs[k:k + 4])}, backlog {_r(next_obs[k + 4:k + 8])}, "
+                  f"alloc/C {_r(next_obs[k + 8:k + 12])}",
                   ""]
         obs = next_obs
         if done:
@@ -112,7 +115,7 @@ def live(run_dir: Path) -> str:
              f"Transitions: {json.dumps(summary.get('rl_transitions'))}.",
              f"Policy learning: {json.dumps({k: v for k, v in (summary.get('policy_learning') or {}).items() if k != 'per_context'})}.",
              ""]
-    lines += ["| decision tick → next | reason | action (log10 mult.) | allocation Mb/s (h/e/a/g) | kernel read-back | "
+    lines += ["| decision tick → next | reason | action (priority: log10 multipliers; residual: rate corrections) | allocation Mb/s (h/e/a/g) | kernel read-back | "
               "measured Mb/s per tick (h/e/a/g) | per-tick reward | transition reward |",
               "|---|---|---|---|---|---|---|---|"]
     for r in records:

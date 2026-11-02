@@ -2,11 +2,12 @@
 
 \begin{warnbox}{The RL result in one sentence}
 Learned priority policies (CEM and PPO) were trained, integrated into the live loop, and evaluated against the
-rule-based demand-aware policy. \textbf{On the network they give no significant gain}: in emulation, PPO vs proposed
-$\Delta U=\NPpoDelta$ ($p=\NPpoP$). In the calibrated simulator, reward per step is \NSeqRuleReward{} (rule) vs
-\NSeqCemReward{} (CEM) vs \NSeqPpoReward{} (PPO). That gain is statistically significant on paired test seeds but
-tiny (+0.5\,\% and +0.3\,\%), and comes with slightly more SLA violations per episode
-(\NSeqRuleViol{} vs \NSeqCemViol{} vs \NSeqPpoViol). Every live decision is logged as an RL transition, and an online-CEM
+rule-based demand-aware policy. \textbf{On the network they give no robust gain}: in the final run PPO is marginally ahead
+of proposed (proposed $-$ PPO $=\NPpoDelta$ in $U$, $p=\NPpoP$; not Bonferroni-significant, and not reproduced in three earlier full
+runs). In the calibrated simulator, reward per step is \NSeqRuleReward{} (rule) vs
+\NSeqCemReward{} (CEM) vs \NSeqPpoReward{} (PPO): +\NSeqCemRel\,\% and +\NSeqPpoRel\,\% on paired test seeds
+($p=\NSeqCemRelP$, $\NSeqPpoRelP$), with SLA violations per episode \NSeqRuleViol{} vs \NSeqCemViol{} vs
+\NSeqPpoViol. That simulated gain does not carry over to the network. Every live decision is logged as an RL transition, and an online-CEM
 variant learns from verified live transitions, but it shows no measurable trend over 10 runs. Present RL as an
 evaluated alternative with a negative live result, not as a contribution.
 \end{warnbox}

@@ -300,3 +300,48 @@ Core-switch failure cannot be bypassed: healing localises the fault but cannot r
 \caption{Load sensitivity (school, 3 seeds): the proposed scheduler helps only once demand exceeds capacity.}
 \label{fig:load}
 \end{figure}}
+
+% ------------------------------------------------------------ QoS-targeted control loop (modules A–E)
+\newcommand{\FigQosLoop}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}[font=\scriptsize,node distance=3.5mm and 4mm]
+  \node[net] (net) {rural uplink\\(up 100 / down 100)};
+  \node[live,right=of net] (tel) {A: slice QoS\\loss · queue · rate\\(HTB + fq\_codel leaf)};
+  \node[live,right=of tel] (est) {B: per-direction\\demand (interval mean,\\TCP-only probing)};
+  \node[live,below=of est] (alloc) {B: demands first,\\explicit degradation,\\burst headroom};
+  \node[live,left=of alloc] (rl) {D: residual RL\\$\pm30\,\%$ per slice\\(state v2)};
+  \node[live,left=of rl] (enf) {per-direction HTB\\+ SLA CoDel profile\\read-back verified};
+  \node[heal,below=of alloc] (react) {C: SLA-risk re-plan (1\,s), ramp \& queue\\prediction, clock-driven pre-provisioning};
+  \node[off,below=of enf] (sn) {E: SliceNet on every flow\\(1\,s decision, confirmed reclass.)};
+  \draw[arr] (net)--(tel); \draw[arr] (tel)--(est); \draw[arr] (est)--(alloc);
+  \draw[arr] (alloc)--(rl); \draw[arr] (rl)--(enf); \draw[arr] (enf)--(net);
+  \draw[darr] (tel.south) |- node[lbl,pos=0.25,left]{loss $>$ SLA: headroom} (alloc.west);
+  \draw[darr] (react)--(alloc); \draw[darr] (sn)--(enf);
+\end{tikzpicture}
+\caption{QoS-targeted control added after the audit (\capcode{core/controller.py},
+\capcode{slicing/allocators.py}, \capcode{scheduler/residual.py}, \capcode{classification/online.py}).}
+\label{fig:qosloop}
+\end{figure}}
+
+% ------------------------------------------------------------ healthcare / agriculture SLA by condition (module F)
+\newcommand{\FigQosHealthcare}{%
+\begin{figure}[!htbp]\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=3.6pt,width=0.98\linewidth,height=4.6cm,ymin=0,ymax=1.08,
+  symbolic x coords={dis,med,dis15,harv50,sch50,sch15,rural,night},xtick=data,
+  xticklabels={disaster,med.\ emerg.,disaster $1.5\times$,harvest 50,school 50,school $1.5\times$,rural day,med.\ night},
+  x tick label style={font=\tiny,rotate=20,anchor=north east},
+  ylabel={SLA-met share},ylabel style={font=\scriptsize},y tick label style={font=\scriptsize},
+  legend style={font=\tiny,draw=none,at={(0.5,1.02)},anchor=south,legend columns=4},
+  axis lines*=left,ymajorgrids,grid style={rule},enlarge x limits=0.07]
+ \addplot[fill=ink2!35,draw=none] coordinates {(dis,\NQCondDisasterProposedHcSla)(med,\NQCondMedicalEmergencyProposedHcSla)(dis15,\NQCondDisasterOnepFivexProposedHcSla)(harv50,\NQCondHarvestFiveZeromProposedHcSla)(sch50,\NQCondSchoolFiveZeromProposedHcSla)(sch15,\NQCondSchoolOnepFivexProposedHcSla)(rural,\NQCondRuralDayProposedHcSla)(night,\NQCondMedicalNightProposedHcSla)};
+ \addplot[fill=cA,draw=none] coordinates {(dis,\NQCondDisasterQosAdaptiveHcSla)(med,\NQCondMedicalEmergencyQosAdaptiveHcSla)(dis15,\NQCondDisasterOnepFivexQosAdaptiveHcSla)(harv50,\NQCondHarvestFiveZeromQosAdaptiveHcSla)(sch50,\NQCondSchoolFiveZeromQosAdaptiveHcSla)(sch15,\NQCondSchoolOnepFivexQosAdaptiveHcSla)(rural,\NQCondRuralDayQosAdaptiveHcSla)(night,\NQCondMedicalNightQosAdaptiveHcSla)};
+ \addplot[fill=ink2!15,draw=ink2!60,thin] coordinates {(dis,\NQCondDisasterProposedAgSla)(med,\NQCondMedicalEmergencyProposedAgSla)(dis15,\NQCondDisasterOnepFivexProposedAgSla)(harv50,\NQCondHarvestFiveZeromProposedAgSla)(sch50,\NQCondSchoolFiveZeromProposedAgSla)(sch15,\NQCondSchoolOnepFivexProposedAgSla)(rural,\NQCondRuralDayProposedAgSla)(night,\NQCondMedicalNightProposedAgSla)};
+ \addplot[fill=cC!60,draw=none] coordinates {(dis,\NQCondDisasterQosAdaptiveAgSla)(med,\NQCondMedicalEmergencyQosAdaptiveAgSla)(dis15,\NQCondDisasterOnepFivexQosAdaptiveAgSla)(harv50,\NQCondHarvestFiveZeromQosAdaptiveAgSla)(sch50,\NQCondSchoolFiveZeromQosAdaptiveAgSla)(sch15,\NQCondSchoolOnepFivexQosAdaptiveAgSla)(rural,\NQCondRuralDayQosAdaptiveAgSla)(night,\NQCondMedicalNightQosAdaptiveAgSla)};
+ \legend{healthcare: proposed,healthcare: QoS-targeted,agriculture: proposed,agriculture: QoS-targeted}
+\end{axis}
+\end{tikzpicture}
+\caption{Healthcare gains where it competes for the uplink; agriculture pays in the emergencies (declared priority) and
+gains on the 50\,Mb/s harvest uplink. Confirmatory run v4, mean of 5 seeds (\capcode{results/tables/qos_summary.csv}).}
+\label{fig:qoshc}
+\end{figure}}

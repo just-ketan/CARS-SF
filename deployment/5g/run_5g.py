@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 """
-CARS-SF on a real 5G core (Open5GS + UERANSIM, see docker-compose.yml).
+CARS-SF closed loop on a real 5G core (Open5GS + UERANSIM, see docker-compose.yml).
 
-Each service is a 5G network slice (S-NSSAI) with its own DNN and UE address
-pool; the CARS-SF slice controller enforces its allocation on the UPF (HTB +
-fq_codel on N6 egress for uplink and on ogstun for downlink, classified by
-slice address pool). Traffic, captures, packet matching and KPIs reuse the
-Mininet pipeline unchanged.
+One run executes the whole control loop, without manual intervention, on the live user
+plane; the controller, SliceNet, RL and self-healing are the same classes the emulated
+testbed uses (stack5g.py adapts them to the containers):
+
+    monitor      per-class counters at both enforcement points, per-slice probes
+    classify     SliceNet on the UPF's flow captures (classification=slicenet_all)
+    evaluate     QoSViolationMonitor: thresholds per class and scenario, transient vs persistent
+    act          rules plan per direction; a persistent violation hands the correction to RL,
+                 behind the safety gate; the plan is validated before actuation
+    enforce      HTB rates at the cell site (uplink) and the UPF (downlink), read back
+    observe      the next measurements score the adaptation and feed the reward
+    learn        online update from verified transitions (scheduler=closed_loop)
 
     docker compose -f deployment/5g/docker-compose.yml up -d
-    python deployment/5g/run_5g.py --scenario disaster --duration 40 --mode both
+    python deployment/5g/run_5g.py --scenario disaster --scheduler closed_loop --classification slicenet_all
+
+Radio resources are not scheduled: UERANSIM simulates the radio link, so slices are
+enforced on the transport path and the UPF.
 """
 
 from __future__ import annotations
@@ -17,186 +27,198 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, REPO_ROOT)
+import pandas as pd
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from analysis.metrics import jain_fairness, slice_kpis, weighted_utility  # noqa: E402
-from core.config import RESULTS_DIR, load_applications, load_scenarios, load_yaml  # noqa: E402
-from core.controller import SliceController  # noqa: E402
+from classification.online import OnlineSliceClassifier  # noqa: E402
+from context.engine import ContextInferenceEngine  # noqa: E402
+from core.config import GENERATED_DIR, RESULTS_DIR, load_applications, load_scenarios  # noqa: E402
+from core.controller import SliceController, scheduler_spec  # noqa: E402
+from core.orchestrator import ExperimentOrchestrator  # noqa: E402
+from core.provenance import code_fingerprint, model_fingerprint  # noqa: E402
 from features.extractor import FlowFeatureExtractor  # noqa: E402
 from features.packet_capture import CapturePoint  # noqa: E402
+from self_healing.detector import FailureDetector, PredictiveDetector  # noqa: E402
+from self_healing.engine import SelfHealingEngine, ceilings_for  # noqa: E402
+from stack5g import (BACKUP_SHARE, CORE_DN_IP, EDGE_DN_IP, SERVICES, UE_IP, FaultInjector5G, LinkWatcher5G, Net5G,  # noqa: E402
+                     Telemetry5G, Topology5G, Transport5GQoS, ensure_stack)
 from traffic.models import mean_rate_mbps, scaled  # noqa: E402
 
-COMPOSE = ["docker", "compose", "-f", os.path.join(os.path.dirname(os.path.abspath(__file__)), "docker-compose.yml")]
-SERVICES = ("healthcare", "education", "agriculture", "general")
-UE_IP = {"healthcare": "10.60.0.2", "education": "10.61.0.2", "agriculture": "10.62.0.2", "general": "10.63.0.2"}
-SLICE_NET = {s: ip.rsplit(".", 1)[0] + ".0/24" for s, ip in UE_IP.items()}
-DN_IP, UPF_N6_IP = "10.81.0.100", "10.81.0.10"
-CORE_PORT_OFFSET = 100   # core-cloud apps reuse port numbers; one DN hosts everything here
 OUT_DIR = RESULTS_DIR / "5g"
+WORK_DIR = GENERATED_DIR / "5g_run"
+SERVER = {"srv_edge": ("dn", EDGE_DN_IP), "srv_core": ("dn_core", CORE_DN_IP)}
+STREAMS_PER_APP, STREAM_PORT_STEP = 2, 1000
 
 
-def sh(service: str, command: str, detach: bool = False, check: bool = False) -> str:
-    args = COMPOSE + ["exec", "-T"] + (["-d"] if detach else []) + [service, "sh", "-c", command]
-    proc = subprocess.run(args, capture_output=True, text=True, check=check)
-    return proc.stdout
+class Traffic5G:
+    """Application plans for one scenario; ``get_spawn_metadata`` is SliceNet's scoring truth."""
+
+    def __init__(self, scenario: dict, load_scale: float, seed: int):
+        apps = load_applications()
+        nominal = {s: sum(mean_rate_mbps(a["model"], a.get("params", {})) for a in apps if a["service_class"] == s)
+                   for s in SERVICES}
+        self.plans = []
+        for i, app in enumerate(apps):
+            s = app["service_class"]
+            server, server_ip = SERVER[app["server"]]
+            to_ue = app.get("direction", "up") == "down" and (app["protocol"] == "udp" or app["model"] == "bulk_tcp")
+            # As on the emulated testbed (2 UEs per service), each application is two independent
+            # streams: a slice's load is multiplexed, not one stream at twice the rate.
+            factor = scenario["demand_mbps"][s] * load_scale / nominal[s] / STREAMS_PER_APP
+            params, instances = scaled(app["model"], app.get("params", {}), factor)
+            for stream in range(STREAMS_PER_APP):
+                self.plans.append({
+                    "application_id": app["application_id"], "service_class": s, "slice_type": app["slice_type"],
+                    "priority": app["priority"], "host": f"ue_{s}", "host_ip": UE_IP[s], "server": server,
+                    "server_ip": server_ip, "port": app["port"] + STREAM_PORT_STEP * stream, "protocol": app["protocol"],
+                    "direction": app.get("direction", "up"), "model": app["model"], "params": params,
+                    "instances": instances, "dscp": app.get("dscp", 0), "sla": app.get("sla", {}),
+                    "latency_requirement_ms": app.get("latency_requirement_ms", 100),
+                    "seed": seed * 1000 + i * 10 + stream,
+                    "sink": f"tg_{s}" if to_ue else server, "sender": server if to_ue else f"tg_{s}",
+                    "destination": UE_IP[s] if to_ue else server_ip,
+                })
+
+    def get_spawn_metadata(self) -> list[dict]:
+        return list(self.plans)
+
+    def start(self, net: Net5G, duration: int):
+        receivers: dict[str, dict[str, set]] = {}
+        for p in self.plans:
+            receivers.setdefault(p["sink"], {"udp": set(), "tcp": set()})[p["protocol"]].add(p["port"])
+        for target, ports in receivers.items():
+            flags = " ".join(f"--{proto} {','.join(map(str, sorted(ports[proto])))}"
+                             for proto in ("udp", "tcp") if ports[proto])
+            net.get(target).cmd(f"cd /cars-sf && python -m traffic.sink {flags} > /tmp/sink.log 2>&1 &")
+        time.sleep(1)
+        for p in self.plans:
+            if p["instances"]:
+                params = json.dumps(p["params"]).replace('"', '\\"')
+                net.get(p["sender"]).cmd(
+                    f"cd /cars-sf && python -m traffic.generator --proto {p['protocol']} --dst {p['destination']} "
+                    f"--port {p['port']} --model {p['model']} --params \"{params}\" --duration {duration + 15} "
+                    f"--dscp {p['dscp']} --seed {p['seed']} --instances {p['instances']} >> /tmp/gen.log 2>&1 &")
+
+    def stop(self, net: Net5G):
+        for target in {p["sink"] for p in self.plans} | {p["sender"] for p in self.plans}:
+            net.get(target).cmd("pkill -f '[t]raffic.generator'; pkill -f '[t]raffic.sink'")
 
 
-class UpfQoS:
-    """CARS-SF QoS backend for the UPF: same interface as slicing.qos_enforcer."""
-
-    def __init__(self, capacity: float, enforce: bool):
-        self.capacity, self.enforce = capacity, enforce
-        slices = load_yaml("slices.yaml")["service_slices"]
-        self.class_ids = {s: slices[s]["class_id"] for s in SERVICES}
-        self.prio = {s: slices[s]["htb_prio"] for s in SERVICES}
-        out = sh("core", "ip -o -4 addr show")
-        self.n6 = re.search(rf"\d+: (\S+)\s+inet {re.escape(UPF_N6_IP)}/", out).group(1)
-        self.dirs = (("uplink", self.n6, "src"), ("downlink", "ogstun", "dst"))
-        self.applied: list[dict] = []
-
-    def setup(self):
-        cap = int(self.capacity)
-        cmds = []
-        for _, iface, field in self.dirs:
-            cmds.append(f"tc qdisc del dev {iface} root 2>/dev/null")
-            if not self.enforce:   # one FIFO shaped to capacity: no slicing
-                cmds += [f"tc qdisc add dev {iface} root handle 1: htb default 1 r2q 100",
-                         f"tc class add dev {iface} parent 1: classid 1:1 htb rate {cap}mbit ceil {cap}mbit quantum 1514",
-                         f"tc qdisc add dev {iface} parent 1:1 handle 2: pfifo limit 1000"]
-                continue
-            cmds += [f"tc qdisc add dev {iface} root handle 1: htb default 40 r2q 100",
-                     f"tc class add dev {iface} parent 1: classid 1:1 htb rate {cap}mbit ceil {cap}mbit quantum 1514"]
-            for s in SERVICES:
-                cid = self.class_ids[s]
-                cmds += [f"tc class add dev {iface} parent 1:1 classid {cid} htb rate 1mbit ceil {cap}mbit prio {self.prio[s]} quantum 1514",
-                         f"tc qdisc add dev {iface} parent {cid} handle {cid.split(':')[1]}: fq_codel",
-                         f"tc filter add dev {iface} protocol ip parent 1: prio 10 u32 match ip {field} {SLICE_NET[s]} flowid {cid}"]
-        sh("core", " ; ".join(cmds))
-
-    def apply_allocation(self, allocation: dict[str, float], ceilings: dict | None = None):
-        if not self.enforce:
-            return
-        self.applied.append(dict(allocation))
-        cap = int(self.capacity)
-        cmds = [
-            f"tc class change dev {iface} parent 1:1 classid {self.class_ids[s]} htb "
-            f"rate {max(int(round(bw)), 1)}mbit ceil {cap}mbit quantum 1514"
-            for _, iface, _ in self.dirs for s, bw in allocation.items() if s in self.class_ids
-        ]
-        sh("core", " ; ".join(cmds))
-
-    def class_stats(self, iface: str) -> dict:
-        out = sh("core", f"tc -s class show dev {iface}")
-        stats = {}
-        for m in re.finditer(r"class htb (\d+:\d+).*?Sent (\d+) bytes (\d+) pkt \(dropped (\d+).*?backlog (\d+)b", out, re.S):
-            for s, cid in self.class_ids.items():
-                if cid == m.group(1):
-                    stats[s] = {"sent_bytes": int(m.group(2)), "sent_packets": int(m.group(3)),
-                                "dropped": int(m.group(4)), "backlog_bytes": int(m.group(5))}
-        return stats
-
-
-def plan_traffic(scenario: dict, scale: float, duration: float, seed: int) -> list[dict]:
-    apps = load_applications()
-    nominal = {s: sum(mean_rate_mbps(a["model"], a.get("params", {})) for a in apps if a["service_class"] == s)
-               for s in SERVICES}
-    plans = []
-    for i, app in enumerate(apps):
-        s = app["service_class"]
-        factor = scenario["demand_mbps"][s] * scale / nominal[s]
-        params, instances = scaled(app["model"], app.get("params", {}), factor)
-        port = app["port"] + (CORE_PORT_OFFSET if app["server"] == "srv_core" else 0)
-        plans.append({
-            "application_id": app["application_id"], "service_class": s, "slice_type": app["slice_type"],
-            "priority": app["priority"], "host": f"ue_{s}", "host_ip": UE_IP[s], "server": "dn",
-            "server_ip": DN_IP, "port": port, "protocol": app["protocol"],
-            "direction": app.get("direction", "up"), "model": app["model"], "params": params,
-            "instances": instances, "dscp": app.get("dscp", 0), "sla": app.get("sla", {}),
-            "latency_requirement_ms": app.get("latency_requirement_ms", 100), "seed": seed * 1000 + i,
-        })
-    return plans
-
-
-def run_mode(scenario_id: str, duration: int, capacity: float, enforce: bool, seed: int) -> dict:
+def run_loop(scenario_id: str, scheduler: str, classification: str, duration: int, capacity: float, seed: int,
+             run_prefix: str = "5g", self_healing: bool = True) -> dict:
+    ensure_stack()
     scenario = {s["id"]: s for s in load_scenarios()}[scenario_id]
-    scale = capacity / 100.0
-    demand = {s: v * scale for s, v in scenario["demand_mbps"].items()}
-    plans = plan_traffic(scenario, scale, duration + 15, seed)
-    run_id = f"5g__{scenario_id}__{'cars_sf' if enforce else 'no_slicing'}__s{seed}"
+    run_id = f"{run_prefix}__{scenario_id}__{scheduler}__{classification}__s{seed}"
+    run_dir = WORK_DIR / run_id
+    shutil.rmtree(run_dir, ignore_errors=True)
+    run_dir.mkdir(parents=True)
+    os.chmod(run_dir, 0o777)
 
-    for s in SERVICES:   # user-plane routes towards the data network through the PDU session
-        sh(f"ue_{s}", "ip route replace 10.81.0.0/24 dev uesimtun0")
-    sh("dn", "ip route replace 10.60.0.0/14 via " + UPF_N6_IP)
+    net = Net5G()
+    topo = Topology5G(net, capacity)
+    topo.reset()
+    spec = scheduler_spec(scheduler)
+    # Scenario demands are defined for a 100 Mb/s link; a smaller testbed link scales them
+    # together, so every contention ratio is preserved.
+    load_scale = capacity / 100.0
+    traffic = Traffic5G(scenario, load_scale, seed)
+    design = offered = {s: v * load_scale for s, v in scenario["demand_mbps"].items()}
 
-    qos = UpfQoS(capacity, enforce)
-    qos.setup()
-    controller = SliceController("proposed", capacity, qos=qos, control_interval_ticks=5)
-    qos.apply_allocation(controller.start(scenario_id, demand))
+    qos = Transport5GQoS(net, topo, class_mode=spec["class_mode"], classification=classification,
+                         queue_profile=spec.get("queue_profile", "default"))
+    qos.setup_htb(capacity, traffic.get_spawn_metadata())
+    controller = SliceController(scheduler, capacity, qos=qos, control_interval_ticks=5)
+    if controller.policy_fallback:
+        raise RuntimeError(f"{scheduler}: trained policy missing (experiments/semantic_study.py --deploy)")
+    context_engine = ContextInferenceEngine(fixed_context=scenario_id)
+    context = context_engine.step(0)["context"]
+    allocation = controller.start(context, design)
+    qos.apply_allocation(allocation, directional=controller.directional_allocation)
 
-    # Sinks: the data network for uplink/request-response apps, each UE for downlink pushes.
-    receivers: dict[str, dict[str, set]] = {}
-    for p in plans:
-        to_ue = p["direction"] == "down" and (p["protocol"] == "udp" or p["model"] == "bulk_tcp")
-        target = f"tg_{p['service_class']}" if to_ue else "dn"
-        receivers.setdefault(target, {"udp": set(), "tcp": set()})[p["protocol"]].add(p["port"])
-    for target, ports in receivers.items():
-        sh(target, f"cd /cars-sf && python -m traffic.sink --udp {','.join(map(str, sorted(ports['udp'])))} "
-                   f"--tcp {','.join(map(str, sorted(ports['tcp'])))} > /tmp/sink.log 2>&1", detach=True)
-    capture_hosts = {f"tg_{s}": ("uesimtun0", UE_IP[s]) for s in SERVICES} | {"dn": ("eth0", DN_IP)}
-    for target, (iface, _) in capture_hosts.items():
-        sh(target, f"rm -f /tmp/cap.pcap; tcpdump -i {iface} -s 128 -U -n -w /tmp/cap.pcap > /dev/null 2>&1", detach=True)
-    time.sleep(2)
+    probes = {}
+    for app in load_applications():
+        probes.setdefault(app["service_class"], SERVER[app["server"]][1])
+    telemetry = Telemetry5G(net, topo, qos, run_dir, probes)
+    telemetry.start()
+    injector = FaultInjector5G(net, topo, spec=scenario.get("failure"), duration=duration)
+    detector, predictor = FailureDetector(), None
+    healer = SelfHealingEngine(topo=topo, backup_capacity_mbps=capacity * BACKUP_SHARE,
+                               enable_reroute=self_healing, enable_predictive=self_healing)
+    if self_healing:
+        slices = {s: float(controller.qos_monitor.thresholds[scenario_id][s]["latency_ms"]) * 2 for s in SERVICES}
+        predictor = PredictiveDetector(slices)
+    watcher = LinkWatcher5G(telemetry, topo, Node5G("upf_tap"))
+    watcher.start()
 
-    for p in plans:
-        sender_is_server = p["direction"] == "down" and (p["protocol"] == "udp" or p["model"] == "bulk_tcp")
-        sender = "dn" if sender_is_server else f"tg_{p['service_class']}"
-        dst = p["host_ip"] if sender_is_server else DN_IP
-        params = json.dumps(p["params"]).replace('"', '\\"')
-        sh(sender, f"cd /cars-sf && python -m traffic.generator --proto {p['protocol']} --dst {dst} "
-                   f"--port {p['port']} --model {p['model']} --params \"{params}\" --duration {p['instances'] and duration + 15} "
-                   f"--dscp {p['dscp']} --seed {p['seed']} --instances {p['instances']} >> /tmp/gen.log 2>&1", detach=True)
-
-    prev = {}
-    start = time.time()
-    for tick in range(1, duration + 1):
-        time.sleep(max(0.0, start + tick - time.time()))
-        up, down = qos.class_stats(qos.n6), qos.class_stats("ogstun")
-        offered = {}
-        for s in SERVICES:
-            u = up.get(s, {})
-            vol = u.get("sent_bytes", 0) + u.get("dropped", 0) * u.get("sent_bytes", 0) / max(u.get("sent_packets", 1), 1)
-            offered[s] = max(vol - prev.get(s, vol), 0) * 8 / 1e6
-            prev[s] = vol
-        snapshot = {"tick": tick, "interval_s": 1.0, "service_throughput_mbps": offered,
-                    "tc_downlink_class_stats": down, "queue_bytes": {}}
-        controller.step(tick, snapshot, {"context": scenario_id}, {"state": "normal", "boosts": {}}, demand)
-
-    for target in list(receivers) + [p for p in ("tg_healthcare", "tg_education", "tg_agriculture", "tg_general")]:
-        sh(target, "pkill -f '[t]raffic.generator'; pkill -f '[t]raffic.sink'")
-    for target in capture_hosts:
-        sh(target, "pkill tcpdump")
+    classifier = None
+    captures = {f"tg_{s}": ("uesimtun0", ip) for s, ip in UE_IP.items()} | {"dn": ("eth0", EDGE_DN_IP)}
+    capture_dir = f"/cars-sf/{run_dir.relative_to(REPO_ROOT)}"
+    for target, (iface, _) in captures.items():
+        net.get(target).cmd(f"tcpdump -i {iface} -s 128 -U -n -w {capture_dir}/{target}.pcap > /dev/null 2>&1 &")
+    net.get("dn_core").cmd(f"tcpdump -i any -y LINUX_SLL -s 128 -U -n -w {capture_dir}/dn_core.pcap host {CORE_DN_IP} > /dev/null 2>&1 &")
+    if classification == "slicenet_all":
+        telemetry.start_flow_capture()
+        classifier = OnlineSliceClassifier(telemetry, qos, topo, traffic=traffic, all_ues=True)
+        if not classifier.enabled:
+            raise RuntimeError("SliceNet model missing: train it first (experiments/collect_5g.py)")
     time.sleep(1)
+    traffic.start(net, duration)
 
-    work = tempfile.mkdtemp(prefix=run_id)
-    points = []
-    for target, (_, ip) in capture_hosts.items():
-        path = os.path.join(work, f"{target}.pcap")
-        subprocess.run(COMPOSE + ["cp", f"{target}:/tmp/cap.pcap", path], capture_output=True, check=False)
-        if os.path.exists(path):
-            points.append(CapturePoint(path, ip))
-    extractor = FlowFeatureExtractor(points, spawn_metadata=plans, ue_ips=set(UE_IP.values()), window_s=5.0)
-    import pandas as pd
+    feedback, previous_snap, previous_allocation = [], None, dict(allocation)
+    loop_start = time.time()
+    try:
+        for tick in range(1, duration + 1):
+            time.sleep(max(0.0, loop_start + tick - time.time()))
+            context_state = context_engine.step(tick)
+            state = {"tick": tick, **{k: v for k, v in _scenario_state(scenario).items()}}
+            injector.evaluate_scenario(state, max(2, duration // 3))
+            snap = telemetry.poll(tick)
+            events = detector.analyze(snap)
+            if predictor is not None:
+                events += predictor.observe(snap)
+            healer.handle(events, tick)
+            healer.verify(snap, tick)
+            feedback.append(ExperimentOrchestrator._feedback_row(
+                tick, snap, previous_snap, allocation, previous_allocation, offered,
+                controller.priority_engine.context_engine.get_context(context), capacity, context, healer.state))
+            feedback[-1]["jitter"] = json.dumps(snap.get("service_jitter_ms"))
+            feedback[-1]["violations"] = json.dumps({s: v["status"] for s, v in controller.qos_status.items()})
+            controller.observe_reward(feedback[-1]["reward"])
+            previous_snap, previous_allocation = snap, dict(allocation)
+            if classifier is not None:
+                classifier.step(tick)
+                confidences = [d["confidence"] for d in classifier.decisions[-20:]]
+                if confidences:
+                    controller.classifier_confidence = sum(confidences) / len(confidences)
+            new_allocation = controller.step(tick, snap, context_state,
+                                             constraints=healer.constraints() if self_healing else None,
+                                             prior_demand=design)
+            if new_allocation is not None:
+                allocation = new_allocation
+        controller.finish(duration, previous_snap or {}, context, healer.constraints() if self_healing else None)
+    finally:
+        watcher.stop()
+        traffic.stop(net)
+        telemetry.stop()
+        for target in list(captures) + ["dn_core"]:
+            net.get(target).cmd("pkill tcpdump")
+        time.sleep(1)
 
+    points = [CapturePoint(str(run_dir / f"{t}.pcap"), ip) for t, (_, ip) in captures.items()]
+    points.append(CapturePoint(str(run_dir / "dn_core.pcap"), CORE_DN_IP))
+    extractor = FlowFeatureExtractor([p for p in points if os.path.exists(p.path)],
+                                     spawn_metadata=traffic.get_spawn_metadata(), ue_ips=set(UE_IP.values()), window_s=5.0)
     df = pd.DataFrame(extractor.extract())
-    shutil.rmtree(work, ignore_errors=True)
     contract = {"ok": False, "errors": ["no captured flows"]}
     if not df.empty:
         from dataset.builder import DatasetBuilder
@@ -206,39 +228,74 @@ def run_mode(scenario_id: str, duration: int, capacity: float, enforce: bool, se
         df["run_id"] = run_id
         df = stamp(df, "5g_core_measured", seed, run_id)
         contract = validate(df, "5g_core_measured", raise_on_error=False).as_dict()
-    kpis = slice_kpis(df, demand) if not df.empty else {}
-    weights = controller.priority_engine.context_engine.get_context(scenario_id)
+    kpis = slice_kpis(df, offered) if not df.empty else {}
+    weights = controller.priority_engine.context_engine.get_context(context)
+    actions = [h for h in controller.history if h.get("enforcement")]
     result = {
-        "run_id": run_id, "scenario": scenario_id, "mode": "cars_sf" if enforce else "no_slicing",
-        "capacity_mbps": capacity, "demand_mbps": demand, "records": len(df),
-        "allocations": qos.applied, "slice_kpis": kpis, "contract": contract,
+        "run_id": run_id, "scenario": scenario_id, "scheduler": scheduler, "classification": classification,
+        "seed": seed, "duration": duration, "capacity_mbps": capacity, "demand_mbps": offered, "records": len(df),
+        "self_healing": self_healing, "contract": contract, "slice_kpis": kpis,
         "weighted_utility": weighted_utility(kpis, weights),
         "fairness_satisfaction": jain_fairness([k.get("demand_satisfaction") for k in kpis.values()]),
-        "controller_history": controller.history,
+        "enforcement": {"decisions_applied": len(actions),
+                        "verified": sum(h["enforcement"].get("verified") is True for h in actions),
+                        "failed": sum(h["enforcement"].get("verified") is False for h in actions)},
+        "safety_rejections": controller.safety_rejections,
+        "hybrid": controller.hybrid_stats, "adaptations": controller.adaptations,
+        "qos_monitor": controller.qos_monitor.summary(),
+        "transitions": controller.transitions.summary(),
+        "policy_learning": controller.policy.learning_summary() if hasattr(controller.policy, "learning_summary") else None,
+        "slicenet": classifier.summary() if classifier else None,
+        "healing": {"actions": healer.actions, "verifications": healer.verifications, "escalations": healer.escalations,
+                    "summary": healer.resilience_summary(injector.events)},
+        "faults": injector.events, "controller_history": controller.history,
+        "code_fingerprint": code_fingerprint(), "model_fingerprint": model_fingerprint(),
+        "environment": "Open5GS 2.7 + UERANSIM 3.2 in Docker: real 5G core signalling and GTP-U, simulated radio",
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / f"{run_id}.json").write_text(json.dumps(result, indent=2, default=str))
+    pd.DataFrame(feedback).to_csv(OUT_DIR / f"{run_id}__feedback.csv", index=False)
+    controller.transitions.write(OUT_DIR / f"{run_id}__transitions.jsonl")
     if not df.empty:
         df.to_csv(OUT_DIR / f"{run_id}.csv", index=False)
+    net.get("dn").cmd(f"rm -rf {capture_dir}")
+    net.close()
+    shutil.rmtree(run_dir, ignore_errors=True)
     return result
 
 
+def _scenario_state(scenario: dict) -> dict:
+    return {"backhaul_degraded": False}
+
+
+def Node5G(service: str):
+    from stack5g import Node
+    return Node(service)
+
+
 def main():
-    parser = argparse.ArgumentParser(description="CARS-SF slicing on Open5GS + UERANSIM")
+    parser = argparse.ArgumentParser(description="CARS-SF closed loop on Open5GS + UERANSIM")
     parser.add_argument("--scenario", default="disaster")
-    parser.add_argument("--duration", type=int, default=40)
-    parser.add_argument("--capacity", type=float, default=20.0, help="UPF bottleneck (Mbps)")
-    parser.add_argument("--mode", choices=["cars_sf", "no_slicing", "both"], default="both")
+    parser.add_argument("--scheduler", default="closed_loop")
+    parser.add_argument("--classification", default="slicenet_all", choices=["host", "slicenet_all"])
+    parser.add_argument("--duration", type=int, default=60)
+    parser.add_argument("--capacity", type=float, default=100.0,
+                        help="rural N3 link (Mb/s, each direction); scenario demands scale with it")
     parser.add_argument("--seeds", nargs="+", type=int, default=[0])
+    parser.add_argument("--run-prefix", default="5g")
+    parser.add_argument("--no-healing", action="store_true")
     args = parser.parse_args()
-    modes = [True, False] if args.mode == "both" else [args.mode == "cars_sf"]
     for seed in args.seeds:
-        for enforce in modes:
-            r = run_mode(args.scenario, args.duration, args.capacity, enforce, seed)
-            print(f"{r['run_id']}: records {r['records']} utility {r['weighted_utility']} fairness {r['fairness_satisfaction']}")
-            for s, k in r["slice_kpis"].items():
-                print(f"  {s:12s} p95 {k['latency_p95_ms']} ms  loss {k['loss_pct']}%  "
-                      f"satisfaction {k['demand_satisfaction']}  SLA {k['sla_satisfied_share']}")
+        r = run_loop(args.scenario, args.scheduler, args.classification, args.duration, args.capacity, seed,
+                     args.run_prefix, not args.no_healing)
+        print(f"{r['run_id']}: records {r['records']} utility {r['weighted_utility']} enforcement {r['enforcement']}")
+        for s, k in r["slice_kpis"].items():
+            print(f"  {s:12s} p95 {k['latency_p95_ms']} ms  loss {k['loss_pct']}%  "
+                  f"satisfaction {k['demand_satisfaction']}  SLA {k['sla_satisfied_share']}")
+        print("  monitor", {k: v for k, v in r["qos_monitor"].items() if k != "episodes"})
+        if r["slicenet"]:
+            print("  slicenet", {k: r["slicenet"][k] for k in ("flows_classified", "accuracy", "final_accuracy",
+                                                              "median_time_to_decision_s")})
 
 
 if __name__ == "__main__":

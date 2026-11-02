@@ -6,7 +6,7 @@ Mininet environment (env_mininet) and the per-tick feedback log.
 
   R_sat     = 100 · Σ_s w̃_s · min(1, delivered_s / demand_s)
               context weights w̃ (normalised); the slice's demand is met → 1.
-  R_sla     = −10 per slice whose one-way delay exceeds its SLA target
+  R_sla     = −10 per slice whose one-way delay or packet loss exceeds its SLA target
               (a missing delay measurement counts as a violation: no data is not success).
   R_loss    = −0.5 · mean loss % across slices.
   R_starve  = −20 per slice with real demand (≥ 0.5 Mb/s) that receives < 10 % of it.
@@ -30,6 +30,7 @@ from typing import Any
 SERVICES = ("healthcare", "education", "agriculture", "general")
 
 W_SLA, W_LOSS, W_STARVE, W_REALLOC, W_IDLE = 10.0, 0.5, 20.0, 5.0, 5.0
+DEFAULT_WEIGHTS = {"sla": W_SLA, "loss": W_LOSS, "starve": W_STARVE, "realloc": W_REALLOC, "idle": W_IDLE}
 STARVE_DEMAND_MBPS, STARVE_SATISFACTION = 0.5, 0.1
 
 
@@ -48,12 +49,17 @@ def compute_reward(
     weights: dict[str, float],
     sla_delay_ms: dict[str, float],
     capacity_mbps: float,
+    sla_loss_pct: dict[str, float] | None = None,
+    reward_weights: dict[str, float] | None = None,
 ) -> tuple[float, dict[str, Any]]:
+    w = {**DEFAULT_WEIGHTS, **(reward_weights or {})}
     total_w = sum(weights.get(s, 0.0) for s in outcomes) or 1.0
     sat, violations, starved, losses, moved = {}, [], [], [], 0.0
     for s, o in outcomes.items():
         sat[s] = 1.0 if o.demand_mbps <= 1e-6 else min(1.0, max(o.delivered_mbps, 0.0) / o.demand_mbps)
-        if o.delay_ms is None or o.delay_ms > sla_delay_ms.get(s, float("inf")):
+        if o.delay_ms is None or o.delay_ms > sla_delay_ms.get(s, float("inf")) or (
+            sla_loss_pct is not None and o.loss_pct > sla_loss_pct.get(s, float("inf"))
+        ):
             violations.append(s)
         if o.demand_mbps >= STARVE_DEMAND_MBPS and sat[s] < STARVE_SATISFACTION:
             starved.append(s)
@@ -67,11 +73,11 @@ def compute_reward(
 
     terms = {
         "satisfaction": 100.0 * sum(weights.get(s, 0.0) * sat[s] for s in outcomes) / total_w,
-        "sla": -W_SLA * len(violations),
-        "loss": -W_LOSS * (sum(losses) / len(losses) if losses else 0.0),
-        "starvation": -W_STARVE * len(starved),
-        "reallocation": -W_REALLOC * (moved / capacity_mbps if capacity_mbps > 0 else 0.0),
-        "idle": -W_IDLE * idle_share if unsatisfied else 0.0,
+        "sla": -w["sla"] * len(violations),
+        "loss": -w["loss"] * (sum(losses) / len(losses) if losses else 0.0),
+        "starvation": -w["starve"] * len(starved),
+        "reallocation": -w["realloc"] * (moved / capacity_mbps if capacity_mbps > 0 else 0.0),
+        "idle": -w["idle"] * idle_share if unsatisfied else 0.0,
     }
     reward = float(sum(terms.values()))
     info = {
@@ -92,6 +98,13 @@ def sla_delay_targets() -> dict[str, float]:
 
     slices = load_yaml("slices.yaml")["service_slices"]
     return {s: float(slices[s]["sla"]["latency_ms"]) for s in SERVICES}
+
+
+def sla_loss_targets() -> dict[str, float]:
+    from core.config import load_yaml
+
+    slices = load_yaml("slices.yaml")["service_slices"]
+    return {s: float(slices[s]["sla"]["loss_pct"]) for s in SERVICES}
 
 
 def _class_counters(snapshot: dict[str, Any], service: str) -> tuple[int, int]:
@@ -121,13 +134,17 @@ def outcomes_from_snapshot(
     up = snapshot.get("service_throughput_mbps") or {}
     down = snapshot.get("service_downlink_mbps") or {}
     rtt = snapshot.get("service_rtt_ms") or {}
+    slice_qos = snapshot.get("slice_qos") or {}
     outcomes = {}
     for s in SERVICES:
-        sent, dropped = _class_counters(snapshot, s)
-        if previous_snapshot is not None:
-            prev_sent, prev_dropped = _class_counters(previous_snapshot, s)
-            sent, dropped = max(sent - prev_sent, 0), max(dropped - prev_dropped, 0)
-        loss = 100.0 * dropped / (sent + dropped) if sent + dropped > 0 else 0.0
+        if s in slice_qos:                 # collector's interval loss (HTB + leaf qdisc drops)
+            loss = float(slice_qos[s]["loss_pct"])
+        else:
+            sent, dropped = _class_counters(snapshot, s)
+            if previous_snapshot is not None:
+                prev_sent, prev_dropped = _class_counters(previous_snapshot, s)
+                sent, dropped = max(sent - prev_sent, 0), max(dropped - prev_dropped, 0)
+            loss = 100.0 * dropped / (sent + dropped) if sent + dropped > 0 else 0.0
         outcomes[s] = SliceOutcome(
             demand_mbps=float(demand.get(s, 0.0)),
             delivered_mbps=float(up.get(s, 0.0)) + float(down.get(s, 0.0)),

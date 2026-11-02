@@ -70,8 +70,17 @@ def test_flow_rules_are_installed_once():
     qos.setup_htb(100)
     flow = ("10.0.1.60", "10.0.3.10", 17, 40000, 5001)
     assert qos.classify_flow(flow, "education") is True
-    assert qos.classify_flow(flow, "general") is False
-    assert "match ip sport 40000 0xffff match ip dport 5001 0xffff flowid 1:20" in net.switches["s_rural"].commands[-1]
+    assert qos.classify_flow(flow, "general") is False                       # no silent overwrite
+    assert ("flower src_ip 10.0.1.60 dst_ip 10.0.3.10 ip_proto udp src_port 40000 dst_port 5001 classid 1:20"
+            in net.switches["s_rural"].commands[-1])
+    assert qos.classify_flow(flow, "general", replace=True) is True          # explicit reclassification
+    assert "tc filter replace" in net.switches["s_rural"].commands[-1] and "classid 1:40" in net.switches["s_rural"].commands[-1]
+
+
+def test_slicenet_all_installs_no_address_rules():
+    net = FakeNet()
+    QoSEnforcer(net=net, classification="slicenet_all").setup_htb(100)
+    assert not any("match ip src 10.0.1" in c or "match ip dst 10.0.1" in c for c in net.switches["s_rural"].commands)
 
 
 class KernelSwitch(FakeSwitch):

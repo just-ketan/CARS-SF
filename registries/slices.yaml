@@ -2,27 +2,38 @@
 # Service-centric slices (the CARS-SF proposal) and the technology-centric
 # 3GPP slices used as an evaluation baseline.
 
+# queue: per-slice CoDel parameters used by direction-/QoS-aware schedulers
+# (queue_profile: sla). CoDel drops once the standing queue exceeds `target`
+# for an `interval`; the fq_codel defaults (5 ms / 100 ms) trim VBR video bursts
+# that the slice's own delay budget could absorb. target ≈ 30 % of the SLA
+# one-way delay left after propagation (8 ms edge / 28 ms core), capped at 25 ms;
+# interval = 10 × target (CoDel's rule of thumb is target ≈ 5–10 % of interval).
+# general keeps the defaults: best effort, short queues.
 service_slices:
   healthcare:
     class_id: "1:10"
     htb_prio: 1
     min_mbps: 5          # guaranteed floor in every context
     sla: {latency_ms: 50, jitter_ms: 10, loss_pct: 1.0, min_satisfaction: 0.95}
+    queue: {target_ms: 12, interval_ms: 120}     # (50 - 8) × 0.3 ≈ 12
   education:
     class_id: "1:20"
     htb_prio: 2
     min_mbps: 2
     sla: {latency_ms: 150, jitter_ms: 30, loss_pct: 2.0, min_satisfaction: 0.8}
+    queue: {target_ms: 25, interval_ms: 250}     # (150 - 28) × 0.3 ≈ 37 → cap 25
   agriculture:
     class_id: "1:30"
     htb_prio: 3
     min_mbps: 1
     sla: {latency_ms: 250, jitter_ms: 50, loss_pct: 2.0, min_satisfaction: 0.8}
+    queue: {target_ms: 25, interval_ms: 250}     # (250 - 8) × 0.3 ≈ 73 → cap 25
   general:
     class_id: "1:40"
     htb_prio: 4
     min_mbps: 1
     sla: {latency_ms: 500, jitter_ms: 200, loss_pct: 5.0, min_satisfaction: 0.5}
+    queue: {target_ms: 5, interval_ms: 100}      # best effort: fq_codel defaults
 
 # Baseline: technology-centric 3GPP slicing with fixed shares of capacity,
 # applications mapped by their slice_type in registries/applications.yaml.

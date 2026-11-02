@@ -21,7 +21,7 @@ from typing import Any
 from mininet.log import setLogLevel, info
 
 from analysis.metrics import jain_fairness, outage_metrics, slice_kpis, weighted_utility
-from context.engine import ContextInferenceEngine, ContextManager
+from context.engine import ContextInferenceEngine
 from core.config import ensure_output_dirs, GENERATED_DIR, RESULTS_DIR, load_scenarios
 from core.controller import SliceController, scheduler_spec
 from dataset.builder import DatasetBuilder
@@ -67,9 +67,13 @@ class ExperimentOrchestrator:
         context_aware: bool = True,
         load_scale: float = 1.0,
         allow_telemetry_fallback: bool = False,
+        keep_pcaps: bool = False,
     ):
         self.scenario_id = scenario_id
         self.duration = duration
+        # Raw captures (~0.1–0.3 GB per run) are deleted once the run's dataset, KPIs and
+        # sequences have been extracted from them; a matrix would otherwise fill the disk.
+        self.keep_pcaps = keep_pcaps
         self.total_bandwidth = total_bandwidth
         self.apply_qos = apply_qos
         self.spec = scheduler_spec(scheduler)
@@ -95,6 +99,18 @@ class ExperimentOrchestrator:
         self.scenarios = {s["id"]: s for s in load_scenarios()}
         ensure_output_dirs()
 
+    def _design_demand(self, context: str) -> dict[str, float]:
+        """What a controller may know: the context's nominal design demand (no workload scaling).
+        The actual offered load (``_demand``, incl. load_scale) is only for metrics and rewards."""
+        return dict(self.scenarios.get(context, self.scenarios["normal"])["demand_mbps"])
+
+    def _controller_view(self, context_state: dict) -> tuple[dict, dict]:
+        """Context state and demand prior as the controller is allowed to see them. A context-blind
+        controller sees neither context changes nor context priors (it only measures)."""
+        if self.spec.get("context_blind"):
+            return {"context": "normal"}, self._design_demand("normal")
+        return context_state, self._design_demand(context_state["context"])
+
     def _demand(self, context: str) -> dict[str, float]:
         demand = self.scenarios.get(context, self.scenarios["normal"])["demand_mbps"]
         return {s: v * self.load_scale for s, v in demand.items()}
@@ -110,23 +126,27 @@ class ExperimentOrchestrator:
         context_engine = ContextInferenceEngine(
             timeline=self.timeline, fixed_context=None if self.timeline else self.scenario_id
         )
-        first_context = context_engine.step(0)["context"]
+        first_state = context_engine.step(0)
+        first_context = first_state["context"]
+        if first_state.get("load_scale") is not None:      # workload timelines set the initial load
+            self.load_scale = first_state["load_scale"]
         scenario_orch = ScenarioOrchestrator(first_context)
         scenario = scenario_orch.get_scenario()
-        context_mgr = ContextManager()
 
         topo = self.topology_factory()
         capacity = getattr(topo, "BOTTLENECK_BW_MBPS", self.total_bandwidth)
         qos_enforcer = QoSEnforcer(
             net=None, class_mode=self.spec["class_mode"], classification=self.classification,
             work_conserving=self.work_conserving, backend=self.qos_backend, aqm=self.aqm,
+            queue_profile=self.spec.get("queue_profile", "default"),
         )
         controller = SliceController(
             self.scheduler_name, capacity, qos=qos_enforcer if self.apply_qos else None,
             demand_mode=self.demand_mode, control_interval_ticks=self.control_interval,
             context_aware=self.context_aware,
         )
-        allocation = controller.start(first_context, self._demand(first_context))
+        start_state, start_prior = self._controller_view(first_state)
+        allocation = controller.start(start_state["context"], start_prior)
         info(f"*** Context: {first_context} | scheduler: {self.scheduler_name} | allocation {allocation} ***\n")
 
         results: dict[str, Any] = {
@@ -146,6 +166,7 @@ class ExperimentOrchestrator:
             "aqm": self.aqm,
             "context_aware": self.context_aware,
             "load_scale": self.load_scale,
+            "switch": getattr(topo, "switch_type", None),      # OVSBridge (real OVS) or LinuxBridge (sudo-free)
             "capacity_mbps": capacity,
             "allocation": allocation,
             "priorities": controller.history[0]["priorities"],
@@ -167,7 +188,7 @@ class ExperimentOrchestrator:
             if self.apply_qos:
                 qos_enforcer.net = topo.net
                 qos_enforcer.setup_htb(capacity, spawns=plans)
-                initial = qos_enforcer.apply_allocation(allocation)
+                initial = qos_enforcer.apply_allocation(allocation, directional=controller.directional_allocation)
                 controller.history[0]["enforcement"] = {
                     k: initial.get(k) for k in ("verified", "failures", "mismatches")
                 }
@@ -188,9 +209,10 @@ class ExperimentOrchestrator:
             )
             online_classifier = None
 
-            if self.classification == "slicenet" and self.apply_qos:
+            if self.classification in ("slicenet", "slicenet_all") and self.apply_qos:
                 from classification.online import OnlineSliceClassifier
-                online_classifier = OnlineSliceClassifier(telemetry, qos_enforcer, topo, traffic, self.window_s)
+                online_classifier = OnlineSliceClassifier(telemetry, qos_enforcer, topo, traffic, self.window_s,
+                                                          all_ues=self.classification == "slicenet_all")
 
             feedback: list[dict[str, Any]] = []
             previous_snap, previous_allocation, interval_context = None, None, None
@@ -202,11 +224,26 @@ class ExperimentOrchestrator:
                 self._wait_for_tick(loop_start + tick, telemetry, failure_detector, healer, tick)
                 context_state = context_engine.step(tick)
                 context = context_state["context"]
-                if context_state["changed"] and self.timeline:
-                    info(f"*** Tick {tick} {context_state['clock']}: context → {context} ({context_state['reason']}) ***\n")
+                if controller.spec.get("oracle_forecast"):
+                    # UPPER BOUND: reads the scripted timeline (alerts and load events).
+                    upcoming = context_engine.oracle_forecast(tick, 2)
+                else:
+                    upcoming = context_engine.forecast(tick, 2)     # clock-driven changes only
+                if upcoming:
+                    demand = self._design_demand(upcoming["context"])
+                    if controller.spec.get("oracle_forecast"):     # the oracle also knows the load
+                        load = upcoming.get("load_scale") or self.load_scale
+                        demand = {s: v * load for s, v in demand.items()}
+                    context_state = {**context_state, "upcoming": upcoming, "upcoming_demand": demand}
+                load_changed = context_state.get("load_changed") and tick > 0
+                if load_changed:
+                    self.load_scale = context_state["load_scale"]
+                    traffic.load_scale = self.load_scale
+                if (context_state["changed"] or load_changed) and self.timeline:
+                    info(f"*** Tick {tick} {context_state['clock']}: context → {context} ({context_state['reason']}), "
+                         f"load ×{self.load_scale} ***\n")
                     traffic.switch_context(context, self.duration - tick + 10)
                 scenario_state = scenario_orch.tick_advance()
-                context_mgr.update_from_scenario(scenario_state)
                 if not self.timeline:
                     injector.evaluate_scenario(scenario_state, max(2, self.duration // 3))
 
@@ -236,14 +273,15 @@ class ExperimentOrchestrator:
                 controller.observe_reward(feedback[-1]["reward"])
                 previous_snap, previous_allocation, interval_context = snap, dict(allocation), context
 
+                controller_state, controller_prior = self._controller_view(context_state)
                 new_allocation = controller.step(
-                    tick, snap, context_state,
+                    tick, snap, controller_state,
                     constraints=healer.constraints() if self.self_healing else None,
-                    prior_demand=true_demand,
+                    prior_demand=controller_prior,
                 )
                 if new_allocation is not None:
                     allocation = new_allocation
-                if online_classifier is not None and tick % self.control_interval == 0:
+                if online_classifier is not None:      # every tick: new flows are decided after ~1 s
                     online_classifier.step(tick)
 
             info(f"*** Control loop: {self.duration} ticks in {time.time() - loop_start:.1f}s ***\n")
@@ -338,6 +376,7 @@ class ExperimentOrchestrator:
                 "data_source": data_source,
                 "contract": contract_report.as_dict(),
                 "rl_transitions": controller.transitions.summary(),
+                "controller_reactions": controller.reactions,
                 "policy_learning": controller.policy.learning_summary()
                 if hasattr(controller.policy, "learning_summary") else None,
                 "record_count": len(records),
@@ -413,6 +452,8 @@ class ExperimentOrchestrator:
                     except Exception as exc:
                         info(f"*** cleanup of {name} failed: {exc} ***\n")
             topo.stop()
+            if not self.keep_pcaps:
+                shutil.rmtree(GENERATED_DIR / "pcap" / self.run_id, ignore_errors=True)
 
         return results
 
@@ -440,12 +481,14 @@ class ExperimentOrchestrator:
                     info(f"*** Fast path: {failure['type']} ***\n")
 
     def _average_demand(self, context_engine) -> dict[str, float]:
-        """Time-averaged demand by design over the run (contexts may change)."""
+        """Time-averaged offered demand over the run (contexts and load scale may change)."""
         history = context_engine.get_history()
         totals = {s: 0.0 for s in SERVICE_CLASSES}
+        load = None
         for entry in history:
-            for s, v in self._demand(entry["context"]).items():
-                totals[s] += v
+            load = entry.get("load_scale") or load or self.load_scale
+            for s, v in self._design_demand(entry["context"]).items():
+                totals[s] += v * load
         return {s: round(v / max(len(history), 1), 3) for s, v in totals.items()}
 
     @staticmethod
@@ -453,7 +496,7 @@ class ExperimentOrchestrator:
                       capacity, context, healing_state) -> dict[str, Any]:
         """Measured QoS + reward for this tick, with the shared reward (scheduler/reward.py)
         that the simulator and the live RL environment also use."""
-        from scheduler.reward import compute_reward, outcomes_from_snapshot, sla_delay_targets
+        from scheduler.reward import compute_reward, outcomes_from_snapshot, sla_delay_targets, sla_loss_targets
 
         up = snap.get("service_throughput_mbps", {})
         down = snap.get("service_downlink_mbps", {})
@@ -463,7 +506,7 @@ class ExperimentOrchestrator:
         if allocation:
             reward, reward_info = compute_reward(
                 outcomes_from_snapshot(snap, previous_snap, allocation, previous_allocation, demands),
-                priorities, sla_delay_targets(), capacity,
+                priorities, sla_delay_targets(), capacity, sla_loss_targets(),
             )
         row = {
             "tick": tick,
@@ -479,8 +522,11 @@ class ExperimentOrchestrator:
             "backhaul_up": snap.get("backhaul_up"),
             "backup_backhaul_up": snap.get("backup_backhaul_up"),
         }
+        slice_qos = snap.get("slice_qos") or {}
         for s in SERVICE_CLASSES:
             row[f"{s}_alloc_mbps"] = allocation.get(s, 0)
+            row[f"{s}_loss_pct"] = (slice_qos.get(s) or {}).get("loss_pct")
+            row[f"{s}_queue_delay_ms"] = (slice_qos.get(s) or {}).get("queue_delay_ms")
             row[f"{s}_demand_mbps"] = demands.get(s, 0)
             row[f"{s}_tput_mbps"] = tput[s]
             row[f"{s}_rtt_ms"] = rtt.get(s)

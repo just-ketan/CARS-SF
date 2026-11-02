@@ -1,0 +1,41 @@
+# Context timelines: a simulated rural day compressed into one experiment.
+# Each tick advances the simulated clock by `minutes_per_tick`; the Context
+# Engine infers the operating context from the clock, the season calendar,
+# alerts and administrative overrides (see context/engine.py).
+
+calendar:
+  harvest_months: [3, 4, 10, 11]     # rabi and kharif harvests
+  school_days: [0, 1, 2, 3, 4]       # Monday–Friday
+  school_hours: [8, 15]              # 08:00–15:00
+  harvest_hours: [6, 18]
+
+timelines:
+  rural_day:
+    description: Weekday in harvest season; school, then a flood alert, then recovery.
+    start: "2026-10-19T07:00"        # Monday
+    minutes_per_tick: 10
+    events:
+      - {tick: 12, alert: flood}     # ~09:00 disaster alert
+      - {tick: 24, clear: flood}     # ~11:00 alert cleared
+
+  school_week:
+    description: School morning outside harvest season.
+    start: "2026-06-15T07:30"
+    minutes_per_tick: 10
+    events: []
+
+  medical_night:
+    description: Night-time medical emergency.
+    start: "2026-06-15T22:00"
+    minutes_per_tick: 5
+    events:
+      - {tick: 6, alert: medical_emergency}
+      - {tick: 30, clear: medical_emergency}
+
+  admin_override:
+    description: Administrator pins the disaster profile regardless of time.
+    start: "2026-06-15T10:00"
+    minutes_per_tick: 10
+    events:
+      - {tick: 3, admin: disaster}
+      - {tick: 20, admin: null}

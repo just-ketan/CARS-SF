@@ -6,6 +6,7 @@ for gw in 10.60.0.1/24 10.61.0.1/24 10.62.0.1/24 10.63.0.1/24; do
   ip addr add "$gw" dev ogstun 2>/dev/null || true
 done
 ip link set ogstun up
+ip route add 10.78.0.0/24 via 10.80.0.2 2>/dev/null || true   # gNB, through the cell-site router
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true   # also set via compose sysctls
 # Loopback aliases used by the SBI/PFCP servers.
 for i in 4 5 7 10 11 12 13 14 15 20 200; do ip addr add 127.0.0.$i/8 dev lo 2>/dev/null || true; done

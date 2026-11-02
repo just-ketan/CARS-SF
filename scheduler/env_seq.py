@@ -63,6 +63,7 @@ class SequentialSlicingEnv(gym.Env):
         self.mean_demand = {c: scenarios[c]["demand_mbps"] for c in self.contexts}
         slices = load_yaml("slices.yaml")["service_slices"]
         self.sla_latency = {s: slices[s]["sla"]["latency_ms"] for s in SERVICES}
+        self.sla_loss = {s: slices[s]["sla"]["loss_pct"] for s in SERVICES}
         self.floors = {s: slices[s]["min_mbps"] for s in SERVICES}
         self.allocator = DemandAwareAllocator(self.floors)
         self.locations = service_locations()
@@ -192,7 +193,7 @@ class SequentialSlicingEnv(gym.Env):
             for i, s in enumerate(SERVICES)
         }
         reward, reward_info = compute_reward(
-            outcomes, self.priorities[self.context], self.sla_latency, self.capacity
+            outcomes, self.priorities[self.context], self.sla_latency, self.capacity, self.sla_loss
         )
         return reward, {
             "satisfaction": reward_info["satisfaction"],

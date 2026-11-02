@@ -55,6 +55,8 @@ class ContextInferenceEngine:
         self.events = sorted(spec.get("events", []), key=lambda e: e["tick"])
         self.active_alerts: set[str] = set()
         self.admin_override: str | None = None
+        # Workload (not context): scripted offered-load scale, changed by `load_scale` events.
+        self.load_scale: float | None = None
         self.history: list[dict[str, Any]] = []
 
     def clock(self, tick: int) -> datetime:
@@ -79,6 +81,8 @@ class ContextInferenceEngine:
                 self.clear_alert(event["clear"])
             if "admin" in event:
                 self.set_admin_override(event["admin"])
+            if "load_scale" in event:
+                self.load_scale = float(event["load_scale"])
 
     def infer(self, now: datetime) -> tuple[str, str]:
         """(context_id, reason) for the current inputs."""
@@ -103,7 +107,41 @@ class ContextInferenceEngine:
             return "harvest", "harvest season"
         return "normal", "default"
 
+    def forecast(self, tick: int, horizon: int) -> dict[str, Any] | None:
+        """The next context change predictable from the clock and calendar alone.
+
+        Alerts and overrides are held as they are now: future alerts are not
+        knowable, and reading the scripted timeline events would be cheating.
+        Returns {"context", "in_ticks", "reason"} or None if no change is due
+        within ``horizon`` ticks.
+        """
+        current, _ = self.infer(self.clock(tick))
+        for ahead in range(1, horizon + 1):
+            context, reason = self.infer(self.clock(tick + ahead))
+            if context != current:
+                return {"context": context, "in_ticks": ahead, "reason": reason}
+        return None
+
+    def oracle_forecast(self, tick: int, horizon: int) -> dict[str, Any] | None:
+        """UPPER BOUND ONLY: the next change of context *or offered load* within ``horizon``
+        ticks, read from the scripted timeline (alerts, overrides, load events) that a real
+        controller cannot see. Used only by the explicitly labelled oracle scheduler."""
+        saved = (set(self.active_alerts), self.admin_override, self.load_scale)
+        current_context, _ = self.infer(self.clock(tick))
+        current_load = self.load_scale
+        try:
+            for ahead in range(1, horizon + 1):
+                self._apply_events(tick + ahead)
+                context, reason = self.infer(self.clock(tick + ahead))
+                if context != current_context or self.load_scale != current_load:
+                    return {"context": context, "in_ticks": ahead, "reason": f"oracle: {reason}",
+                            "load_scale": self.load_scale}
+            return None
+        finally:
+            self.active_alerts, self.admin_override, self.load_scale = saved
+
     def step(self, tick: int) -> dict[str, Any]:
+        before = self.load_scale
         self._apply_events(tick)
         now = self.clock(tick)
         context, reason = self.infer(now)
@@ -115,6 +153,8 @@ class ContextInferenceEngine:
             "reason": reason,
             "alerts": sorted(self.active_alerts),
             "changed": changed,
+            "load_scale": self.load_scale,
+            "load_changed": self.load_scale is not None and self.load_scale != before,
         }
         self.history.append(snapshot)
         return snapshot
