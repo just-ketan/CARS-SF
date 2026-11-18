@@ -103,6 +103,8 @@ The existence of a class or file was never accepted as evidence.
 
 ## 5. What remains
 
+(Written in October; §7 has the current state.)
+
 * Run `sudo .venv/bin/python run_experiment.py …` once to verify the OVS backend.
 * Longer live runs are needed before any online-RL convergence claim.
 * A per-class SLA-weighted objective, if the operator wants a different trade between priority and fairness, is a
@@ -135,3 +137,22 @@ The existence of a class or file was never accepted as evidence.
   evaluation.
 * Prediction and RL show no live benefit.
 * Radio-resource slicing and a live 5G RAN are not implemented.
+
+## 7. End-to-end 5G closed loop (November 2026)
+
+Results: `docs/VALIDATION_32.md`. Setup: `spec.md`.
+
+| Gap found | Status | Evidence |
+|---|---|---|
+| Monitor fed no decision | **PASS** (fixed) | `monitoring/qos_monitor.py`; 17 of 17 persistent-violation runs triggered RL |
+| No per-class, per-scenario thresholds | **PASS** | `registries/qos_thresholds.yaml`, tighten-only |
+| Transient and persistent not separated | **PASS** | 3-tick rule; `tests/test_closed_loop.py` |
+| RL ran regardless of QoS state | **PASS** (fixed) | `closed_loop` triggers on persistent violation |
+| Core-cloud flows left from the wrong address | **PASS** (fixed) | Education SLA on a dev seed 0.10 → 0.87 |
+| `fq_codel` hashed the outer GTP header, so each uplink slice was one FIFO | **PASS** (fixed) | Inner-port hash filters; mean probe RTT on a dev seed 120 → 0.7 ms |
+| Idle on/off sources counted as throughput breaches | **PASS** (fixed) | Offered capped by measured arrivals |
+| Dead slice reported as healthy | **PASS** (fixed) | Found by the void first run; regression test |
+| Harness trusted the tunnel address | **PASS** (fixed) | Traffic check before and after each run |
+| 32-combination coverage | **PARTIAL** | All 32 evaluated; `full` passes 23 |
+| RL benefit on 5G | **FAIL** | V4 and V5 unsupported |
+| Radio slicing, live RAN, real rural site | not implemented | Radio is simulated |

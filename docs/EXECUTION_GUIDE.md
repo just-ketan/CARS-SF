@@ -167,6 +167,16 @@ docker compose -f deployment/5g/docker-compose.yml up -d     # ~60 s until PDU s
 docker compose -f deployment/5g/docker-compose.yml down
 ```
 
+The 32-combination validation (160 runs, about 3.5 h, nothing else running):
+
+```bash
+.venv/bin/python run_pipeline.py --mode 5g         # tests, data, SliceNet, RL policy, validation
+.venv/bin/python experiments/validate_32.py        # validation only; resumes, skipping finished runs
+.venv/bin/python experiments/validate_32.py --analyse
+```
+
+Results are in [VALIDATION_32.md](VALIDATION_32.md).
+
 ## 11. Cleanup and troubleshooting
 
 | Symptom | Action |
@@ -177,5 +187,7 @@ docker compose -f deployment/5g/docker-compose.yml down
 | `RuntimeError: no application flows were captured` | tcpdump or traffic failed. Check `generated/logs/<run_id>/`. The run refuses to substitute fabricated records. |
 | `ContractViolation` | The dataset breaks `rsnsd-contract-2.0`; the message lists each violated rule. |
 | `ModelNotTrained` | Train SliceNet first (§6). |
+| `radio link lost on [...]: restarting the stack` | A simulated radio link failed. The stack is rebuilt automatically (about 100 s); `validate_32.py` repeats the run. |
+| `5G stack did not reach four attached slices` | `docker compose -f deployment/5g/docker-compose.yml logs gnb ue_healthcare`. A plain `docker compose restart` fails, because the traffic containers share the UEs' network namespaces. Use `down`, then `up -d`. |
 | Aggregator warns about stale runs | `run_matrix.py --rerun-stale` |
 | `rl_cem` / `rl_ppo` run reports `policy_fallback_to_rule: true` | The model file is missing: run §7. |

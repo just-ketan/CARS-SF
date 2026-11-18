@@ -1,0 +1,2490 @@
+{
+  "run_id": "v32__fiber_cut__closed_loop__slicenet_all__s42",
+  "scenario": "fiber_cut",
+  "scheduler": "closed_loop",
+  "classification": "slicenet_all",
+  "seed": 42,
+  "duration": 60,
+  "capacity_mbps": 100.0,
+  "demand_mbps": {
+    "healthcare": 40.0,
+    "education": 15.0,
+    "agriculture": 15.0,
+    "general": 30.0
+  },
+  "records": 352,
+  "self_healing": true,
+  "contract": {
+    "source": "5g_core_measured",
+    "rows": 352,
+    "ok": true,
+    "errors": []
+  },
+  "slice_kpis": {
+    "agriculture": {
+      "records": 70,
+      "latency_p50_ms": 0.289,
+      "latency_p95_ms": 21.254,
+      "latency_p99_ms": 30.265,
+      "jitter_ms": 0.228,
+      "loss_pct": 0.003,
+      "sla_satisfied_share": 1.0,
+      "delivered_mbps": 14.97,
+      "demand_mbps": 15.0,
+      "demand_satisfaction": 0.998
+    },
+    "education": {
+      "records": 89,
+      "latency_p50_ms": 1.601,
+      "latency_p95_ms": 64.194,
+      "latency_p99_ms": 139.681,
+      "jitter_ms": 1.217,
+      "loss_pct": 0.303,
+      "sla_satisfied_share": 0.9775,
+      "delivered_mbps": 14.686,
+      "demand_mbps": 15.0,
+      "demand_satisfaction": 0.979
+    },
+    "general": {
+      "records": 93,
+      "latency_p50_ms": 4.418,
+      "latency_p95_ms": 76.23,
+      "latency_p99_ms": 108.128,
+      "jitter_ms": 1.59,
+      "loss_pct": 0.251,
+      "sla_satisfied_share": 0.9892,
+      "delivered_mbps": 26.322,
+      "demand_mbps": 30.0,
+      "demand_satisfaction": 0.8774
+    },
+    "healthcare": {
+      "records": 100,
+      "latency_p50_ms": 0.275,
+      "latency_p95_ms": 35.834,
+      "latency_p99_ms": 42.442,
+      "jitter_ms": 0.153,
+      "loss_pct": 0.003,
+      "sla_satisfied_share": 0.99,
+      "delivered_mbps": 39.068,
+      "demand_mbps": 40.0,
+      "demand_satisfaction": 0.9767
+    }
+  },
+  "weighted_utility": 0.9732,
+  "fairness_satisfaction": 0.9976,
+  "enforcement": {
+    "decisions_applied": 13,
+    "verified": 13,
+    "failed": 0
+  },
+  "safety_rejections": 0,
+  "hybrid": {
+    "accepted": 0,
+    "rejected": 0
+  },
+  "adaptations": [],
+  "qos_monitor": {
+    "transient_episodes": 0,
+    "persistent_episodes": 0,
+    "unresolved_persistent": 0,
+    "per_class_persistent_ticks": {
+      "healthcare": 0,
+      "education": 0,
+      "agriculture": 0,
+      "general": 0
+    },
+    "episodes": []
+  },
+  "transitions": {
+    "transitions": 16,
+    "learnable": 16,
+    "unverified": 1,
+    "failed_enforcement": 0,
+    "mean_reward": 62.1276
+  },
+  "policy_learning": {
+    "algorithm": "online CEM on residual actions (live transitions)",
+    "checkpoint": "/home/ketan/Desktop/CARS-SF/results/5g/v32_online_checkpoint.json",
+    "samples_this_run": 0,
+    "updates_this_run": 0,
+    "per_context": {
+      "disaster": {
+        "mean_log10": [
+          0.0413,
+          -0.0204,
+          -0.0925,
+          -0.0787
+        ],
+        "updates": 4,
+        "samples": 19
+      },
+      "medical_emergency": {
+        "mean_log10": [
+          0.1181,
+          -0.0042,
+          0.0573,
+          0.0805
+        ],
+        "updates": 10,
+        "samples": 41
+      },
+      "backhaul_degradation": {
+        "mean_log10": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "updates": 0,
+        "samples": 0
+      }
+    },
+    "learning": true
+  },
+  "slicenet": {
+    "enabled": true,
+    "mode": "slicenet_all",
+    "flows_classified": 44,
+    "fallback_decisions": 0,
+    "abstentions": 0,
+    "accuracy": 0.7955,
+    "final_accuracy": 0.8864,
+    "reclassified": 4,
+    "reclassified_correct": 4,
+    "median_time_to_decision_s": 1.515,
+    "mean_confidence": 0.8566,
+    "decisions": [
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          48629,
+          6001
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.6617,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.489,
+        "packets": 600,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          49895,
+          5003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.486,
+        "packets": 75,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          45396,
+          6003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.484,
+        "packets": 75,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          34069,
+          5003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.484,
+        "packets": 75,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          48474,
+          5003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.48,
+        "packets": 75,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          43456,
+          6005
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 0.99,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.479,
+        "packets": 600,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          59698,
+          6003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.477,
+        "packets": 74,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          35324,
+          6003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.477,
+        "packets": 75,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          48527,
+          6003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.475,
+        "packets": 74,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          42250,
+          5003
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.472,
+        "packets": 74,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          34743,
+          5001
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 0.5064,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.463,
+        "packets": 600,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          46343,
+          6004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 0.995,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.405,
+        "packets": 33,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          58910,
+          5005
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 0.915,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.217,
+        "packets": 378,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          52352,
+          5004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.129,
+        "packets": 57,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          58466,
+          5004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.067,
+        "packets": 7,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          5003,
+          59396
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.7816,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.671,
+        "packets": 600,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          6003,
+          38724
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.7858,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.644,
+        "packets": 600,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          39006,
+          5004
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.5212,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.636,
+        "packets": 27,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          57216,
+          6004
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.6095,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.623,
+        "packets": 208,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          50608,
+          5005
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.5165,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.623,
+        "packets": 178,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          59700,
+          6005
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.5124,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.621,
+        "packets": 152,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          17,
+          5001,
+          59955
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.985,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.611,
+        "packets": 383,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          17,
+          6001,
+          51755
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.985,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.57,
+        "packets": 382,
+        "truth": "education",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          50642,
+          5007
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.76,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.467,
+        "packets": 600,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          44680,
+          6007
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.7145,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.428,
+        "packets": 600,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          41108,
+          5006
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.7419,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.559,
+        "packets": 600,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          54678,
+          6007
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.7802,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.545,
+        "packets": 273,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          35866,
+          5008
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.805,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.518,
+        "packets": 92,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          52154,
+          5002
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.5691,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.518,
+        "packets": 600,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          48184,
+          5007
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.6409,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.513,
+        "packets": 600,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          34832,
+          6006
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.7369,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.512,
+        "packets": 600,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          55876,
+          6002
+        ],
+        "predicted": "education",
+        "model_prediction": "education",
+        "confidence": 0.7302,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.51,
+        "packets": 600,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 2,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          39330,
+          6008
+        ],
+        "predicted": "general",
+        "model_prediction": "general",
+        "confidence": 0.815,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.509,
+        "packets": 44,
+        "truth": "general",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 3,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          52401,
+          5004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.933,
+        "packets": 91,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 3,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          35303,
+          6004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.704,
+        "packets": 41,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 4,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          55151,
+          6004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.743,
+        "packets": 72,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 4,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          33938,
+          6008
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.935,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.551,
+        "packets": 279,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 4,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          40221,
+          5008
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.895,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.337,
+        "packets": 600,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 7,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          38905,
+          6004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 0.92,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 3.811,
+        "packets": 7,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 7,
+        "flow": [
+          "10.60.0.2",
+          "10.81.0.100",
+          17,
+          56061,
+          5004
+        ],
+        "predicted": "healthcare",
+        "model_prediction": "healthcare",
+        "confidence": 1.0,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 1.716,
+        "packets": 21,
+        "truth": "healthcare",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 9,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          33601,
+          6002
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.99,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 8.513,
+        "packets": 5,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 11,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          41346,
+          5002
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.99,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 9.366,
+        "packets": 5,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 23,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          55795,
+          6006
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.95,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 21.076,
+        "packets": 5,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      },
+      {
+        "tick": 23,
+        "flow": [
+          "10.62.0.2",
+          "10.81.0.100",
+          17,
+          38395,
+          5006
+        ],
+        "predicted": "agriculture",
+        "model_prediction": "agriculture",
+        "confidence": 0.95,
+        "fallback": false,
+        "fallback_reason": null,
+        "observed_s": 19.899,
+        "packets": 5,
+        "truth": "agriculture",
+        "model": "random_forest",
+        "installed": true
+      }
+    ],
+    "reclassifications": [
+      {
+        "tick": 20,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          55876,
+          6002
+        ],
+        "from": "education",
+        "to": "general",
+        "confidence": 0.9036,
+        "truth": "general"
+      },
+      {
+        "tick": 45,
+        "flow": [
+          "10.63.0.2",
+          "10.85.0.100",
+          6,
+          48184,
+          5007
+        ],
+        "from": "education",
+        "to": "general",
+        "confidence": 0.8529,
+        "truth": "general"
+      },
+      {
+        "tick": 55,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          39006,
+          5004
+        ],
+        "from": "general",
+        "to": "education",
+        "confidence": 0.9585,
+        "truth": "education"
+      },
+      {
+        "tick": 60,
+        "flow": [
+          "10.61.0.2",
+          "10.85.0.100",
+          6,
+          59700,
+          6005
+        ],
+        "from": "general",
+        "to": "education",
+        "confidence": 0.8933,
+        "truth": "education"
+      }
+    ]
+  },
+  "healing": {
+    "actions": [
+      {
+        "action": "activate_backup",
+        "tick": 20,
+        "timestamp": 1793625229.3791924,
+        "trigger": "fiber_cut",
+        "trigger_timestamp": 1793625229.3620691,
+        "state": "on_backup"
+      },
+      {
+        "action": "recovery_verified",
+        "tick": 21,
+        "timestamp": 1793625230.3831072,
+        "trigger": "activate_backup",
+        "trigger_timestamp": 1793625229.3791962,
+        "state": "on_backup",
+        "time_to_restore_s": 0.0
+      },
+      {
+        "action": "fail_back",
+        "tick": 40,
+        "timestamp": 1793625249.3731763,
+        "trigger": "primary_repaired",
+        "trigger_timestamp": null,
+        "state": "normal"
+      },
+      {
+        "action": "recovery_verified",
+        "tick": 41,
+        "timestamp": 1793625250.3693922,
+        "trigger": "fail_back",
+        "trigger_timestamp": 1793625249.3731825,
+        "state": "normal",
+        "time_to_restore_s": -0.01
+      }
+    ],
+    "verifications": [
+      {
+        "action": "activate_backup",
+        "tick": 21,
+        "started_ts": 1793625229.3791962,
+        "fault_ts": 1793625229.3620691,
+        "good_ticks": 2,
+        "first_good_ts": 1793625229.3620691,
+        "verified": true
+      },
+      {
+        "action": "fail_back",
+        "tick": 41,
+        "started_ts": 1793625249.3731825,
+        "fault_ts": 1793625249.3731823,
+        "good_ticks": 2,
+        "first_good_ts": 1793625249.362863,
+        "verified": true
+      }
+    ],
+    "escalations": [],
+    "summary": {
+      "state": "normal",
+      "actions": 4,
+      "failure": "fiber_cut",
+      "proactive": false,
+      "mttd_s": 0.0,
+      "mttr_control_s": 0.017,
+      "switched_before_cut": false,
+      "fail_back_delay_s": 0.01,
+      "verifications": [
+        {
+          "action": "activate_backup",
+          "verified": true,
+          "tick": 21
+        },
+        {
+          "action": "fail_back",
+          "verified": true,
+          "tick": 41
+        }
+      ],
+      "time_to_restore_s": 0.0,
+      "escalations": [],
+      "diagnosed_core_switch_failure": false
+    }
+  },
+  "faults": [
+    {
+      "event": "fiber_cut",
+      "tick": 20,
+      "timestamp": 1793625229.3620656
+    },
+    {
+      "event": "repair",
+      "tick": 40,
+      "timestamp": 1793625249.362861
+    }
+  ],
+  "controller_history": [
+    {
+      "tick": 0,
+      "reason": "initial",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 40.0,
+        "education": 15.0,
+        "agriculture": 15.0,
+        "general": 30.0
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 72.0,
+        "education": 33.0,
+        "agriculture": 27.0,
+        "general": 66.0
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 72.0,
+          "education": 0.5,
+          "agriculture": 27.0,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 33.0,
+          "agriculture": 0.5,
+          "general": 66.0
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 8.0,
+          "education": 0.5,
+          "agriculture": 3.0,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 3.0,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      }
+    },
+    {
+      "tick": 3,
+      "reason": "sla risk: healthcare queue 25.4 ms",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 40.0,
+        "education": 15.0,
+        "agriculture": 15.0,
+        "general": 30.0
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 72.0,
+        "education": 33.0,
+        "agriculture": 27.0,
+        "general": 66.0
+      },
+      "applied": false,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 72.0,
+          "education": 0.5,
+          "agriculture": 27.0,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 33.0,
+          "agriculture": 0.5,
+          "general": 66.0
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 8.0,
+          "education": 0.5,
+          "agriculture": 3.0,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 3.0,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      }
+    },
+    {
+      "tick": 5,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 37.01,
+        "education": 48.16,
+        "agriculture": 40.91,
+        "general": 92.0
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 53.73,
+        "education": 84.29,
+        "agriculture": 41.68,
+        "general": 14.71
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 53.73,
+          "education": 2,
+          "agriculture": 41.68,
+          "general": 2.59
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 84.29,
+          "agriculture": 0.5,
+          "general": 14.71
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": false,
+          "regime": "overload",
+          "policy": "priority",
+          "degraded": [
+            "agriculture",
+            "general"
+          ]
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 9.77,
+          "education": 2,
+          "agriculture": 9.25,
+          "general": 2.59
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 13.45,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 10,
+      "reason": "sla risk: healthcare queue rising 0.0\u219213.5 ms",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 35.97,
+        "education": 36.48,
+        "agriculture": 34.37,
+        "general": 0.0
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 50.37,
+        "education": 91.1,
+        "agriculture": 46.78,
+        "general": 7.9
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 50.37,
+          "education": 2.35,
+          "agriculture": 46.78,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 91.1,
+          "agriculture": 0.5,
+          "general": 7.9
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 6.64,
+          "education": 2,
+          "agriculture": 6.17,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 6.85,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 15,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 22.75,
+        "education": 43.72,
+        "agriculture": 31.1,
+        "general": 6.16
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 41.62,
+        "education": 83.35,
+        "agriculture": 55.22,
+        "general": 15.65
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 41.62,
+          "education": 2.67,
+          "agriculture": 55.22,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 83.35,
+          "agriculture": 0.5,
+          "general": 15.65
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5,
+          "education": 2,
+          "agriculture": 6.13,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.83,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 20,
+      "reason": "healing on_backup (boosts none)",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 20.41,
+        "education": 54.45,
+        "agriculture": 28.94,
+        "general": 1.87
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 40.32,
+        "education": 43.57,
+        "agriculture": 56.71,
+        "general": 3.93
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 40.32,
+          "education": 2.47,
+          "agriculture": 56.71,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 43.57,
+          "agriculture": 0.5,
+          "general": 3.93
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.19,
+          "education": 2,
+          "agriculture": 7.3,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 9.7,
+          "agriculture": 0.5,
+          "general": 3.93
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 25,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 30.41,
+        "education": 40.49,
+        "agriculture": 30.15,
+        "general": 4.74
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 47.47,
+        "education": 40.53,
+        "agriculture": 49.59,
+        "general": 6.97
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 47.47,
+          "education": 2.44,
+          "agriculture": 49.59,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 40.53,
+          "agriculture": 0.5,
+          "general": 6.97
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.73,
+          "education": 2,
+          "agriculture": 5.99,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.45,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 27,
+      "reason": "sla risk: healthcare queue rising 8.5\u219219.9 ms",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 28.79,
+        "education": 49.68,
+        "agriculture": 30.37,
+        "general": 7.41
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 46.75,
+        "education": 40.22,
+        "agriculture": 50.24,
+        "general": 7.28
+      },
+      "applied": false,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 46.75,
+          "education": 2.51,
+          "agriculture": 50.24,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 40.22,
+          "agriculture": 0.5,
+          "general": 7.28
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.58,
+          "education": 2,
+          "agriculture": 6.0,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.95,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      }
+    },
+    {
+      "tick": 30,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 25.99,
+        "education": 32.89,
+        "agriculture": 29.36,
+        "general": 7.71
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 46.8,
+        "education": 40.1,
+        "agriculture": 50.22,
+        "general": 7.4
+      },
+      "applied": false,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 46.8,
+          "education": 2.48,
+          "agriculture": 50.22,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 40.1,
+          "agriculture": 0.5,
+          "general": 7.4
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.56,
+          "education": 2,
+          "agriculture": 5.97,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.53,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      }
+    },
+    {
+      "tick": 35,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 21.78,
+        "education": 40.99,
+        "agriculture": 29.23,
+        "general": 5.66
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 41.5,
+        "education": 40.66,
+        "agriculture": 55.62,
+        "general": 6.84
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 41.5,
+          "education": 2.38,
+          "agriculture": 55.62,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 40.66,
+          "agriculture": 0.5,
+          "general": 6.84
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.42,
+          "education": 2,
+          "agriculture": 7.27,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 8.29,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 40,
+      "reason": "healing normal (boosts none)",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 24.59,
+        "education": 46.74,
+        "agriculture": 29.09,
+        "general": 5.31
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 45.41,
+        "education": 88.52,
+        "agriculture": 51.55,
+        "general": 10.48
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 45.41,
+          "education": 2.54,
+          "agriculture": 51.55,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 88.52,
+          "agriculture": 0.5,
+          "general": 10.48
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.22,
+          "education": 2,
+          "agriculture": 5.92,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 8.92,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 45,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 26.85,
+        "education": 35.06,
+        "agriculture": 29.95,
+        "general": 3.3
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 45.1,
+        "education": 90.99,
+        "agriculture": 51.77,
+        "general": 8.01
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 45.1,
+          "education": 2.63,
+          "agriculture": 51.77,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 90.99,
+          "agriculture": 0.5,
+          "general": 8.01
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.19,
+          "education": 2,
+          "agriculture": 5.95,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 8.09,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 47,
+      "reason": "sla risk: healthcare queue 26.8 ms",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 25.62,
+        "education": 35.3,
+        "agriculture": 30.51,
+        "general": 8.81
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 45.83,
+        "education": 83.65,
+        "agriculture": 51.14,
+        "general": 15.35
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 45.83,
+          "education": 2.53,
+          "agriculture": 51.14,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 83.65,
+          "agriculture": 0.5,
+          "general": 15.35
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.37,
+          "education": 2,
+          "agriculture": 6.0,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.15,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 50,
+      "reason": "sla risk: healthcare queue 25.5 ms",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 27.25,
+        "education": 30.11,
+        "agriculture": 29.27,
+        "general": 19.56
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 45.51,
+        "education": 75.19,
+        "agriculture": 51.48,
+        "general": 23.81
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 45.51,
+          "education": 2.51,
+          "agriculture": 51.48,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 75.19,
+          "agriculture": 0.5,
+          "general": 23.81
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.23,
+          "education": 2,
+          "agriculture": 5.91,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 6.58,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 55,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 19.11,
+        "education": 40.42,
+        "agriculture": 30.77,
+        "general": 13.8
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 41.27,
+        "education": 77.82,
+        "agriculture": 55.61,
+        "general": 21.18
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 41.27,
+          "education": 2.62,
+          "agriculture": 55.61,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 77.82,
+          "agriculture": 0.5,
+          "general": 21.18
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5,
+          "education": 2,
+          "agriculture": 6.12,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.23,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 57,
+      "reason": "sla risk: healthcare queue rising 0.0\u219216.4 ms",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 26.3,
+        "education": 41.26,
+        "agriculture": 30.5,
+        "general": 4.22
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 49.05,
+        "education": 78.37,
+        "agriculture": 48.03,
+        "general": 20.63
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 49.05,
+          "education": 2.41,
+          "agriculture": 48.03,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 78.37,
+          "agriculture": 0.5,
+          "general": 20.63
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 6.23,
+          "education": 2,
+          "agriculture": 6.1,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 7.35,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    },
+    {
+      "tick": 60,
+      "reason": "control interval",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 28.17,
+        "education": 30.26,
+        "agriculture": 29.17,
+        "general": 3.66
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {
+        "healthcare": 46.02,
+        "education": 83.99,
+        "agriculture": 51.04,
+        "general": 15.01
+      },
+      "applied": true,
+      "directional_allocation": {
+        "uplink": {
+          "healthcare": 46.02,
+          "education": 2.44,
+          "agriculture": 51.04,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 83.99,
+          "agriculture": 0.5,
+          "general": 15.01
+        }
+      },
+      "feasibility": {
+        "uplink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        },
+        "downlink": {
+          "feasible": true,
+          "regime": "sla_feasible",
+          "policy": "priority",
+          "degraded": []
+        }
+      },
+      "protected": {
+        "uplink": {
+          "healthcare": 5.35,
+          "education": 2,
+          "agriculture": 5.93,
+          "general": 0.5
+        },
+        "downlink": {
+          "healthcare": 0.5,
+          "education": 6.36,
+          "agriculture": 0.5,
+          "general": 6.0
+        }
+      },
+      "headroom": {
+        "healthcare": 1.1,
+        "education": 1.1,
+        "agriculture": 1.1,
+        "general": 1.1
+      },
+      "enforcement": {
+        "verified": true,
+        "failures": [],
+        "mismatches": []
+      }
+    }
+  ],
+  "code_fingerprint": "b9f5fb6605c4eaa4",
+  "model_fingerprint": "dc473a4288b86caa",
+  "environment": "Open5GS 2.7 + UERANSIM 3.2 in Docker: real 5G core signalling and GTP-U, simulated radio"
+}

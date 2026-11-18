@@ -71,3 +71,15 @@ this audit.
 | Dead code | `ContextManager` updates removed from the run loop. The other dead modules are documented, not deleted. | `core/orchestrator.py` | — |
 
 The final evaluation of these changes is predeclared in `docs/thesis/final_evaluation_plan.md`.
+
+## 4. Changes for the 5G closed loop (November 2026)
+
+The table above describes the Mininet orchestrator as of October. The 5G loop is `deployment/5g/run_5g.py::run_loop`,
+and `spec.md` §8 has its stage order. It differs in these ways:
+
+| Stage | Now |
+|---|---|
+| Monitor | **Feeds decisions** (closes G-B for `closed_loop`). `monitoring/qos_monitor.py` marks each class ok, transient or persistent, and a persistent violation triggers RL. A tick with no probe answer is a breach |
+| Flow classification | Random Forest on every flow, deployed as `classification/models/slicenet_5g.pkl` |
+| Learning | `ClosedLoopResidualPolicy`: PPO residual ±30 % with online CEM, on persistent violation only |
+| Testbed check | `stack5g.open_testbed` proves each slice carries packets before a run, and `slices_lost` records the same check after it |

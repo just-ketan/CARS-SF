@@ -120,6 +120,10 @@ docker compose -f deployment/5g/docker-compose.yml up -d     # ~60 s until PDU s
 docker compose -f deployment/5g/docker-compose.yml down
 ```
 
+The integrated closed loop was validated across all 32 class × scenario combinations on this stack:
+[docs/VALIDATION_32.md](docs/VALIDATION_32.md). The radio is simulated, so these are testbed results. The full setup
+is in [spec.md](spec.md).
+
 ## Repository layout
 
 ```

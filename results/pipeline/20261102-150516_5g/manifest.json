@@ -1,0 +1,99 @@
+{
+  "created_unix": 1793612117.963628,
+  "code_fingerprint": "a9354d3cafe1241e",
+  "model_fingerprint": "16803c725fd51dc0",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "2.5.1",
+      "pandas": "3.0.3",
+      "sklearn": "1.9.0",
+      "torch": "2.14.1+cpu",
+      "stable_baselines3": "2.9.0",
+      "mininet": "unknown",
+      "dpkt": "1.9.8"
+    }
+  },
+  "pipeline_id": "20261102-150516_5g",
+  "mode": "5g",
+  "seed": 42,
+  "root": false,
+  "code_fingerprint_at_start": "a9354d3cafe1241e",
+  "model_fingerprint_at_start": "16803c725fd51dc0",
+  "git": {
+    "commit": "48c982c5f718f31b9774e0340770dfd2b5ad505b",
+    "uncommitted_diff_sha256": "b85224fddf4319ed7011ad59f845598e3bfad3bfef1a6b46347b49cc26528f96",
+    "uncommitted_files": 8
+  },
+  "stages": [
+    {
+      "stage": "unit_tests",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python -m pytest -q tests",
+      "log": "results/pipeline/20261102-150516_5g/00_unit_tests.log",
+      "status": "dry-run"
+    },
+    {
+      "stage": "slicenet_5g_collect_train",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/collect_5g.py",
+      "log": "results/pipeline/20261102-150516_5g/01_slicenet_5g_collect_train.log",
+      "status": "dry-run"
+    },
+    {
+      "stage": "rl_semantic_study",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/semantic_study.py",
+      "log": "results/pipeline/20261102-150516_5g/02_rl_semantic_study.log",
+      "status": "dry-run"
+    },
+    {
+      "stage": "rl_closed_loop_deploy",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/semantic_study.py --deploy",
+      "log": "results/pipeline/20261102-150516_5g/03_rl_closed_loop_deploy.log",
+      "status": "dry-run"
+    },
+    {
+      "stage": "validate_32",
+      "command": "/home/ketan/Desktop/CARS-SF/.venv/bin/python experiments/validate_32.py",
+      "log": "results/pipeline/20261102-150516_5g/04_validate_32.log",
+      "status": "dry-run"
+    }
+  ],
+  "status": "dry-run",
+  "environment_check": {
+    "ok": true,
+    "problems": []
+  },
+  "artifacts": {
+    "rsnsd": {
+      "schema_version": "rsnsd-contract-2.0",
+      "provenance_source": "synthetic_rsnsd",
+      "seed": 42,
+      "seeds": null,
+      "rows": 108000,
+      "sha256": "6421db4c8e849716be5ae81787e24a8a3001225448d3bde74d6ef54699e5e4ea",
+      "code_fingerprint": "450ce479becf1ae9"
+    },
+    "mininet_dataset": {
+      "schema_version": "rsnsd-contract-2.0",
+      "provenance_source": "mininet_measured",
+      "seed": null,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "rows": 4697,
+      "sha256": "4af6865fce7de5e4d49c8db7c153af6aebc7e3feb76d24e8079fff0a36885b4f",
+      "code_fingerprint": "450ce479becf1ae9"
+    },
+    "models": {
+      "scheduler/models/rl_agent.pkl": "77548bab6b6567305806ef0713ae85f71b0117cac73eff8a1726549ee24628cd",
+      "scheduler/models/ppo_slicing.zip": "c2b109a21cbb0a355f3928605772e7017125136adec74a00b9e9ee892ec9d6f9",
+      "classification/models/slicenet_baseline.pkl": "8ebe667e50e8037ee94de259478141f2c2d190912aa3aff72e36a427889a7b0a",
+      "classification/models/slicenet_mininet.pkl": "a1bd5a6b4aacae6d1633563a23e8dbf0df1d1a686292c84d8e6762554fb2c29e",
+      "classification/models/slicenet_cnn.pt": "7456c1b14872eba58e8ce2609014145c4e40e7ae38f27da6f6b9ddbb5458eeb2",
+      "classification/models/slicenet_5g.pkl": "a06bfdaaaae41d0550211f193826c54fd1acb21c58f23c98e2a2d36e32275568",
+      "scheduler/models/ppo_closed_loop.zip": null
+    }
+  }
+}

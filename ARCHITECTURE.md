@@ -36,6 +36,8 @@ flowchart LR
 ```
 
 `core/orchestrator.py` runs one experiment. `core/controller.py` is the closed loop.
+On the 5G stack, `deployment/5g/run_5g.py` runs the same controller; `spec.md` covers that setup and
+`docs/VALIDATION_32.md` its results.
 Every stage can be replaced by any object satisfying its protocol in
 `core/interfaces.py`, and schedulers are *compositions* declared in
 `registries/schedulers.yaml`.

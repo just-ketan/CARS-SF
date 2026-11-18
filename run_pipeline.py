@@ -6,6 +6,7 @@ CARS-SF end-to-end pipeline: one entry point, explicit modes, fail-fast.
     .venv/bin/python run_pipeline.py --mode synthetic   # RSNSD → SliceNet baseline → RL (simulator) → evaluation
     .venv/bin/python run_pipeline.py --mode mininet     # emulated-network integration tests (incl. coupled RL loop)
     .venv/bin/python run_pipeline.py --mode rl          # RL training + coupled live-loop test
+    .venv/bin/python run_pipeline.py --mode 5g          # 5G collection → SliceNet → RL → 32-combination validation
     .venv/bin/python run_pipeline.py --mode full        # everything, incl. Mininet collection and the thesis matrix
 
 Stages run as subprocesses of real repository commands; each one's command,
@@ -33,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 PY = sys.executable
 
-MODES = ("unit", "synthetic", "mininet", "rl", "full")
+MODES = ("unit", "synthetic", "mininet", "rl", "5g", "full")
 MIN_FREE_GB = 20
 
 
@@ -85,11 +86,19 @@ def stages(mode: str, seed: int, matrix_workers: int) -> list[tuple[str, list[st
         ("plots_final", [PY, "experiments/plots/plot_final.py"]),
         ("report", [PY, "experiments/report.py"]),
     ]
+    # Live closed loop on Open5GS + UERANSIM (docs/thesis/validation_32_plan.md).
+    closed_loop_5g = [
+        ("slicenet_5g_collect_train", [PY, "experiments/collect_5g.py"]),
+        ("rl_semantic_study", [PY, "experiments/semantic_study.py"]),
+        ("rl_closed_loop_deploy", [PY, "experiments/semantic_study.py", "--deploy"]),
+        ("validate_32", [PY, "experiments/validate_32.py"]),
+    ]
     return {
         "unit": unit,
         "synthetic": unit + synthetic + rl_train + rl_eval,
         "mininet": unit + integration,
         "rl": unit + rl_train + rl_eval + residual + coupled,
+        "5g": unit + closed_loop_5g,
         "full": unit + synthetic + collect + rl_train + rl_eval + residual + integration + matrix,
     }[mode]
 
@@ -98,10 +107,12 @@ def check_environment(mode: str) -> list[str]:
     """Fail-fast prerequisites for the requested mode; returns the problems found."""
     problems = []
     modules = ["numpy", "pandas", "sklearn", "scipy", "yaml", "dpkt", "pytest", "gymnasium"]
-    if mode in ("synthetic", "rl", "full"):
+    if mode in ("synthetic", "rl", "5g", "full"):
         modules += ["torch", "stable_baselines3"]
     if mode in ("mininet", "rl", "full"):
         modules += ["mininet"]
+    if mode == "5g" and shutil.which("docker") is None:
+        problems.append("docker not found: the 5G stages need the deployment/5g compose stack")
     for module in modules:
         try:
             importlib.import_module(module)
@@ -201,7 +212,8 @@ def _artifacts() -> dict:
     }
     for rel in ("scheduler/models/rl_agent.pkl", "scheduler/models/ppo_slicing.zip",
                 "classification/models/slicenet_baseline.pkl", "classification/models/slicenet_mininet.pkl",
-                "classification/models/slicenet_cnn.pt"):
+                "classification/models/slicenet_cnn.pt", "classification/models/slicenet_5g.pkl",
+                "scheduler/models/ppo_closed_loop.zip"):
         path = REPO_ROOT / rel
         artifacts["models"][rel] = file_sha256(path) if path.exists() else None
     for key in ("rsnsd", "mininet_dataset"):

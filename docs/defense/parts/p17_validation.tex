@@ -1,0 +1,52 @@
+\part{End-to-end validation on the 5G stack}\label{part:v32}
+
+\begin{keybox}{What this part is}
+The integrated closed loop was evaluated across all 32 class~$\times$~scenario combinations on Open5GS and UERANSIM,
+under a predeclared plan (\code{docs/thesis/validation_32_plan.md}): 4 arms, 8 scenarios, 5 fresh seeds (50--54),
+160 runs of 60\,s at 100\,Mb/s. The core signalling and GTP-U user plane are real; the radio is simulated. Results
+are in \code{docs/VALIDATION_32.md}.
+\end{keybox}
+
+\section{Results}
+
+\begin{qa}{V1}{How many of the 32 combinations pass?}
+At the 0.95 SLA share: no slicing 19, rules 26, SliceNet with rules 24, the full system 23.
+\end{qa}
+
+\begin{qa}{V2}{Why do nine combinations fail under the full system?}
+Four are uplink overload: healthcare and agriculture in disaster and medical emergency, where demand approaches
+100\,Mb/s. Two are topology: education and general during a core switch failure, which has no alternate path. Three
+appear only with SliceNet in the loop: general in fiber cut, and education and general in backhaul degradation. Those
+three coincide with SliceNet's lowest flow accuracy, but the cause has not been diagnosed.
+\end{qa}
+
+\begin{qa}{V3}{What did the predeclared claims show?}
+\begin{itemize}
+\item Rules against no slicing, healthcare SLA: $+0.225$ $[0.130, 0.320]$, Holm $p<0.001$. Supported.
+\item Full system against no slicing, worst class SLA: $+0.274$ $[0.192, 0.355]$, Holm $p<0.001$. Supported.
+\item SliceNet against address rules, mean class SLA: $-0.007$ $[-0.015, 0.001]$, within the $-0.02$ margin.
+  Supported.
+\item RL against no RL, mean class SLA: $-0.001$ $[-0.006, 0.003]$. Unsupported.
+\item RL against no RL, persistent ticks: $+2.7$ $[-0.4, 5.7]$. Unsupported.
+\end{itemize}
+Safety: 0 failed verifications and 0 validator rejections in 160 runs.
+\end{qa}
+
+\begin{qa}{V4}{Does that mean RL failed?}
+RL ran correctly in the loop: all 17 runs with a persistent violation triggered it, and the safety gate accepted 81
+of 173 proposals. It did not improve outcomes, and why has not been measured directly. One plausible reason is that
+overload cannot be fixed by moving bandwidth within a full link. On this testbed, the evidence shows no gain from RL
+over the rules allocator.
+\end{qa}
+
+\begin{qa}{V5}{Why was the first validation run discarded?}
+A simulated radio link failed on the healthcare UE during seed 43. The gNB refused the reattach, and the tunnel kept
+its address, so the readiness check passed and 56 more runs carried no healthcare traffic. The monitor also called
+the dead slice healthy, because a dead path has no queue and no loss. Both defects were fixed. The plan requires
+fresh seeds after a fix, so the matrix was repeated on seeds 50--54, and the void run is preserved.
+\end{qa}
+
+\begin{qa}{V6}{Is this a real 5G deployment?}
+No. The 5G core and GTP-U user plane are real software, but the radio is UERANSIM, no radio resources are scheduled,
+and it runs in Docker on one machine. Slicing acts on the transport path, not on the 5G core's policy functions.
+\end{qa}

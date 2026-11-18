@@ -15,6 +15,11 @@ All results come from one reproducible run of `run_pipeline.py --mode full` on t
 * every stage ok;
 * 665 runs, all made with the same code and model fingerprints.
 
+## 5G closed-loop validation
+
+The 32-combination validation of the integrated loop on Open5GS + UERANSIM is reported in
+[VALIDATION_32.md](VALIDATION_32.md). It is a separate evaluation from the one below, with its own plan and seeds.
+
 ## 0. Final evaluation (current results)
 
 This section supersedes §5–6, which describe the earlier contended-regime rounds v1–v4, kept as history.

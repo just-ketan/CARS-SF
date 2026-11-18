@@ -40,7 +40,8 @@ def code_fingerprint() -> str:
 MODEL_ARTIFACTS = (
     "scheduler/models/rl_agent.pkl", "scheduler/models/ppo_slicing.zip", "scheduler/models/calibration.json",
     "classification/models/slicenet_mininet.pkl", "classification/models/slicenet_cnn.pt",
-    "classification/models/slicenet_baseline.pkl",
+    "classification/models/slicenet_baseline.pkl", "classification/models/slicenet_5g.pkl",
+    "scheduler/models/ppo_closed_loop.zip",
 )
 
 

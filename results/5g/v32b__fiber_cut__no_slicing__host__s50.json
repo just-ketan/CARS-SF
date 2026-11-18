@@ -1,0 +1,204 @@
+{
+  "run_id": "v32b__fiber_cut__no_slicing__host__s50",
+  "scenario": "fiber_cut",
+  "scheduler": "no_slicing",
+  "classification": "host",
+  "slices_lost": [],
+  "seed": 50,
+  "duration": 60,
+  "capacity_mbps": 100.0,
+  "demand_mbps": {
+    "healthcare": 40.0,
+    "education": 15.0,
+    "agriculture": 15.0,
+    "general": 30.0
+  },
+  "records": 283,
+  "self_healing": false,
+  "contract": {
+    "source": "5g_core_measured",
+    "rows": 283,
+    "ok": true,
+    "errors": []
+  },
+  "slice_kpis": {
+    "agriculture": {
+      "records": 66,
+      "latency_p50_ms": 4.522,
+      "latency_p95_ms": 24.222,
+      "latency_p99_ms": 33.542,
+      "jitter_ms": 2.717,
+      "loss_pct": 0.066,
+      "sla_satisfied_share": 1.0,
+      "delivered_mbps": 15.495,
+      "demand_mbps": 15.0,
+      "demand_satisfaction": 1.0
+    },
+    "education": {
+      "records": 67,
+      "latency_p50_ms": 8.207,
+      "latency_p95_ms": 91.884,
+      "latency_p99_ms": 102.436,
+      "jitter_ms": 0.391,
+      "loss_pct": 23.998,
+      "sla_satisfied_share": 0.7164,
+      "delivered_mbps": 8.99,
+      "demand_mbps": 15.0,
+      "demand_satisfaction": 0.5993
+    },
+    "general": {
+      "records": 58,
+      "latency_p50_ms": 12.384,
+      "latency_p95_ms": 92.239,
+      "latency_p99_ms": 97.592,
+      "jitter_ms": 0.416,
+      "loss_pct": 15.894,
+      "sla_satisfied_share": 0.8276,
+      "delivered_mbps": 13.239,
+      "demand_mbps": 30.0,
+      "demand_satisfaction": 0.4413
+    },
+    "healthcare": {
+      "records": 92,
+      "latency_p50_ms": 3.635,
+      "latency_p95_ms": 24.367,
+      "latency_p99_ms": 26.779,
+      "jitter_ms": 1.645,
+      "loss_pct": 0.035,
+      "sla_satisfied_share": 0.9891,
+      "delivered_mbps": 38.771,
+      "demand_mbps": 40.0,
+      "demand_satisfaction": 0.9693
+    }
+  },
+  "weighted_utility": 0.8889,
+  "fairness_satisfaction": 0.9083,
+  "enforcement": {
+    "decisions_applied": 0,
+    "verified": 0,
+    "failed": 0
+  },
+  "safety_rejections": 0,
+  "hybrid": {
+    "accepted": 0,
+    "rejected": 0
+  },
+  "adaptations": [],
+  "qos_monitor": {
+    "transient_episodes": 0,
+    "persistent_episodes": 3,
+    "unresolved_persistent": 1,
+    "per_class_persistent_ticks": {
+      "healthcare": 3,
+      "education": 22,
+      "agriculture": 0,
+      "general": 22
+    },
+    "episodes": [
+      {
+        "class": "education",
+        "context": "fiber_cut",
+        "start_tick": 21,
+        "metrics": [
+          "unreachable"
+        ],
+        "persistent": true,
+        "persistent_tick": 23,
+        "end_tick": 43,
+        "duration_ticks": 22
+      },
+      {
+        "class": "general",
+        "context": "fiber_cut",
+        "start_tick": 21,
+        "metrics": [
+          "unreachable"
+        ],
+        "persistent": true,
+        "persistent_tick": 23,
+        "end_tick": 43,
+        "duration_ticks": 22
+      },
+      {
+        "class": "healthcare",
+        "context": "fiber_cut",
+        "start_tick": 57,
+        "metrics": [
+          "jitter"
+        ],
+        "persistent": true,
+        "persistent_tick": 59,
+        "unresolved": true,
+        "end_tick": 60,
+        "duration_ticks": 3
+      }
+    ]
+  },
+  "transitions": {
+    "transitions": 1,
+    "learnable": 1,
+    "unverified": 1,
+    "failed_enforcement": 0,
+    "mean_reward": 0.0
+  },
+  "policy_learning": null,
+  "slicenet": null,
+  "healing": {
+    "actions": [
+      {
+        "action": "reroute_disabled",
+        "tick": 20,
+        "timestamp": 1793632080.2752051,
+        "trigger": "fiber_cut",
+        "trigger_timestamp": 1793632080.2558799,
+        "state": "normal"
+      }
+    ],
+    "verifications": [],
+    "escalations": [],
+    "summary": {
+      "state": "normal",
+      "actions": 1,
+      "verifications": [],
+      "time_to_restore_s": null,
+      "escalations": [],
+      "diagnosed_core_switch_failure": false
+    }
+  },
+  "faults": [
+    {
+      "event": "fiber_cut",
+      "tick": 20,
+      "timestamp": 1793632080.2421398
+    },
+    {
+      "event": "repair",
+      "tick": 40,
+      "timestamp": 1793632100.2502403
+    }
+  ],
+  "controller_history": [
+    {
+      "tick": 0,
+      "reason": "initial",
+      "context": "fiber_cut",
+      "demand_estimate": {
+        "healthcare": 40.0,
+        "education": 15.0,
+        "agriculture": 15.0,
+        "general": 30.0
+      },
+      "priorities": {
+        "healthcare": 10.0,
+        "education": 2.0,
+        "agriculture": 2.0,
+        "general": 1.0
+      },
+      "allocation": {},
+      "applied": true
+    }
+  ],
+  "code_fingerprint": "c49be2a6d6553470",
+  "model_fingerprint": "dc473a4288b86caa",
+  "environment": "Open5GS 2.7 + UERANSIM 3.2 in Docker: real 5G core signalling and GTP-U, simulated radio"
+}

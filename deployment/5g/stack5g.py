@@ -57,6 +57,7 @@ GTP_INNER_OFFSET = 44
 INNER_PROTO_AT, INNER_SRC_AT, INNER_DST_AT = GTP_INNER_OFFSET + 9, GTP_INNER_OFFSET + 12, GTP_INNER_OFFSET + 16
 INNER_SPORT_AT, INNER_DPORT_AT = GTP_INNER_OFFSET + 20, GTP_INNER_OFFSET + 22
 ICMP_PRIO, SLICE_PRIO, FLOW_PRIO_BASE = 50, 60, 100
+LEAF_HASH_BUCKETS = 64                # subflows per slice, from the inner destination port
 
 
 def ip_to_hex(address: str) -> str:
@@ -210,7 +211,9 @@ class Topology5G:
         iface_upf, iface_core = (self.fiber_upf, self.fiber_core) if path == "primary" \
             else (self.backup_upf, self.backup_core)
         self.upf.cmd(f"ip route replace {CORE_DN_IP}/32 via {CORE_ADDR[name]} dev {iface_upf}")
-        self.core.cmd(f"ip route replace 10.60.0.0/14 via {UPF_ADDR[name]} dev {iface_core}")
+        # Server-initiated flows must leave from the service address: a link address would not
+        # match the application's identity and would die with its link on a path change.
+        self.core.cmd(f"ip route replace 10.60.0.0/14 via {UPF_ADDR[name]} dev {iface_core} src {CORE_DN_IP}")
 
     def relink(self):
         """Links came back: their routes vanished with them, so restore the active path."""
@@ -255,9 +258,31 @@ class Transport5GQoS(QoSEnforcer):
         # on the downlink (ogstun, inner packets) and on the emulated testbed.
         return f"stab overhead -{GTP_INNER_OFFSET} linklayer ethernet " if iface == self.bottleneck_intf else ""
 
+    def _hash_inner_flows(self, node: Node, handle: str):
+        """fq_codel hashes the outer header, and on N3 every packet of a slice has the same one
+        (gNB → UPF, UDP 2152), so a slice would be one FIFO: a video burst would delay the ECG and
+        voice flows behind it. These filters pick the subflow from the inner headers instead. With
+        filters attached fq_codel drops what none of them matches, hence the catch-all (ARP, N2)."""
+        iface = self.bottleneck_intf
+        rules = [f"tc filter add dev {iface} parent {handle}: protocol all prio 1 u32 "
+                 f"match u8 1 0xff at {INNER_PROTO_AT} flowid {handle}:{LEAF_HASH_BUCKETS + 1:x}",
+                 f"tc filter add dev {iface} parent {handle}: protocol all prio 2 handle 2: u32 "
+                 f"divisor {LEAF_HASH_BUCKETS}",
+                 f"tc filter add dev {iface} parent {handle}: protocol all prio 2 u32 ht 800:: match u32 0 0 "
+                 f"hashkey mask 0x{LEAF_HASH_BUCKETS - 1:08x} at {INNER_SPORT_AT} link 2:"]
+        rules += [f"tc filter add dev {iface} parent {handle}: protocol all prio 2 u32 ht 2:{bucket:x}: "
+                  f"match u32 0 0 flowid {handle}:{bucket + 1:x}" for bucket in range(LEAF_HASH_BUCKETS)]
+        rules.append(f"tc filter add dev {iface} parent {handle}: protocol all prio 3 u32 "
+                     f"match u32 0 0 flowid {handle}:{LEAF_HASH_BUCKETS + 2:x}")
+        output = node.cmd("; ".join(rules))
+        if "rror" in output:
+            raise RuntimeError(f"leaf hashing on {iface} parent {handle}: failed: {output[:300]}")
+
     def _install_filters(self, spawns: list[dict]):
         cell = self.net.get("cell_site")
         upf = self.net.get("upf_tap")
+        for classid in self.class_ids.values():
+            self._hash_inner_flows(cell, classid.split(":")[1])
         for service, pool in SLICE_POOL.items():
             classid = self.class_ids[service]
             address = pool.split("/")[0]
@@ -500,6 +525,35 @@ def ensure_stack(timeout_s: int = 120):
             return
         time.sleep(3)
     raise RuntimeError("5G stack did not reach four attached slices; see `docker compose logs`")
+
+
+def dead_slices(net: Net5G) -> list[str]:
+    """Slices whose PDU session no longer carries packets. After a radio link failure the
+    gNB refuses the UE's reattach and uesimtun0 keeps its address, so only traffic shows it."""
+    return [s for s in SERVICES
+            if "bytes from" not in net.get(f"tg_{s}").cmd(f"ping -c 5 -i 0.2 -W 1 -I uesimtun0 {EDGE_DN_IP}")]
+
+
+def restart_stack():
+    """The way out of a radio link failure. The core must go too: it would keep the old PDU
+    session and give the UE a new address, which the slice filters do not match."""
+    compose("down", "--timeout", "5")
+
+
+def open_testbed(capacity: float) -> tuple[Net5G, Topology5G]:
+    """The testbed in its start-of-run state, with every slice proven to carry packets."""
+    for _ in range(2):
+        ensure_stack()
+        net = Net5G()
+        topo = Topology5G(net, capacity)
+        topo.reset()
+        dead = dead_slices(net)
+        if not dead:
+            return net, topo
+        print(f"radio link lost on {dead}: restarting the stack", flush=True)
+        net.close()
+        restart_stack()
+    raise RuntimeError(f"slices {dead} carry no packets after a stack restart")
 
 
 os.environ.setdefault("COMPOSE_PROGRESS", "quiet")

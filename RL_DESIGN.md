@@ -199,3 +199,15 @@ Simulation result (final run): +0.3 to +0.5 % reward, significant for 2 of 3 see
 **Safety.** The residual cannot take a slice below the allocator's *protected* minimum (floor or anti-starvation
 guard). Evaluation v3 showed that, without this bound, the policy learned to starve best-effort TCP, which the
 simulator models as backing off cheaply; live, that slice's SLA collapsed to 0.04.
+
+## Closed-loop deployment on 5G
+
+`closed_loop` (`ClosedLoopResidualPolicy`) uses the residual policy with conventional state v2. The PPO policy corrects
+the rules' rates by up to ±30 %, an online CEM offset updates from live transitions, and the safety gate decides what
+is applied. It runs only when the monitor reports a persistent violation.
+
+The semantic state was not adopted: its predeclared study found +0.08 points against a required 0.25, p = 1.0.
+
+On the 5G validation RL showed no benefit: mean class SLA −0.001 [−0.006, 0.003] and persistent ticks +2.7
+[−0.4, 5.7] against the same system without RL. The policy's roughly 2 % gain in the simulator did not carry over to
+the network, which matches C7 and C8 in the Mininet evaluation. See `docs/VALIDATION_32.md`.

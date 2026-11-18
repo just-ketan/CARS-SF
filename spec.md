@@ -251,11 +251,13 @@ Routes:
 | `gnb` | 10.80.0.0/24 | 10.78.0.2 |
 | `core` | 10.78.0.0/24 | 10.80.0.2 |
 | `core` | 10.85.0.100/32 | Active backhaul; blackhole at metric 200 |
-| `dn_core` | 10.60.0.0/14 | Active backhaul; blackhole at metric 200 |
+| `dn_core` | 10.60.0.0/14 | Active backhaul, `src 10.85.0.100`; blackhole at metric 200 |
 | `dn` | 10.60.0.0/14 | 10.81.0.10 |
 | `tg_*` | 10.81.0.0/24, 10.85.0.100/32 | `uesimtun0` |
 
-The blackhole routes stop traffic leaking out of the Docker default route when a backhaul interface goes down.
+The blackhole routes stop traffic leaking out of the Docker default route when a backhaul interface goes down. The
+`src` setting makes server-initiated flows leave from the service address, so they match the application registry
+and keep working across a path change.
 
 ### 5.4 5G core
 
@@ -311,7 +313,11 @@ them. Differentiation comes only from §6. These are test credentials on the tes
 its gNB at 10.79.0.20 and creates `uesimtun0`.
 
 Startup is by fixed delay: the gNB waits 30 s and the UEs 38 s. `stack5g.ensure_stack()` treats the stack as ready
-when all four UE addresses are present, and allows 120 s.
+when all four UE addresses are present, and allows 120 s. An address does not prove the path works: after a simulated
+radio link failure the gNB refuses the reattach and `uesimtun0` keeps its address. So `stack5g.open_testbed()` also
+sends traffic through every slice before a run, and rebuilds the stack with `down` and `up` if one is dead. Restarting
+only the radio side is not enough, because the SMF keeps the old session and the UE returns with a new address that
+the filters do not match. Each run ends with the same check and records `slices_lost`.
 
 ### 5.7 User-plane path
 
@@ -410,7 +416,22 @@ tc filter add dev ogstun protocol ip parent 1: prio 1 handle <n> flower \
   src_ip <peer> dst_ip <ue> ip_proto udp src_port <p> dst_port <q> classid 1:10
 ```
 
-### 6.2 GTP overhead
+### 6.2 Per-flow queues inside GTP
+
+`fq_codel` hashes the outer header. On N3 every packet of a slice has the same outer tuple (gNB to UPF, UDP 2152), so
+without help each slice would be one FIFO and a video burst would delay ECG and voice behind it. Each uplink leaf
+therefore has its own filters (`Transport5GQoS._hash_inner_flows`):
+
+| prio | Rule | Subflow |
+|---|---|---|
+| 1 | Inner ICMP | 65 |
+| 2 | u32 hash on the low 6 bits of the inner destination port | 1–64 |
+| 3 | Catch-all, for ARP and N2 | 66 |
+
+The catch-all is required: once filters are attached, `fq_codel` drops anything no filter matches. The downlink needs
+none of this, because `ogstun` already sees inner headers.
+
+### 6.3 GTP overhead
 
 The uplink root qdisc adds `stab overhead -44 linklayer ethernet`. HTB therefore counts uplink bytes as user-plane
 bytes, and C means the same payload capacity in both directions.
@@ -454,6 +475,13 @@ about 1 s and rechecked every 5 ticks with full-window features. The classifier 
 
 **Transient and persistent.** A breach becomes persistent after 3 consecutive ticks and clears after 3 clean ticks.
 Only a persistent violation triggers RL. Shorter breaches are left to the queues.
+
+**Unreachable check.** A tick with no probe answer is a breach. A dead path leaves an empty queue and zero loss, so
+the probe is the only signal. The loop can report a dead slice but has no action that repairs a radio link.
+
+**Throughput check.** Satisfaction is delivered ÷ offered. Offered is the nominal demand capped by what the queue
+shows arrived: delivered, plus dropped, plus still queued. An on/off source below its nominal rate is idle, so it
+does not count as a breach. `min_satisfaction` itself is unchanged.
 
 **Planning.** The rules allocator (`QoSAwareAllocator`) re-plans every 5 ticks, on context changes, and on loss or
 delay breaches. It works per direction and has three regimes: SLA feasible, mean feasible and overload.
@@ -561,8 +589,9 @@ with `docker compose -f deployment/5g/docker-compose.yml down -v`.
 .venv/bin/python experiments/collect_5g.py                 # 5G traffic, then train SliceNet
 .venv/bin/python experiments/collect_5g.py --train-only    # train only
 .venv/bin/python experiments/semantic_study.py --deploy    # write the closed-loop RL policy
-.venv/bin/python experiments/validate_32.py                # 160 runs, about 4 h, nothing else running
+.venv/bin/python experiments/validate_32.py                # 160 runs, about 3.5 h, nothing else running
 .venv/bin/python experiments/validate_32.py --analyse
+.venv/bin/python run_pipeline.py --mode 5g                 # all of the above in order
 ```
 
 | Variable | Purpose |
@@ -577,42 +606,46 @@ with `docker compose -f deployment/5g/docker-compose.yml down -v`.
 | Item | Value |
 |---|---|
 | Arms | `no_slicing`; `rules` (qos_adaptive, host); `slicenet` (qos_adaptive, slicenet_all); `full` (closed_loop, slicenet_all) |
-| Grid | 8 scenarios × 4 arms × 5 seeds (40–44) = 160 runs, each covering all 4 classes |
+| Grid | 8 scenarios × 4 arms × 5 seeds (50–54) = 160 runs, each covering all 4 classes |
 | Run | 60 s at 100 Mb/s |
 | Pass share | 0.95 |
+| Void runs | A run that loses a slice is set aside, its online learning undone, and repeated on the same seed |
+
+The first run, on seeds 40–44, is void because a radio link failure went undetected. The plan's amendment explains it.
 
 ## 11. Implementation status
 
-As of 2026-11-02.
+As of 2026-11-03. Validation results are in `docs/VALIDATION_32.md`.
 
 | Component | Status | Evidence |
 |---|---|---|
 | Mininet + Linux bridge | Working | Evaluation matrix |
 | Mininet + real OVS | Working on earlier code | 33 runs; not repeated for `closed_loop` |
-| Open5GS + UERANSIM | Working | Four slices attached, GTP-U user plane |
-| Transport slicing on 5G | Working | 370 of 370 rate decisions read back correctly across 24 collection runs (`qos_adaptive`, host) |
-| Failover on 5G | Working under rules | 9 fault runs: backup activated and recovery verified in all; core failure diagnosed in all 3 such runs; fail-back in the 6 runs with a repair |
-| QoS monitor | Unit tested | Not yet evaluated in a 5G validation run |
-| SliceNet on 5G | Provisional | See below |
+| Open5GS + UERANSIM | Working | Four slices attached, GTP-U user plane, 160 validation runs |
+| Transport slicing on 5G | Working | Healthcare SLA +0.225 against no slicing (Holm p < 0.001); 633 of 633 rate decisions in `full` read back correctly |
+| Failover on 5G | Working | 15 of 15 `full` fault runs: recovery actions verified; core failure diagnosed in all 5 such runs |
+| QoS monitor | Working | Drives RL in the loop: all 17 `full` runs with a persistent violation triggered it |
+| SliceNet on 5G | Working, non-inferior | Live flow accuracy 0.902; V3 supported, see below |
 | Conventional RL state | Decided | Semantic state not adopted, see below |
-| `closed_loop` on 5G | **Not yet run** | Trained policy not deployed |
-| 32-combination validation | **Not yet run** | No validation results exist |
+| `closed_loop` on 5G | Working, no measured benefit | V4 and V5 unsupported |
+| 32-combination validation | Done | `full` passes 23 of 32 cells; `rules` passes 26 |
 
-**SliceNet.** Trained on 5G seeds 30–31 plus Mininet data, then tested on held-out seed 32: accuracy 0.927. This
-model predates a fix to its training columns, so it must be retrained before validation. Recall on that seed:
+**SliceNet.** Random Forest, trained on 5G seeds 30–31 plus Mininet data, tested on held-out seed 32: accuracy 0.933,
+internal group-split macro F1 0.955. Recall on that seed:
 
 | Scenario | healthcare | education | agriculture | general |
 |---|---|---|---|---|
-| normal | 0.821 | 0.609 | 1.000 | 0.922 |
-| school | 1.000 | 0.396 | 1.000 | 0.969 |
-| harvest | 1.000 | 0.543 | 1.000 | 0.958 |
-| disaster | 1.000 | 0.815 | 1.000 | 0.945 |
-| medical_emergency | 1.000 | 0.741 | 1.000 | 0.867 |
-| fiber_cut | 1.000 | 0.700 | 0.971 | 0.958 |
-| backhaul_degradation | 1.000 | 0.700 | 0.971 | 0.968 |
-| core_switch_failure | 1.000 | 0.680 | 1.000 | 0.965 |
+| normal | 0.832 | 0.787 | 1.000 | 0.911 |
+| school | 1.000 | 0.760 | 1.000 | 1.000 |
+| harvest | 1.000 | 0.766 | 1.000 | 0.979 |
+| disaster | 1.000 | 0.933 | 1.000 | 0.945 |
+| medical_emergency | 1.000 | 0.947 | 1.000 | 0.855 |
+| fiber_cut | 1.000 | 0.841 | 0.942 | 0.926 |
+| backhaul_degradation | 1.000 | 0.807 | 0.971 | 0.947 |
+| core_switch_failure | 1.000 | 0.800 | 1.000 | 0.917 |
 
-Education is the weak class, down to 0.396 in `school`, which is the scenario where it matters most.
+The remaining confusion is between education and general: `education.learning_management` and `online_exam` use the
+same `web_tcp` traffic model as general web applications.
 
 **Semantic RL.** The predeclared study compared the semantic state with conventional state v2 on held-out scenarios.
 The difference was +0.08 points with Wilcoxon p = 1.0, against a rule requiring at least 0.25 points and p < 0.05.
@@ -622,7 +655,10 @@ Conventional state v2 stays.
 
 | Area | Limitation |
 |---|---|
-| Radio | Simulated. No radio slicing, no over-the-air measurement |
+| Radio | Simulated. No radio slicing, no over-the-air measurement. UERANSIM's radio link failed twice in about 320 runs, and it cannot recover without a stack rebuild |
+| RL | No measured benefit on the network (V4, V5). The rules allocator passes more cells |
+| Overload | Disaster and medical emergency exceed what 100 Mb/s of uplink can carry: healthcare and agriculture stay below their SLA |
+| SliceNet | General flows are 0.681 accurate live, and SliceNet costs SLA in `fiber_cut` and `backhaul_degradation`. The cause is not diagnosed |
 | 5G core | Slices are provisioned statically. All use 5QI 9. Rate changes never reach the PCF or SMF |
 | RIC | No Near-RT RIC, SMO or E2/A1 interface |
 | Actuation | `tc` through container shells, not NETCONF or a vendor API |
@@ -656,4 +692,5 @@ Conventional state v2 stays.
 | Registries | `registries/` |
 | Placement | `docs/DEPLOYMENT_ARCHITECTURE.md` |
 | Validation plan | `docs/thesis/validation_32_plan.md` |
+| Validation results | `docs/VALIDATION_32.md` |
 | Run commands | `docs/EXECUTION_GUIDE.md` |

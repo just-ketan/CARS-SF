@@ -51,7 +51,7 @@ from features.packet_capture import CapturePoint  # noqa: E402
 from self_healing.detector import FailureDetector, PredictiveDetector  # noqa: E402
 from self_healing.engine import SelfHealingEngine, ceilings_for  # noqa: E402
 from stack5g import (BACKUP_SHARE, CORE_DN_IP, EDGE_DN_IP, SERVICES, UE_IP, FaultInjector5G, LinkWatcher5G, Net5G,  # noqa: E402
-                     Telemetry5G, Topology5G, Transport5GQoS, ensure_stack)
+                     Telemetry5G, Topology5G, Transport5GQoS, dead_slices, ensure_stack, open_testbed)
 from traffic.models import mean_rate_mbps, scaled  # noqa: E402
 
 OUT_DIR = RESULTS_DIR / "5g"
@@ -116,7 +116,6 @@ class Traffic5G:
 
 def run_loop(scenario_id: str, scheduler: str, classification: str, duration: int, capacity: float, seed: int,
              run_prefix: str = "5g", self_healing: bool = True) -> dict:
-    ensure_stack()
     scenario = {s["id"]: s for s in load_scenarios()}[scenario_id]
     run_id = f"{run_prefix}__{scenario_id}__{scheduler}__{classification}__s{seed}"
     run_dir = WORK_DIR / run_id
@@ -124,9 +123,7 @@ def run_loop(scenario_id: str, scheduler: str, classification: str, duration: in
     run_dir.mkdir(parents=True)
     os.chmod(run_dir, 0o777)
 
-    net = Net5G()
-    topo = Topology5G(net, capacity)
-    topo.reset()
+    net, topo = open_testbed(capacity)
     spec = scheduler_spec(scheduler)
     # Scenario demands are defined for a 100 Mb/s link; a smaller testbed link scales them
     # together, so every contention ratio is preserved.
@@ -231,8 +228,10 @@ def run_loop(scenario_id: str, scheduler: str, classification: str, duration: in
     kpis = slice_kpis(df, offered) if not df.empty else {}
     weights = controller.priority_engine.context_engine.get_context(context)
     actions = [h for h in controller.history if h.get("enforcement")]
+    topo.reset()                        # faults restored, so a dead slice can only be the radio
     result = {
         "run_id": run_id, "scenario": scenario_id, "scheduler": scheduler, "classification": classification,
+        "slices_lost": dead_slices(net),
         "seed": seed, "duration": duration, "capacity_mbps": capacity, "demand_mbps": offered, "records": len(df),
         "self_healing": self_healing, "contract": contract, "slice_kpis": kpis,
         "weighted_utility": weighted_utility(kpis, weights),

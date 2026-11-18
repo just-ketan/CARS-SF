@@ -7,7 +7,9 @@ Every tick each class is compared with its thresholds for the current scenario
   loss_pct       queue drops on the class's two enforcement points
   latency_ms     probe RTT / 2 (one-way estimate); the queue delay if no probe answered
   jitter_ms      mean successive probe difference / 2, when the backend measures it
-  satisfaction   delivered / offered, for inelastic classes (TCP adapts to what it gets)
+  satisfaction   delivered / offered, for inelastic classes (TCP adapts to what it gets).
+                 Offered is capped by what the queue shows arrived (delivered + dropped +
+                 still queued): an on/off source below its nominal rate is idle, not starved
 
 A breach is **transient** until it has lasted ``PERSIST_TICKS`` consecutive ticks,
 then **persistent**; it ends after ``CLEAR_TICKS`` clean ticks, so one good tick does
@@ -67,8 +69,16 @@ class QoSViolationMonitor:
             "jitter_ms": None if jitter is None else jitter / 2,
             "loss_pct": qos.get("loss_pct"),
             "probe_answered": rtt is not None,
-            "satisfaction": None if not offered or offered < 0.5 or delivered is None else delivered / offered,
+            "satisfaction": self._satisfaction(delivered, offered, qos),
         }
+
+    @staticmethod
+    def _satisfaction(delivered: float | None, offered: float | None, qos: dict[str, Any]) -> float | None:
+        if not offered or offered < 0.5 or delivered is None:
+            return None
+        kept = 1.0 - min(float(qos.get("loss_pct") or 0.0), 99.0) / 100.0
+        arrived = delivered / kept + delivered * float(qos.get("queue_delay_ms") or 0.0) / 1000.0
+        return min(delivered / min(offered, arrived), 1.0) if arrived > 0 else 1.0
 
     def breaches(self, service: str, measured: dict[str, Any], context: str) -> list[str]:
         limits = (self.thresholds.get(context) or self.thresholds["normal"])[service]
@@ -80,7 +90,8 @@ class QoSViolationMonitor:
             found.append("jitter")
         if measured["loss_pct"] is not None and measured["loss_pct"] > limits["loss_pct"]:
             found.append("loss")
-        if not measured["probe_answered"] and measured["queue_delay_ms"] is None:
+        # A dead path leaves an empty queue and zero loss, so only the probe can show it.
+        if not measured["probe_answered"]:
             found.append("unreachable")
         satisfaction = measured["satisfaction"]
         if service not in self.elastic and satisfaction is not None and satisfaction < limits["min_satisfaction"]:

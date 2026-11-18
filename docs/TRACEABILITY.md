@@ -8,7 +8,8 @@ are from the predeclared final evaluation (`docs/thesis/final_evaluation_plan.md
 * analysis `results/tables/final_claims.csv`, `final_requirements.csv`.
 
 Differences are paired (condition, seed), shown as mean Δ [95 % CI], with the rank-biserial r. p values are
-Holm-adjusted over the primary family.
+Holm-adjusted over the primary family. Claims V1–V5 come from the separate 5G validation
+(`docs/thesis/validation_32_plan.md`, seeds 50–54).
 
 | Claim | Implementation | Tests | Metric | Baseline | Final result | Verdict | Evidence |
 |---|---|---|---|---|---|---|---|
@@ -28,4 +29,9 @@ Holm-adjusted over the primary family.
 | C10 SliceNet on every flow is non-inferior | `classification/online.py`, class-aware demand | `tests/test_online_slicenet.py`, live slicenet_all test | mean class SLA (margin −0.02) | address rules | −0.004 [−0.014, 0.006] | supported | `final_slicenet` runs |
 | C11 Self-healing cuts outage | `self_healing/` | `tests/test_self_healing_engine.py`, 5 live tests | core-bound outage (s) | `no_healing` | −10.0 s [−14.0, −5.9], p 0.010; real OVS: fiber cut 0.15 s, repeated cuts recovered, 0 false failovers | supported | `resilience` + `ovs_resilience` runs |
 | Actuation changes real traffic outcomes | `slicing/qos_enforcer.py` (tc on OVS ports; OVS queues with read-back) | `test_ovs_backend_applies_per_direction_and_reads_queues_back` | per-class SLA on real OVS | `no_slicing`, `static_equal` | disaster healthcare 0.50 → 0.74 → 0.86; school worst class 0.65 → 0.93 → 0.98 | supported (real OVS) | `ovs_actuation` runs; `results/evidence/ovs_logs/` |
+| V1 Slicing protects the critical class on 5G | `Transport5GQoS`, `QoSAwareAllocator` | `tests/test_closed_loop.py` | healthcare SLA | `no_slicing` | +0.225 [0.130, 0.320], r 0.92, Holm p < 0.001 | supported | `results/tables/v32_claims.csv`; `docs/VALIDATION_32.md` |
+| V2 Full system beats no slicing on the worst class on 5G | `closed_loop` | same | worst class SLA | `no_slicing` | +0.274 [0.192, 0.355], r 0.98, Holm p < 0.001 | supported | same |
+| V3 SliceNet (Random Forest) replaces address rules on 5G | `classification/online.py`, `classification/models/slicenet_5g.pkl` | `tests/test_online_slicenet.py` | mean class SLA (margin −0.02) | address rules | −0.007 [−0.015, 0.001] | supported | same |
+| V4 RL improves on the rules on 5G | `ClosedLoopResidualPolicy` | `tests/test_closed_loop.py` | mean class SLA | `slicenet` arm | −0.001 [−0.006, 0.003], Holm p 0.32 | unsupported | same |
+| V5 RL reduces persistent violation on 5G | same | same | persistent ticks | `slicenet` arm | +2.7 [−0.4, 5.7], Holm p 0.09 | unsupported | same |
 | Radio-resource slicing; live 5G RAN | not implemented | — | — | — | — | not evaluated | — |

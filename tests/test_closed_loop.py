@@ -75,7 +75,7 @@ def test_latency_jitter_and_throughput_are_all_detected():
     monitor = QoSViolationMonitor()
     assert monitor.observe(1, _snap(rtt=200.0), "normal")["healthcare"]["breaches"] == ["latency"]
     assert "jitter" in monitor.observe(2, _snap(jitter=100.0), "normal")["healthcare"]["breaches"]
-    starved = monitor.observe(3, _snap(), "normal", demand={"healthcare": 100.0})
+    starved = monitor.observe(3, _snap(loss=50.0), "normal", demand={"healthcare": 100.0})
     assert "throughput" in starved["healthcare"]["breaches"]
 
 
@@ -263,6 +263,71 @@ def test_slicenet_mode_has_no_address_rules_for_data_only_for_probes():
     commands = _qos("slicenet_all").net.get("cell_site").commands
     assert not any(f"prio {SLICE_PRIO} " in c for c in commands)
     assert any(f"prio {ICMP_PRIO} " in c for c in commands)
+
+
+def test_an_idle_on_off_source_is_not_a_throughput_breach_but_a_held_back_one_is():
+    from monitoring.qos_monitor import QoSViolationMonitor
+    monitor = QoSViolationMonitor(thresholds={"normal": {"healthcare": {
+        "latency_ms": 50, "jitter_ms": 10, "loss_pct": 50, "min_satisfaction": 0.95}}})
+
+    def found(**qos):
+        snapshot = {"slice_qos": {"healthcare": qos}, "service_rtt_ms": {"healthcare": 1.0}}
+        measured = monitor.measure("healthcare", snapshot, {"healthcare": 40.0})
+        return monitor.breaches("healthcare", measured, "normal")
+
+    assert found(delivered_mbps=8.0, loss_pct=0.0, queue_delay_ms=0.0) == []             # nothing held back
+    assert found(delivered_mbps=8.0, loss_pct=20.0, queue_delay_ms=0.0) == ["throughput"]   # drops
+    assert found(delivered_mbps=20.0, loss_pct=0.0, queue_delay_ms=40.0) == []           # 96 % served, within target
+    assert found(delivered_mbps=20.0, loss_pct=0.0, queue_delay_ms=500.0) == ["throughput"]  # backlog growing
+
+
+def test_uplink_leaves_hash_inner_flows_with_a_catch_all():
+    from stack5g import INNER_SPORT_AT, LEAF_HASH_BUCKETS
+    cell = _qos().net.get("cell_site").commands
+    for handle in ("10", "20", "30", "40"):
+        rules = [c for c in cell if f"parent {handle}: protocol all" in c]
+        joined = " ".join(rules)
+        assert f"hashkey mask 0x{LEAF_HASH_BUCKETS - 1:08x} at {INNER_SPORT_AT}" in joined
+        assert "prio 3 u32 match u32 0 0" in joined      # unmatched packets would be dropped
+        assert joined.count("flowid") == LEAF_HASH_BUCKETS + 2
+    assert not any("parent 10:" in c for c in _qos().net.get("upf_tap").commands)   # ogstun sees inner headers
+
+
+def test_a_dead_slice_is_a_breach_even_with_an_empty_queue_and_no_loss():
+    monitor = QoSViolationMonitor(load_thresholds())
+    dead = _snap(rtt=None)
+    dead["slice_qos"]["healthcare"]["delivered_mbps"] = 0.0
+    for tick in range(4):
+        result = monitor.observe(tick, dead, "normal", {s: 20.0 for s in SERVICES})
+    assert "unreachable" in result["healthcare"]["breaches"]
+    assert "healthcare" in monitor.persistent()
+
+
+def test_a_slice_that_stops_carrying_packets_is_caught_by_traffic_not_by_its_address():
+    from stack5g import dead_slices
+
+    class Tg:
+        def __init__(self, reply):
+            self.reply = reply
+
+        def cmd(self, _command):
+            return self.reply
+
+    class Net:
+        def get(self, name):
+            return Tg("0 received" if name == "tg_healthcare" else "64 bytes from 10.81.0.2: icmp_seq=1")
+
+    assert dead_slices(Net()) == ["healthcare"]
+
+
+def test_core_cloud_sends_from_its_service_address_on_either_backhaul():
+    from stack5g import CORE_DN_IP, Topology5G
+    topo = Topology5G.__new__(Topology5G)
+    topo.upf, topo.core = Recorder("upf_tap"), Recorder("dn_core")
+    topo.fiber_upf, topo.backup_upf, topo.fiber_core, topo.backup_core = "eth2", "eth0", "eth1", "eth0"
+    for path in ("primary", "backup"):
+        topo._route(path)
+    assert all(c.endswith(f"src {CORE_DN_IP}") for c in topo.core.commands) and len(topo.core.commands) == 2
 
 
 def test_a_flow_is_steered_at_both_points_and_can_be_reclassified():

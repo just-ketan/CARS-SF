@@ -32,9 +32,10 @@ from scheduler.env_dir import EVALUATED_SCENARIOS  # noqa: E402
 ARMS = {"no_slicing": ("no_slicing", "host"), "rules": ("qos_adaptive", "host"),
         "slicenet": ("qos_adaptive", "slicenet_all"), "full": ("closed_loop", "slicenet_all")}
 CLASSES = ("healthcare", "education", "agriculture", "general")
-SEEDS, DURATION, CAPACITY, PREFIX, PASS_SHARE = (40, 41, 42, 43, 44), 60, 100.0, "v32", 0.95
+SEEDS, DURATION, CAPACITY, PREFIX, PASS_SHARE = (50, 51, 52, 53, 54), 60, 100.0, "v32b", 0.95
 OUT, TABLES = RESULTS_DIR / "5g", RESULTS_DIR / "tables"
-ONLINE_CHECKPOINT = RESULTS_DIR / "5g" / "v32_online_checkpoint.json"
+VOID = RESULTS_DIR / "evidence" / "v32b_void"
+ONLINE_CHECKPOINT = RESULTS_DIR / "5g" / "v32b_online_checkpoint.json"
 
 
 def result_path(arm: str, scenario: str, seed: int) -> Path:
@@ -54,9 +55,28 @@ def execute():
                 if result_path(arm, str(scenario), seed).exists():
                     continue
                 scheduler, classification = ARMS[arm]
-                r = run_loop(str(scenario), scheduler, classification, DURATION, CAPACITY, seed, run_prefix=PREFIX,
-                             self_healing=arm != "no_slicing")
-                print(json.dumps({"run": r["run_id"], "records": r["records"], "enforcement": r["enforcement"]}), flush=True)
+                while True:
+                    learned = ONLINE_CHECKPOINT.read_text() if ONLINE_CHECKPOINT.exists() else None
+                    r = run_loop(str(scenario), scheduler, classification, DURATION, CAPACITY, seed, run_prefix=PREFIX,
+                                 self_healing=arm != "no_slicing")
+                    print(json.dumps({"run": r["run_id"], "records": r["records"], "enforcement": r["enforcement"],
+                                      "slices_lost": r["slices_lost"]}), flush=True)
+                    if not r["slices_lost"]:
+                        break
+                    void_run(r["run_id"], learned)
+
+
+def void_run(run_id: str, learned: str | None):
+    """A simulated radio link failed during the run: keep it aside, undo its learning, repeat it."""
+    VOID.mkdir(parents=True, exist_ok=True)
+    for path in OUT.glob(f"{run_id}.*"):
+        path.replace(VOID / path.name)
+    for path in OUT.glob(f"{run_id}__*"):
+        path.replace(VOID / path.name)
+    if learned is None:
+        ONLINE_CHECKPOINT.unlink(missing_ok=True)
+    else:
+        ONLINE_CHECKPOINT.write_text(learned)
 
 
 def load_runs() -> pd.DataFrame:
@@ -68,6 +88,8 @@ def load_runs() -> pd.DataFrame:
                 if not path.exists():
                     continue
                 r = json.loads(path.read_text())
+                if r["slices_lost"]:
+                    raise SystemExit(f"{path.name}: radio link lost, the run is void")
                 shares = {c: (r["slice_kpis"].get(c) or {}).get("sla_satisfied_share") for c in CLASSES}
                 known = [v for v in shares.values() if v is not None]
                 monitor = r["qos_monitor"]
